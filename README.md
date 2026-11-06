@@ -1,6 +1,6 @@
 # SmoothSailing
 
-Inspired by the legacy of `Movecraft` (By `Airship-Pirates/APDev`), and borrowing some code, and project layout from an early `BlockShips` (By user `def9a2a4`, on GitHub) version, outside of these two references, this largely is an independant, solo, project.
+Inspired by the legacy of `Movecraft` (By `Airship-Pirates/APDev`), and borrowing code, and project layout from an early `BlockShips` version (By user `def9a2a4`, on GitHub), outside of these two references, this largely is an independant, solo, project.
 
 
 
