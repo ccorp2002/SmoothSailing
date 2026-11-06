@@ -1,10 +1,9 @@
-package com.ccorp2002.smoothsailing.utils;
+package com.ccorp2002.smoothsailing.utils.displays;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.ccorp2002.smoothsailing.utils.Bone;
-import com.ccorp2002.smoothsailing.utils.Triple;
+import com.ccorp2002.smoothsailing.utils.objects.Triple;
 
 import java.util.*;
 

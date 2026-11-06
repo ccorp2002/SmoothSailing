@@ -266,66 +266,6 @@ public class BlockStructureScanner {
                name.contains("LANTERN") || FragileBlocks.isFragile(type);
     }
 
-    /**
-     * Serializes an inventory to a map that can be stored in YAML.
-     * Returns a list of maps, each containing slot index and serialized item.
-     */
-    public static java.util.List<Map<String, Object>> serializeInventory(org.bukkit.inventory.Inventory inv) {
-        java.util.List<Map<String, Object>> items = new java.util.ArrayList<>();
-        return items;
-    }
-
-    /**
-     * Deserializes an inventory from stored data.
-     * Returns an array of ItemStacks that can be set to an inventory.
-     */
-    public static org.bukkit.inventory.ItemStack[] deserializeInventory(java.util.List<Map<String, Object>> itemsData, int inventorySize) {
-        org.bukkit.inventory.ItemStack[] items = new org.bukkit.inventory.ItemStack[inventorySize];
-
-        return items;
-    }
-
-    /**
-     * Serializes a PlayerProfile to Base64 string.
-     */
-    public static String serializeProfile(com.destroystokyo.paper.profile.PlayerProfile profile) {
-        try {
-            // Get the texture property from the profile
-            java.util.Collection<com.destroystokyo.paper.profile.ProfileProperty> properties = profile.getProperties();
-            for (com.destroystokyo.paper.profile.ProfileProperty prop : properties) {
-                if ("textures".equals(prop.getName())) {
-                    return prop.getValue();  // This is already Base64
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    /**
-     * Deserializes a Base64 string back to a PlayerProfile.
-     */
-    public static com.destroystokyo.paper.profile.PlayerProfile deserializeProfile(String textureBase64) {
-        if (textureBase64 == null || textureBase64.isEmpty()) {
-            return null;
-        }
-
-        try {
-            // Create a new profile with a random UUID
-            com.destroystokyo.paper.profile.PlayerProfile profile =
-                org.bukkit.Bukkit.createProfile(java.util.UUID.randomUUID(), null);
-
-            // Add the texture property
-            profile.setProperty(new com.destroystokyo.paper.profile.ProfileProperty("textures", textureBase64));
-
-            return profile;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
     public static ShipModel scanForStructure(org.bukkit.entity.Player pilot, Location wheelLocation, BlockFace facing) {
         // Get max ship size from config
         SmoothSailingPlugin plugin = SmoothSailingPlugin.getInstance();
@@ -363,8 +303,8 @@ public class BlockStructureScanner {
         // Track ship bounds (for all blocks)
         float minY = Float.MAX_VALUE;
         float maxY = Float.MIN_VALUE;
-        float foundMax = Float.MIN_VALUE;
-        float foundMin = Float.MAX_VALUE;
+        float foundMin = minY;
+        float foundMax = maxY;
         // Process each detected block
         for (Location blockLoc : shipBlocks) {
             Block block = blockLoc.getBlock();

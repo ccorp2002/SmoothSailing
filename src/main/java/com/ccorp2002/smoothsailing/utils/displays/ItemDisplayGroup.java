@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.utils;
+package com.ccorp2002.smoothsailing.utils.displays;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -8,14 +8,11 @@ import org.bukkit.Location;
 import org.bukkit.entity.*;
 import org.bukkit.scheduler.BukkitRunnable;
 import com.ccorp2002.smoothsailing.SmoothSailingPlugin;
-import com.ccorp2002.smoothsailing.utils.Bone;
-import com.ccorp2002.smoothsailing.utils.Animation;
-import com.ccorp2002.smoothsailing.utils.KeyFrame;
 import com.ccorp2002.smoothsailing.utils.movement.TeleportSmooth;
 import com.ccorp2002.smoothsailing.utils.movement.Teleport;
 import com.ccorp2002.smoothsailing.utils.rotation.Rotate;
 import com.ccorp2002.smoothsailing.utils.rotation.RotateSmooth;
-import com.ccorp2002.smoothsailing.utils.Triple;
+import com.ccorp2002.smoothsailing.utils.objects.Triple;
 
 import java.io.File;
 import java.util.*;

@@ -168,7 +168,7 @@ public class ShipWheelManager {
             //driverSeat.add(facing.getOppositeFace().getModX(), -0.25, facing.getOppositeFace().getModZ());
             driverSeat.add(0.5,-0.75,0.5);
 
-            vehicle = CollisionEntity.addEntitySilent(driverSeat, org.bukkit.entity.Slime.class, false, s -> {
+            vehicle = ShipInstance.addEntity(driverSeat, org.bukkit.entity.Slime.class, s -> {
                 s.setAI(false);
                 s.setSilent(true);
                 if (s instanceof Mob m) m.setAware(false);
@@ -222,7 +222,6 @@ public class ShipWheelManager {
         ShipInstance ship = new ShipInstance(plugin, vehicle, model, vehicle.getUniqueId(), true);
         wheelData.setLastDetectedBlocks(new HashSet<Location>(model.blocks));
         wheelData.lastDetectedWeight = (int)ship.weightCalc;
-        ship.sourceModel = model;  // Store the model for disassembly
 
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
             ship.destroy();
@@ -294,7 +293,7 @@ public class ShipWheelManager {
             Class<? extends org.bukkit.entity.Entity> clazz = null;
             if (earlyIsAirship) clazz = org.bukkit.entity.Slime.class;
             else clazz = org.bukkit.entity.Slime.class;
-            vehicle = CollisionEntity.addEntitySilent(driverSeat, clazz, false, s -> {
+            vehicle = ShipInstance.addEntity(driverSeat, clazz, s -> {
                 s.setSilent(true);
                 if (s instanceof Mob m) m.setAware(false);
                 s.setGravity(false);
@@ -355,7 +354,6 @@ public class ShipWheelManager {
         final ShipInstance ship = new ShipInstance(plugin, vehicle, model, vehicle.getUniqueId());
         ShipListener.addTag(seat,(ShipListener.shipTag(ship.id)));
         ShipListener.addTag(seat,(ShipListener.COLLIDER_TAG));
-        ship.sourceModel = model;  // Store the model for disassembly
         ship.vehicle.setRotation(assemblyYaw,0f);
         ship.parent.setRotation(assemblyYaw,0f);
         ShipListener.addTag(vehicle,(ShipListener.shipTag(ship.id)));
@@ -459,11 +457,6 @@ public class ShipWheelManager {
             return false;
         }
         // Get the ship's model
-        ShipModel model = ship.sourceModel;
-        if (model == null) {
-            if (player != null) player.sendMessage("§cCannot disassemble this ship (no source model)!");
-            return false;
-        }
 
         // Align to grid first
         Entity actor = ship.vehicle;

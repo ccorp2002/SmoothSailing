@@ -96,6 +96,7 @@ import org.bukkit.util.BlockVector;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
 import com.ccorp2002.smoothsailing.utils.*;
+import com.ccorp2002.smoothsailing.utils.objects.*;
 import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
 import com.ccorp2002.smoothsailing.customships.ShipWheelData;
 import com.ccorp2002.smoothsailing.customships.ShipWheelManager;
@@ -323,7 +324,7 @@ public final class NmsUtils {
     public static final int UPDATE_NOTIFY = 3;
     public static final BlockData air = Bukkit.getServer().createBlockData("minecraft:air");
     public static Plugin PLUGIN = Bukkit.getPluginManager().getPlugin("SmoothSailing");
-    public static final RandomSource RANDOM = new RandomSourceWrapper(new java.util.Random());
+    public static final RandomSource RANDOM = new RandomSourceWrapper(ShipInstance.RANDOM);
     public static final net.minecraft.server.MinecraftServer MCS = net.minecraft.server.MinecraftServer.getServer();
     public static boolean HAS_CRAFT_ENGINE = false;
 
@@ -580,7 +581,7 @@ public final class NmsUtils {
       if (location.getWorld() == null) return null;
       ServerLevel level = ((CraftWorld) location.getWorld()).getHandle();
       if (!isMainThread())  {
-        WorldTask<org.bukkit.block.Block> runMe = new WorldTask<>(() ->{
+        WrappedCallable<org.bukkit.block.Block> runMe = new WrappedCallable<>(() ->{
             BlockPos position = locationToPosition(location);
             LevelChunk chunk = (LevelChunk) level.getChunkIfLoaded(position);
             if (chunk == null) chunk = (LevelChunk) level.getChunkAt(position);
@@ -689,13 +690,29 @@ public final class NmsUtils {
         return chunks;
     }
 
+    public static void removeChunksToLoad(org.bukkit.World world, Collection<org.bukkit.Chunk> list) {
+        if (world == null) return;
+        if (list == null) return;
+        for (org.bukkit.Chunk chunk : list) {
+            removeChunkToLoad(world, chunk);
+        }
+    }
+
+    public static void removeChunkToLoad(org.bukkit.World world, org.bukkit.Chunk pos) {
+        if (world == null) return;
+        if (pos == null) return;
+        if (world.isChunkLoaded((int)pos.getX(),(int)pos.getZ()) || world.isChunkForceLoaded((int)pos.getX(),(int)pos.getZ())) {
+            world.removePluginChunkTicket((int)pos.getX(),(int)pos.getZ(),SmoothSailingPlugin.getPlugin());
+            pos.setForceLoaded(false);
+            pos.unload(true);
+        }
+    }
+
+
     public static void removeChunksToLoad(org.bukkit.World world, Iterable<net.minecraft.world.level.ChunkPos> list) {
         if (world == null) return;
         if (list == null) return;
-        //if (SmoothSailingPlugin.DEBUG) {
-        //    SmoothSailingPlugin.getPlugin().getLogger().warning("Unloading Chunks: ("+list.toString()+")  (World: "+world.getName()+")");
-        //}
-        for (net.minecraft.world.level.ChunkPos chunk : com.google.common.collect.Sets.newHashSet(list)) {
+        for (net.minecraft.world.level.ChunkPos chunk : list) {
             removeChunkToLoad(world, chunk);
         }
     }

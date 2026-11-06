@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.utils;
+package com.ccorp2002.smoothsailing.utils.displays;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -9,10 +9,9 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.block.data.*;
 import org.bukkit.util.Transformation;
-import com.ccorp2002.smoothsailing.utils.ItemDisplayGroup;
 import com.ccorp2002.smoothsailing.utils.movement.Teleport;
 import com.ccorp2002.smoothsailing.utils.rotation.Rotate;
-import com.ccorp2002.smoothsailing.utils.Triple;
+import com.ccorp2002.smoothsailing.utils.objects.Triple;
 import org.joml.Vector3f;
 
 import java.util.*;

@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.utils;
+package com.ccorp2002.smoothsailing.utils.vectors;
 
 import java.lang.reflect.Array;
 import java.util.ArrayList;

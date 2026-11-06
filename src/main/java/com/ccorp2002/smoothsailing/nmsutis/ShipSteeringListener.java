@@ -22,17 +22,13 @@ import java.util.*;
 public class ShipSteeringListener {
     private static JavaPlugin plugin;
     private final ProtocolManager protocolManager;
-    private static final int[] emptyPassengers = new int[0];
-    public static final it.unimi.dsi.fastutil.ints.AbstractInt2ObjectMap<Entity> ents = new it.unimi.dsi.fastutil.ints.Int2ObjectArrayMap<>(100_000);
     public ShipSteeringListener(JavaPlugin plugin) {
         ShipSteeringListener.plugin = plugin;
         this.protocolManager = ProtocolLibrary.getProtocolManager();
-        ents.clear();
         registerListener();
     }
 
     public void registerListener() {
-        ents.clear();
         protocolManager.addPacketListener(
             new PacketAdapter(plugin, ListenerPriority.LOW,
                              com.comphenix.protocol.PacketType.Play.Client.STEER_VEHICLE) {

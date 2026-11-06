@@ -736,7 +736,7 @@ public class ShipListener implements Listener {
             final ShipInstance ship = state.getShip();
             if (ship != null) {
                 if (state.isDead()) continue;
-                if (ShipInstance.random.nextDouble() < 0.625) state.damage(3l);
+                if (ShipInstance.RANDOM.nextDouble() < 0.625) state.damage(3l);
                 else state.damage(1l);
                 e.blockList().remove(block);
                 if (!state.isDead()) NmsUtils.setBlockFast(block.getLocation(),state.state);
@@ -752,14 +752,13 @@ public class ShipListener implements Listener {
         final ShipInstance ship = state.getShip();
         if (ship != null) {
             if (state.isDead()) return;
-            if (ShipInstance.random.nextDouble() < 0.625) state.damage(3l);
+            if (ShipInstance.RANDOM.nextDouble() < 0.625) state.damage(3l);
             else state.damage(7l);
             if (!state.isDead()) {
                 NmsUtils.setBlockFast(block.getLocation(),state.state);
                 e.setCancelled(true);
             } else NmsUtils.setBlockFast(block.getLocation(),state.occupiedBlock);
             state.teleport(state.getLocation(),true);
-
         }
     }
 

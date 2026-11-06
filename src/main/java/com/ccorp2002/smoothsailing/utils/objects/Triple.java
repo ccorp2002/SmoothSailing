@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.utils;
+package com.ccorp2002.smoothsailing.utils.objects;
 
 import org.bukkit.Location;
 import org.joml.Vector3f;

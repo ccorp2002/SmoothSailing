@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.nmsutils;
+package com.ccorp2002.smoothsailing.utils.objects;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;

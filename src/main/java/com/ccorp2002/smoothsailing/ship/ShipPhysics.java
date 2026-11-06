@@ -4,6 +4,7 @@ import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ShipConfig;
 import com.ccorp2002.smoothsailing.ShipListener;
 import com.ccorp2002.smoothsailing.customships.*;
+import com.ccorp2002.smoothsailing.utils.vectors.*;
 import com.ccorp2002.smoothsailing.utils.rotation.*;
 import com.ccorp2002.smoothsailing.utils.movement.*;
 import com.ccorp2002.smoothsailing.utils.*;
@@ -178,6 +179,7 @@ public class ShipPhysics {
         if (medium == null) return ShipPhysics.VOID;
         return medium.getBlockDatas().getFirst();
     }
+
     public static BlockData getPrimaryMediumBlockAtBelowY(Collection<Block> BLOCKS, int y) {
         BLOCKS.removeIf(s -> s.getY() >= y+1);
         Map.Entry<String, Integer> maxEntry = getPrimaryMediumBlock(BLOCKS);
@@ -185,12 +187,14 @@ public class ShipPhysics {
         if (medium == null) return ShipPhysics.VOID;
         return medium.getBlockDatas().getFirst();
     }
+    
     public static BlockData getPrimaryMediumData(Collection<MobileBlockState> BLOCK_STATES) {
         Map.Entry<String, Integer> maxEntry = getPrimaryMedium(BLOCK_STATES);
         Medium medium = getMedium(maxEntry.getKey());
         if (medium == null) return ShipPhysics.VOID;
         return medium.getBlockDatas().getFirst();
     }
+
     public static Map.Entry<String, Integer> getPrimaryMediumBlock(Collection<Block> BLOCKS) {
         final Map<String,Integer> FLUID_COUNTER = new HashMap<>();
         for (Block STATE : BLOCKS) {
@@ -246,10 +250,13 @@ public class ShipPhysics {
         return dragMultiplier;
     }
 
-    public float getEngineSpeedFactor() {
+    public float getMaxEngineSpeedFactor() {
         if (ship == null) return ShipPhysics.MAX_SPEED;
-        float speedFactor = this.PER_MAX_SPEED;
-        int engines = ship.engineCount;
+        float speedFactor = 0.25f;
+        final double enginePercent = ship.engineCount / ship.initialEngineCount;
+        if (ship.engineCount > 0 && enginePercent >= 0.75d) {
+            speedFactor = Math.abs(this.PER_MAX_SPEED - (this.PER_MAX_SPEED * (float)(ship.blockCount / ship.engineCount)));
+        }
         return speedFactor;
     }
 
@@ -643,7 +650,7 @@ public class ShipPhysics {
                 VALUE.clear();
                 VALUE = new MobileBlockState.MobileStateSet(_COPY.length);
                 ((MobileBlockState.MobileStateSet)VALUE).setAll(_COPY);
-                this.ship.TRACKED_STATE_MAP.put(KEY,VALUE);
+                this.ship.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
                 if (INTERIOR) ship.sendSolids(VALUE);
             }
             ship.sendSolids();
@@ -670,11 +677,10 @@ public class ShipPhysics {
             double fy = 0d;
             double fz = 0d;
             if (hasVerticalMovement) {
-                if ((ship.isLandcraft || !ship.isAirship) && !ship.isSinking) currentYVelocity = CLAMP_VALUE(currentYVelocity, -3, 1);
-                fy = CLAMP_VALUE(currentYVelocity, -((PER_MAX_SPEED/2)+2), ((PER_MAX_SPEED/2)+2));
+                if ((ship.isLandcraft || !ship.isAirship) && !ship.isSinking) currentYVelocity = CLAMP_VALUE(currentYVelocity, -3, 3);
+                fy = Math.round(CLAMP_VALUE(currentYVelocity, (float)-((PER_MAX_SPEED/1.25)+2d), (float)((PER_MAX_SPEED/1.25)+2d)));
             }
             if (hasHorizontalMovement) {
-                if (ship.isLandcraft) currentSpeed = CLAMP_VALUE(currentSpeed, -3, 3);
                 fx = forwardX * (currentSpeed);
                 fz = forwardZ * (currentSpeed);
                 if (Math.abs(fx)<1) fx = 0;
@@ -884,7 +890,7 @@ public class ShipPhysics {
                 VALUE.clear();
                 VALUE = new MobileBlockState.MobileStateSet(_COPY.length);
                 ((MobileBlockState.MobileStateSet)VALUE).setAll(_COPY);
-                this.ship.TRACKED_STATE_MAP.put(KEY,VALUE);
+                this.ship.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
                 if (INTERIOR) ship.sendSolids(VALUE);
             }
             ship.sendSolids(ship.BLOCK_STATES);
@@ -1086,7 +1092,7 @@ public class ShipPhysics {
                 VALUE.clear();
                 VALUE = new MobileBlockState.MobileStateSet(_COPY.length);
                 ((MobileBlockState.MobileStateSet)VALUE).setAll(_COPY);
-                this.ship.TRACKED_STATE_MAP.put(KEY,VALUE);
+                this.ship.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
             }
             ship.sendSolids();
             ship.calculateBoundingBox();
@@ -1429,22 +1435,6 @@ public class ShipPhysics {
             z = (int)location.getZ();
         }
         return new Location(location.getWorld(),x,y,z);
-    }
-    public static double[] rotateFlat90NoRound(final String rotation, double x, double z) {
-        double theta;
-        if (rotation.equals("RIGHT")) {
-            theta = 0.5 * Math.PI;
-        } else if (rotation.equals("LEFT")) {
-            theta = -1 * 0.5 * Math.PI;
-        } else {
-            return new double[]{x, z};
-
-        }
-
-        double newX = (x * Math.cos(theta)) + (z * (-1 * Math.sin(theta)));
-        double newZ = (x * Math.sin(theta)) + (z * Math.cos(theta));
-
-        return new double[]{newX, newZ};
     }
 
     public Set<Location> getInteriorLocs() {

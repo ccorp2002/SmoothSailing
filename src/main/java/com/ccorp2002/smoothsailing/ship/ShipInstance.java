@@ -6,6 +6,7 @@ import com.ccorp2002.smoothsailing.event.*;
 import com.ccorp2002.smoothsailing.nmsutils.*;
 import com.ccorp2002.smoothsailing.customships.*;
 import com.ccorp2002.smoothsailing.blockconfig.*;
+import com.ccorp2002.smoothsailing.utils.displays.*;
 import org.bukkit.*;
 import org.bukkit.block.*;
 import org.bukkit.block.data.BlockData;
@@ -22,10 +23,12 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.*;
 
 public class ShipInstance {
     // Global physics config (loaded once from physics section)
+    public static final java.util.Random RANDOM = new java.util.Random();
     public static double MOVEMENT_THRESHOLD = 0.01;
     public static double ROTATION_THRESHOLD = 0.01;
     public static int IDLE_TICKS_BEFORE_STOP = 40;
@@ -35,7 +38,7 @@ public class ShipInstance {
     public boolean isSinking = false;
     public static final String HITBOX_KEY = "BLOCK_STATES";
     public MobileBlockState.MobileStateSet BLOCK_STATES = null;
-    public Map<Object, Set<MobileBlockState>> TRACKED_STATE_MAP = new Object2ObjectOpenHashMap<>(1024,0.75f);
+    public Map<Object, MobileBlockState.MobileStateSet> TRACKED_STATE_MAP = new Object2ObjectOpenHashMap<>(1024,0.75f);
     public static float waterDensity() {
         return (float) ShipPhysics.getMedium("water").baseDensity;
     }
@@ -44,6 +47,13 @@ public class ShipInstance {
         return (float) ShipPhysics.getMedium("void").baseDensity;
     }
     public static float airDensity = airDensity();
+
+    public static final org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason SPAWN_REASON = org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.CUSTOM;
+    public static <T extends org.bukkit.entity.Entity> T addEntity(Location loc, Class<T> clazz, Consumer<? super T> function) {
+      if (loc == null) return null;
+      if (loc.getWorld() == null) return null;
+      return loc.getWorld().spawn(loc,clazz,function,SPAWN_REASON);
+    }
 
     /**
      * Loads global physics config values from plugin config.
@@ -150,13 +160,10 @@ public class ShipInstance {
 
     // Airship mode flag - determined by density at construction
     public boolean isAirship = false;
+
+    // Landcraft mode flag - determined by future mechanics.
     public boolean isLandcraft = false;
 
-    // Custom ship support - for ships assembled from blocks
-    public ShipModel sourceModel = null;  // Original block model for disassembly
-
-    // Chunk tracking for persistence - updated on movement
-    public int currentChunkX, currentChunkZ;
 
     public int engineCount = 0;
     public int initialEngineCount = engineCount;
@@ -324,16 +331,6 @@ public class ShipInstance {
                 blockLoc.setYaw(fbannerYaw);
                 Location loc = blockLoc;
 
-
-                // Spawn collision shulker if this block has collision enabled
-                // Create spawn location with zero rotation (carriers never rotate)
-                //carrierSpawnLoc.setYaw(0);
-                //carrierSpawnLoc.setPitch(0);
-
-                // Use ArmorStand as carrier (smooth interpolation)
-
-                // Spawn shulker as passenger for physical collision
-                // Apply size scaling via generic.scale attribute
                 float shulkerSize = 1f;
                 double health = 2.5d;
                 final BlockProperties props = BlockConfigManager.getInstance().getProperties(block.getType(), blockData);
@@ -352,7 +349,7 @@ public class ShipInstance {
                     }
                     else seatLoc.setY(seatLoc.getY()+0.0125d);
                     loc = seatLoc;
-                    shulker = CollisionEntity.addEntitySilent(seatLoc, org.bukkit.entity.ItemDisplay.class, false, s -> {
+                    shulker = ShipInstance.addEntity(seatLoc, org.bukkit.entity.ItemDisplay.class, s -> {
                         if (s instanceof LivingEntity m) {
                             m.setAI(false);
                             m.setSilent(true);
@@ -381,13 +378,13 @@ public class ShipInstance {
                         } else if (s instanceof ItemDisplay its) {
                             if (!block_id.contains("PLAYER_")) {
                                 its.setItemStack(ItemStack.of(Material.TARGET));
-                                ScaleItemdisplay.SetSize(its,0.0625f,0.0625f,0.0625f);
+                                DisplayScale.setSize(its,0.0625f,0.0625f,0.0625f);
                                 its.setInvisible(true);
                                 ShipListener.addTag(s,ShipListener.seatTag(fseatIndex));
                             } else {
                                 PDCUtils.setPDC(its,"is_seat","false");
                                 its.setItemStack(ItemStack.of(Material.BLACK_WOOL));
-                                ScaleItemdisplay.SetSize(its,0.0625f,0.0625f,0.0625f);
+                                DisplayScale.setSize(its,0.0625f,0.0625f,0.0625f);
                                 its.setInvisible(true);
                             }
                             its.setViewRange(8f);
@@ -429,10 +426,9 @@ public class ShipInstance {
                             le.setHealth(fHealth);
                         }
                         s.setVisibleByDefault(true);
-                        CollisionEntity.setNoTick(s,false,false);
                     });
                 } else if (isRollingWheel) {
-                    shulker = CollisionEntity.addEntitySilent(loc, org.bukkit.entity.Minecart.class, false, s -> {
+                    shulker = ShipInstance.addEntity(loc, org.bukkit.entity.Minecart.class, s -> {
                         s.setSilent(true);
                         if (s instanceof Mob m) {
                             m.setAI(false);
@@ -487,7 +483,6 @@ public class ShipInstance {
                             le.setHealth(fHealth);
                         }
                         s.setVisibleByDefault(false);
-                        CollisionEntity.setNoTick(s,true,true);
                     });
                 }
                 if (dryFire) {
@@ -586,8 +581,6 @@ public class ShipInstance {
             this.previousYaw = vehicle.getYaw();
             this.previousPitch = vehicle.getPitch();
             // Initialize chunk tracking for persistence
-            this.currentChunkX = vehicle.getLocation().getBlockX() >> 4;
-            this.currentChunkZ = vehicle.getLocation().getBlockZ() >> 4;
             // Wait 1 tick for entities to spawn, then mount and start ticking
             if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) {
                 System.out.println("STARTING BLOCK COUNT: "+this.BLOCK_STATES.size());
@@ -660,12 +653,12 @@ public class ShipInstance {
                         public void run() {
                             // Check if chunk is loaded - if not, skip tick but don't destroy
                             if (vehicle.isDead() || !vehicle.isValid()) {
-                                destroyAndDropItem();
+                                destroy();
                                 return;
                             } else {
                                 Location loc = vehicle.getLocation();
                                 if (!loc.isChunkLoaded()) {
-                                    destroyAndDropItem();
+                                    destroy();
                                     return; // Chunk unloaded, suspend ship but don't destroy
                                 }
                             }
@@ -939,7 +932,7 @@ public class ShipInstance {
                 VALUE.clear();
                 VALUE = new MobileBlockState.MobileStateSet(_COPY.length);
                 ((MobileBlockState.MobileStateSet)VALUE).setAll(_COPY);
-                this.TRACKED_STATE_MAP.put(KEY,VALUE);
+                this.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
             }
             setProcessing(true);
             physics.currentRotationVelocity = 0.0f;
@@ -1079,12 +1072,6 @@ public class ShipInstance {
         // Check if ship moved to different chunk - update chunk index
         int newChunkX = currentVehicleLoc.getBlockX() >> 4;
         int newChunkZ = currentVehicleLoc.getBlockZ() >> 4;
-
-        if (currentChunkX != newChunkX || currentChunkZ != newChunkZ) {
-            currentChunkX = newChunkX;
-            currentChunkZ = newChunkZ;
-        }
-
         // Update previous state for next tick
         previousVehicleLocation = currentVehicleLoc.clone();
         previousYaw = yaw;
@@ -1117,16 +1104,16 @@ public class ShipInstance {
         return BLOCKS;
     }
 
-    public MobileBlockState.MobileStateSet getBlockDataAndTrack(String KEY, BlockData TEST) {
+    public MobileBlockState.MobileStateSet getBlockDataAndTrack(Object KEY, BlockData TEST) {
         final MobileBlockState.MobileStateSet BLOCKS = getBlockData(TEST);
         if (TEST == null || KEY == null) return BLOCKS;
         this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
         return BLOCKS;
     }
 
-    public MobileBlockState.MobileStateSet getBlockDatasAndTrack(String KEY, BlockData... TEST) {
+    public MobileBlockState.MobileStateSet getBlockDataAndTrack(Object KEY, BlockData... TEST) {
         final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(12500,0.75f);
-        if (TEST == null) return BLOCKS;
+        if (TEST == null || KEY == null) return BLOCKS;
         for (BlockData TESTED : TEST) {
             if (TESTED == null) continue;
             BLOCKS.addAll(getBlockData(TESTED));
@@ -1135,8 +1122,38 @@ public class ShipInstance {
         return BLOCKS;
     }
 
-    public MobileBlockState.MobileStateSet getBlockDatasAndTrack(String KEY, Collection<BlockData> TEST) {
-        return getBlockDatasAndTrack(KEY,TEST.toArray(BlockData[]::new));
+    public MobileBlockState.MobileStateSet getBlockDataAndTrack(Object KEY, Collection<BlockData> TEST) {
+        return getBlockDataAndTrack(KEY,TEST.toArray(BlockData[]::new));
+    }
+
+    public MobileBlockState.MobileStateSet setTrackedBlocks(Object KEY, Block... TEST) {
+        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
+        if (TEST == null || KEY == null) return BLOCKS;
+        for (Block TESTED : TEST) {
+            if (TESTED == null) continue;
+            MobileBlockState STATE = new MobileBlockState(TESTED);
+            STATE.setShip(this);
+            BLOCKS.add(STATE);
+        }
+        this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
+        return BLOCKS;
+    }
+
+    public MobileBlockState.MobileStateSet setTrackedBlocks(Object KEY, Collection<Location> TEST) {
+        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
+        if (TEST == null || KEY == null) return BLOCKS;
+        for (Location TESTED : TEST) {
+            if (TESTED == null) continue;
+            MobileBlockState STATE = new MobileBlockState(TESTED,false);
+            STATE.setShip(this);
+            BLOCKS.add(STATE);
+        }
+        this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
+        return BLOCKS;
+    }
+
+    public MobileBlockState.MobileStateSet getTrackedBlocks(Object KEY) {
+        return this.TRACKED_STATE_MAP.getOrDefault(KEY,new MobileBlockState.MobileStateSet(100,0.75f));
     }
 
 
@@ -1217,7 +1234,7 @@ public class ShipInstance {
         StringBuilder bar = new StringBuilder();
         String color = "§4";
 
-        bar.append("§6Engine Status: §r").append(color).append(" §r§e[§r");
+        bar.append("§6Engine Health: §r").append(color).append(" §r§e[§r");
         for (int i = 0; i < barLength; i++) {
             if (i < filledBars) {
                 bar.append(color).append("§l|");
@@ -1438,33 +1455,6 @@ public class ShipInstance {
                yawChange >= ROTATION_THRESHOLD ||
                pitchChange >= ROTATION_THRESHOLD;
     }
-
-    /**
-     * Deserializes a Base64 skull profile string into a PlayerProfile.
-     * Delegates to BlockStructureScanner for the actual implementation.
-     */
-    public static com.destroystokyo.paper.profile.PlayerProfile deserializeSkullProfile(String textureBase64) {
-        return com.ccorp2002.smoothsailing.customships.BlockStructureScanner.deserializeProfile(textureBase64);
-    }
-
-    /**
-     * Destroys the ship and drops the appropriate item at the ship's location.
-     * For custom ships (block assembly), drops a ship wheel item.
-     * For prefab ships, drops a ship kit with customization data.
-     * Called when ship health reaches 0.
-     */
-    public void destroyAndDropItem() {
-        if (this.vehicle == null) return;
-        destroy();
-    }
-
-    /**
-     * Destroys the ship and drops the appropriate item at the ship's location.
-     * For custom ships (block assembly), drops a ship wheel item.
-     * For prefab ships, drops a ship kit with customization data.
-     * Called when ship health reaches 0.
-     */
-    public static final java.util.Random random = new java.util.Random();
     
     public void sinkAndExplode() {
         this.isSinking = true;
@@ -1521,7 +1511,7 @@ public class ShipInstance {
                 //System.out.println("SINKING ITER: "+INDEX);
                 for (MobileBlockState state : BLOCK_STATES) {
                     if (state != null && !state.isDead()) {
-                        if (random.nextDouble() < 0.125) { // 12.5% chance
+                        if (RANDOM.nextDouble() < 0.125) { // 12.5% chance
                             explosionLocations.add(state.getLocation().clone());
                         }
                     }

@@ -4,9 +4,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
 import com.ccorp2002.smoothsailing.SmoothSailingPlugin;
-import com.ccorp2002.smoothsailing.utils.Bone;
-import com.ccorp2002.smoothsailing.utils.ItemDisplayGroup;
-import com.ccorp2002.smoothsailing.utils.Triple;
+import com.ccorp2002.smoothsailing.utils.displays.*;
+import com.ccorp2002.smoothsailing.utils.objects.*;
 
 public class Teleport {
 

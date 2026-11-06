@@ -2,9 +2,8 @@ package com.ccorp2002.smoothsailing.utils.rotation;
 
 import org.bukkit.Location;
 import org.bukkit.entity.Display;
-import com.ccorp2002.smoothsailing.utils.Bone;
-import com.ccorp2002.smoothsailing.utils.ItemDisplayGroup;
-import com.ccorp2002.smoothsailing.utils.Triple;
+import com.ccorp2002.smoothsailing.utils.displays.*;
+import com.ccorp2002.smoothsailing.utils.objects.*;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
@@ -79,7 +78,6 @@ public class Rotate2D {
     public static Location SetRotation(double angle, Location centerOfRotation, Location object, double offset) {
         angle = Math.toRadians(angle);
         double radius = Math.sqrt(Math.pow((centerOfRotation.getX()-object.getX()), 2) + Math.pow((centerOfRotation.getZ()-object.getZ()), 2));
-        //centerOfRotation.getWorld().sendMessage(Component.text(String.valueOf(radius)));
         offset = Math.toRadians(offset);
         object.setX(centerOfRotation.getX()+Math.cos(angle+offset)*radius);
         object.setZ(centerOfRotation.getZ()+Math.sin(angle+offset)*radius);

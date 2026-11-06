@@ -1,6 +1,6 @@
-package com.ccorp2002.smoothsailing.utils;
+package com.ccorp2002.smoothsailing.utils.displays;
 
-import com.ccorp2002.smoothsailing.utils.Triple;
+import com.ccorp2002.smoothsailing.utils.objects.Triple;
 
 public class KeyFrame {
 

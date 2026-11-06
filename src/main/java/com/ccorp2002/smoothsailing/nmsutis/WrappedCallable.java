@@ -5,12 +5,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-public class WorldTask<T> implements Runnable {
+public class WrappedCallable<T> implements Runnable {
 
     private final Callable<T> callable;
     private final CompletableFuture<T> future = new CompletableFuture<>();
 
-    public WorldTask(Callable<T> callable) {
+    public WrappedCallable(Callable<T> callable) {
         this.callable = callable;
     }
 
@@ -25,7 +25,7 @@ public class WorldTask<T> implements Runnable {
 
     public final T get() {
         try {
-            return future.get(30, TimeUnit.SECONDS);//.get();
+            return future.get(30, TimeUnit.SECONDS); //.get();
         } catch (Throwable ex) {
             throw new RuntimeException(ex);
         }

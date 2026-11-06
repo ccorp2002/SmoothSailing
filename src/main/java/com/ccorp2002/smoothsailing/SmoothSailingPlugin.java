@@ -113,14 +113,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
         } catch (Throwable thr) {}
 
         // Initialize ShipWheelManager for custom block ships and load saved wheels
-        for (World world : Bukkit.getWorlds()) {
-            world.getForceLoadedChunks().forEach(chunk -> {
-                chunk.setForceLoaded(false);
-            });
-        }
         getLogger().info("SmoothSailing enabled.");
-
-        int removedCount = 0;
 
         // First destroy all registered ships (cleans up properly)
         int shipCount = ShipRegistry.getAllShips().size();
@@ -131,36 +124,41 @@ public class SmoothSailingPlugin extends JavaPlugin {
             for (Entity entity : world.getEntities()) {
                 if (ShipListener.isShipEntity(entity.getPersistentDataContainer())) {
                     entity.remove();
-                    removedCount++;
                 }
                 if (ShipListener.isChair(entity)) {
                     entity.remove();
-                    removedCount++;
                 }
             }
         }
         getLogger().info("Cleared " + shipCount + " stale Ship(s) & Ship-Entities");
+
+        int removedCount = 0;
+        for (World world : Bukkit.getWorlds()) {
+            removedCount+=world.getForceLoadedChunks().size();
+            NmsUtils.removeChunksToLoad(world,world.getForceLoadedChunks());
+        }
+        getLogger().info("Cleared " + removedCount + " force-loaded chunks");
     }
 
     @Override
     public void onDisable() {
-        // Save ship wheels before shutdown
-        TaskUtils.cancelTasks();
+        ShipRegistry.destroyAll();
+        
+        int removedCount = 0;
+
         for (World world : Bukkit.getWorlds()) {
-            com.ccorp2002.smoothsailing.nmsutils.NmsUtils.resetBlocks(world);
-            world.getForceLoadedChunks().forEach(chunk -> {
-                chunk.setForceLoaded(false);
-            });
+            removedCount+=world.getForceLoadedChunks().size();
+            NmsUtils.removeChunksToLoad(world,world.getForceLoadedChunks());
         }
+
+        TaskUtils.cancelTasks();
+
+        getLogger().info("Cleared " + removedCount + " force-loaded chunks");
+        
         if (this.CLAIM_INTEFACES != null) this.CLAIM_INTEFACES.clear();
-        for (ShipWheelData wheelData : new java.util.ArrayList<>(shipWheelManager.getWheels())) {
-            if (wheelData.isAssembled()) {
-                // Pass null for player - messages not needed for batch operation
-                shipWheelManager.disassembleShip(null, wheelData, true);
-            }
-        }
+        
         for (ShipInstance ship : ShipRegistry.getAllShips()) {
-            ship.destroyAndDropItem();
+            ship.destroy();
             ShipRegistry.unregister(ship);
         }
 
@@ -170,7 +168,6 @@ public class SmoothSailingPlugin extends JavaPlugin {
         if (displayShip != null) {
             displayShip.shutdown();
         }
-        if (steeringListener != null) ShipSteeringListener.ents.clear();
         steeringListener = null;
         shipWheelManager = null;
         displayShip = null;
