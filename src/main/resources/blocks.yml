@@ -1,0 +1,610 @@
+## BLOCK ENTRY-FORMATTING INFO:
+# block_name: #(Or "#block_tag", "*_block" <-(Wildcard))
+#   allowed: true/false # (Boolean - Optional; Defaults to `false` if not provided)
+#                # Any block that is intended to be apart of any ship class, must be specified here.
+#
+#   seat: true/false # (Boolean - Optional; Defaults to `false` if not provided)
+#                # Allows an entity to be mounted to the block as to not get possibly crushed by the ship while it moves.
+#                # Players may also sit on these blocks, if the block is part of a vehicle.
+#                # Also serves as a means to "register" a sitting player as a passenger to a ship.
+#
+#   turret_base: true/false # (Boolean - Optional; Defaults to `false` if not provided)
+#                # Prevents Subsegment from sticking to these blocks.
+#                # Useful as a sort of "buffer" to protect a larger ship from getting torn apart by its Turret/Subsegment.
+#
+#   weight: Any Number # (Decimal values work - Required; may be set to `null` to be effectively ignored)
+#                # Normally every block has a weight value, setting to `null` means the block will not be factored into the block count of a ship.
+#                # Whereas setting the block to `0.0` will still count the towards the total blocks and weight (Although since the weight is `0.0`, it wont matter).
+#                # Positive Weights make a given vehicle heavier and thus, more likely when assembled, to not fly, Negative Weights do the inverse, and adds "passive lift".
+#                #
+#                # (TLDR; This sets a block-type's weight/lift value.)
+#
+#   health: Positive Number # (Decimal values work - Optional; Default explaind below)
+#                # This option defines how much health a given block has and provides to its Ship. If not specified, the amount of health is determined, in part, by a function of the Block's Weight.
+#                # Once a block aboard a vehicle loses all its health (At or below 0), the ship gets dealt damage following this equation (`Ship's Current Health - (Block's Max Health + 5)`).
+#                # The block then gets converted into whatever Fluid Medium it had occupied before (`Air/Water`).
+#                # The initial health of each block gets added up into the Ship's overall HP Pool, however the Ship's HP only decreases when block gets broken.
+#                #
+#                # (TLDR; This sets a block-type's max health.)
+# 
+# 
+# 
+##
+
+# ANVILS FUNCTION AS ANCHORS/SHIP LOCKS, AND PREVENT ANY SHIP FROM PILOTING IF ONE IS CONNECTED.
+# (ALLOWED MUST BE SET TO `true` FOR THIS TO TAKE EFFECT)
+anvil:
+  allowed: true
+  weight: 3000
+
+"*_anvil":
+  allowed: true
+  weight: 3000
+
+# STANDARD/COMMONLY FORBIDDEN BLOCKS (CREATIVE & INDESTRUCTIBLE BLOCKS)
+crying_obsidian:
+  allowed: false
+obsidian:
+  allowed: false
+end_portal_frame:
+  allowed: false
+end_portal:
+  allowed: false
+nether_portal:
+  allowed: false
+structure_block:
+  allowed: false
+command_block:
+  allowed: false
+reinforced_deepslate:
+  allowed: false
+bedrock:
+  allowed: false
+
+
+note_block:
+# ENABLE IF CUSTOM-BLOCK PLUGIN IS INSTALLED
+# (CURRENTLY SEMI-COMPATIBLE: CRAFTENGINE - Others Unknown)
+  allowed: false
+  weight: 5
+
+# DEFAULT TURRET-BASE MATERIALS
+polished_blackstone:
+  allowed: true
+  turret_base: true
+  weight: 7.0
+  health: 5
+polished_deepslate:
+  allowed: true
+  turret_base: true
+  weight: 7.0
+  health: 5
+chiseled_deepslate:
+  allowed: true
+  turret_base: true
+  weight: 7.0
+  health: 5
+
+
+# DEFAULT SEAT MATERIALS
+"#banners":
+  allowed: true
+  weight: -1.25
+  health: 1.0625
+
+"#wool_carpets":
+  allowed: true
+  seat: true
+  weight: -0.25
+  health: 1.0625
+
+"*_carpet":
+  allowed: true
+  seat: true
+  weight: -0.25
+  health: 1.0625
+target:
+  allowed: true
+  weight: 0.125
+  seat: true
+
+# DEFAULT LIFT MATERIALS
+glowstone:
+  allowed: true
+  weight: -7
+  health: 5
+
+
+sea_lantern:
+  allowed: true
+  weight: -7
+  health: 5
+
+
+beacon:
+  allowed: true
+  weight: -75
+  health: 15
+  
+
+ochre_froglight:
+  allowed: true
+  weight: -5
+  health: 3
+
+  
+
+pearlescent_froglight:
+  allowed: true
+  weight: -5
+  health: 3
+
+  
+
+verdant_froglight:
+  allowed: true
+  weight: -5
+  health: 3
+
+  
+
+redstone_block:
+  allowed: true
+  weight: -5
+  health: 3
+
+
+end_rod:
+  allowed: true
+  weight: 0
+  health: 1
+
+"#wool":
+  allowed: true
+  weight: -2.5
+  health: 2
+  
+  
+
+magma_block:
+  allowed: true
+  weight: -1.5
+  health: 1
+
+soul_campfire:
+  allowed: true
+  weight: -0.25
+  health: 2
+
+campfire:
+  allowed: true
+  weight: -0.5
+  health: 2
+# STORAGE BLOCKS
+"*copper_chest":
+  allowed: true
+  health: 30
+  weight: 15
+hopper:
+  allowed: true
+  weight: 6
+  health: 3
+trapped_chest:
+  allowed: true
+  weight: 5
+  health: 3
+dispenser:
+  allowed: true
+  weight: 7
+  health: 3
+dropper:
+  allowed: true
+  weight: 5
+  health: 3
+chest:
+  allowed: true
+  weight: 6.25
+  health: 7.5
+barrel:
+  allowed: true
+  weight: 7.5
+  health: 10
+
+bookshelf:
+  allowed: true
+  weight: 0.5
+
+"*_shelf":
+  allowed: true
+  weight: 0.25
+  
+
+# EVERYTHING ELSE
+"#glazed_terracotta":
+  allowed: true
+  weight: 9
+  health: 7
+
+"*terracotta":
+  allowed: true
+  weight: 7
+  health: 5
+
+"#planks":
+  allowed: true
+  weight: 0.125
+  health: 0.5
+
+"#wooden_slabs":
+  allowed: true
+  weight: 0.0125
+  health: 0.5
+
+"*_wood":
+  allowed: true
+  weight: 0.125
+  health: 0.5
+"stripped_*":
+  allowed: true
+  weight: 0.125
+  health: 0.5
+"*_log":
+  allowed: true
+  weight: 0.125
+  health: 0.5
+
+"#logs":
+  allowed: true
+  weight: 0.125
+  health: 0.5
+
+tripwire_hook:
+  allowed: true
+  weight: 0.0
+
+
+"#slabs":
+  allowed: true
+  weight: 1.25
+  health: 2.5
+
+
+"#stairs":
+  allowed: true
+  weight: 1.25
+  health: 2.5
+
+"*_fence":
+  allowed: true
+  weight: 0.125
+  health: 1.25
+
+"*_fence_gate":
+  allowed: true
+  weight: 0.125
+  health: 1.25
+  
+
+"*_door":
+  allowed: true
+  weight: 0.125
+  health: 1.25
+  
+
+"*_trapdoor":
+  allowed: true
+  weight: 0.25
+  health: 5
+  
+
+"*_button":
+  allowed: true
+  weight: 0
+  health: 1
+  
+
+"*_pressure_plate":
+  allowed: true
+  weight: 0
+  health: 1.25
+iron_block:
+  allowed: true
+  weight: 27.5
+  health: 10
+  
+
+iron_bars:
+  allowed: true
+  weight: 6.25
+  health: 10
+  
+
+iron_chain:
+  allowed: true
+  weight: 2.75
+  health: 7
+  
+  
+
+iron_trapdoor:
+  allowed: true
+  weight: 2.75
+  health: 7
+
+iron_door:
+  allowed: true
+  weight: 1.75
+  health: 7
+  
+"*_copper_bars":
+  allowed: true
+  weight: 1.75
+  
+"*_copper_bar":
+  allowed: true
+  weight: 1.75
+  
+"*_copper_chain":
+  allowed: true
+  weight: 1.75
+  
+"*copper_block":
+  allowed: true
+  weight: 5
+  
+
+"copper_*":
+  allowed: true
+  weight: 5
+
+"#copper":
+  allowed: true
+  weight: 5
+
+"*_copper_bulb":
+  allowed: true
+  weight: 2.5
+  
+
+"#copper_grates":
+  allowed: true
+  weight: 1.75
+
+"*_copper_door":
+  allowed: true
+  weight: 1.125
+  
+polished_blackstone:
+  allowed: true
+  turret_base: true
+  weight: 7.0
+  health: 5
+
+"*_copper_trapdoor":
+  allowed: true
+  weight: 1.75
+  
+
+"*_rod":
+  allowed: true
+  weight: 1.125
+
+gold_block:
+  allowed: true
+  weight: 22.5
+  
+
+diamond_block:
+  allowed: true
+  weight: 25
+  
+
+emerald_block:
+  allowed: true
+  weight: 11.25
+  
+
+lapis_block:
+  allowed: true
+  weight: 12.5
+  
+
+raw_iron_block:
+  allowed: true
+  weight: 6.25
+  
+
+raw_copper_block:
+  allowed: true
+  weight: 1.25
+  
+
+raw_gold_block:
+  allowed: true
+  weight: 0.50
+  
+redstone_wire:
+  allowed: true
+  weight: 0.5
+  
+
+redstone_torch:
+  allowed: true
+  weight: 0.5
+  
+
+redstone_wall_torch:
+  allowed: true
+  weight: 0.5
+  
+
+repeater:
+  allowed: true
+  weight: 0.5
+  
+
+comparator:
+  allowed: true
+  weight: 0.5
+  
+
+observer:
+  allowed: true
+  weight: 0.5
+  
+
+lever:
+  allowed: true
+  weight: 0.5
+  
+
+furnace:
+  allowed: true
+  weight: 5
+  
+
+blast_furnace:
+  allowed: true
+  weight: 7
+
+smoker:
+  allowed: true
+  weight: 3
+  
+  
+
+"*shelf":
+  allowed: true
+  weight: 3
+
+"*cauldron":
+  allowed: true
+  weight: 0.55
+
+grindstone:
+  allowed: true
+  weight: 2.25
+
+glass:
+  allowed: true
+  weight: 0.325
+  
+
+"*_stained_glass":
+  allowed: true
+  weight: 0.325
+  
+
+tinted_glass:
+  allowed: true
+  weight: 1.5
+  
+
+glass_pane:
+  allowed: true
+  weight: 0.125
+  
+
+"*_stained_glass_pane":
+  allowed: true
+  weight: 0.125
+
+"*table":
+  allowed: true
+  weight: 2
+"*stand":
+  allowed: true
+  weight: 2
+  
+  
+
+loom:
+  allowed: true
+  weight: 2
+  
+  
+
+smithing_table:
+  allowed: true
+  weight: 5
+
+stonecutter:
+  allowed: true
+  weight: 3
+
+lectern:
+  allowed: true
+  weight: 3
+"*torch":
+  allowed: true
+  weight: 0.125  
+
+lantern:
+  allowed: true
+  weight: 0.5
+  
+
+"*_lantern":
+  allowed: true
+  weight: 0.5
+  
+
+"#signs":
+  allowed: true
+  weight: 0
+  
+
+"#all_hanging_signs":
+  allowed: true
+  weight: 0
+
+"*_head":
+  allowed: true
+  weight: 0
+
+"*_skull":
+  allowed: true
+  weight: 0
+  
+"#walls":
+  allowed: true
+  weight: 3
+
+"*_wall":
+  allowed: true
+  weight: 3
+
+end_stone:
+  allowed: true
+  weight: 75
+  health: 25
+  
+
+
+end_stone_bricks:
+  allowed: true
+  weight: 30
+  health: 15
+  
+
+ladder:
+  allowed: true
+  weight: 0.5
+
+
+brewing_stand:
+  allowed: true
+  weight: 7.5
+
+"*nether_brick":
+  allowed: true
+  weight: 4.5
+
+tripwire:
+  allowed: true
+  weight: 0
+  health: 1
+
+"purpur_*":
+  allowed: true
+  weight: 5

@@ -1,0 +1,37 @@
+name: SmoothSailing
+main: com.ccorp2002.smoothsailing.SmoothSailingPlugin
+version: ${version}
+api-version: 1.21
+author: C_Corp2002
+description: "SmoothSailing - Working Block-based ships for all!"
+softdepend: [ProtocolLib, CraftEngine, Towny, WorldGuard, Cannons]
+commands:
+  smoothsailing:
+    description: SmoothSailing plugin commands
+    usage: |
+      /smoothsailing reload - Reload the plugin configuration
+      /smoothsailing cruise - Forces your SmoothSailing Ship to move forwards for a period of time.
+      /smoothsailing release - Releases/unpilots your SmoothSailing Ship(s)
+      /smoothsailing releaseall - Releases/unpilots all SmoothSailing Ships
+    permission: smoothsailing.admin
+  release:
+    usage: Same as /smoothsailing reload - Releases/unpilots your SmoothSailing Ship(s)
+    aliases: ["unpilot"]
+    permission: smoothsailing.release
+
+permissions:
+  smoothsailing.release:
+    description: Allows remotely unpiloting a ship
+    default: true
+  smoothsailing.releaseall:
+    description: Allows unpiloting all active ships (admin command)
+    default: op
+  smoothsailing.cruise:
+    description: Makes the executor's piloted ship cruise for x movements
+    default: op
+  smoothsailing.reload:
+    description: Allows reloading the plugin configuration
+    default: op
+  smoothsailing.admin:
+    description: Allows all admin commands (reload, releaseall)
+    default: op

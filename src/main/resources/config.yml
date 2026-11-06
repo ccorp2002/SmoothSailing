@@ -1,0 +1,38 @@
+# SmoothSailing Plugin Configuration (Stripped down from BlockShips' Config)
+
+water-level: 63  # Default/fallback water-level, if none is automatically found for a sailing ship.
+#^ May eventually be migrated to a per-world option, with this as a fallback, but not yet.
+max-ship-size: 28500  # Maximum number of blocks in a ship.
+max-scan-size: 28700  # Maximum blocks to scan when ship hits the above limit (for reporting actual size.)
+
+# Buoyancy system - weight-based floating
+# Ships float based on their density (total weight / block count) compared to water density
+# - Density < water: floats higher (surface offset increases)
+# - Density = water: neutral (floats at water surface)
+# - Density > water: sinks lower (surface offset decreases, eventually sinks)
+buoyancy:
+  # Reference density of air (ships lighter than this become airships)
+  air-density: -0.25
+  # Reference density of water (ships lighter than this become sailing ships)
+  water-density: 10.0
+# See `blocks.yml` to further understand block configurations, and how they impact a ships function.
+
+
+# Compatibility Options
+towny:
+  allied:
+    can-pilot-blocks: true
+    can-passthrough: true
+  trusted:
+    can-pilot-blocks: false
+    can-passthrough: true
+  outsider:
+    can-pilot-blocks: false
+    can-passthrough: true
+  enemy:
+    can-pilot-blocks: false
+    can-passthrough: true
+worldguard:
+  enabled: true
+debug:
+  enabled: false
