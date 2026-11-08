@@ -190,6 +190,8 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
                 return bmb.equals(amb);
             } else if (a instanceof Location amb && b instanceof Location bmb) {
                 return hashCode(bmb) == hashCode(amb);
+            } else if (a instanceof Block amb && b instanceof Block bmb) {
+                return hashCode(bmb.getLocation()) == hashCode(amb.getLocation());
             } else if (a instanceof Block amb) {
                 return this.equals(amb.getLocation(),b);
             } else if (b instanceof Block bmb) {
@@ -439,6 +441,13 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         } else {
             inv = null;
         }
+        if (NmsUtils.HAS_CRAFT_ENGINE && ship != null) {
+            NmsUtils.runOnMain(()->{
+                final org.bukkit.persistence.PersistentDataContainer pdcC = CEUtils.getCEBlockPDC(origin);
+                ShipMovePDCEvent pdcEvent = new ShipMovePDCEvent(ship,ship.vehicle,pdcC,origin.getBlock(),floc.getBlock());
+                pdcEvent.callEvent();
+            });
+        }
         NmsUtils.setBlockFast(floc,this.state);
         if (this.isDead()) {
             if (NmsUtils.HAS_CRAFT_ENGINE) CEUtils.INSTANCE.removeCEBlock(floc,false,true);
@@ -447,11 +456,6 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         if (this.tile != null) {
             this.tile.tilePosition = position;
             this.tile.newPosition = newPosition;
-            if (NmsUtils.HAS_CRAFT_ENGINE && ship != null) {
-                final org.bukkit.persistence.PersistentDataContainer pdcC = CEUtils.getCEBlockPDC(origin);
-                ShipMovePDCEvent pdcEvent = new ShipMovePDCEvent(ship,ship.vehicle,pdcC,origin.getBlock(),floc.getBlock());
-                pdcEvent.callEvent();
-            }
             final NmsUtils.TileHolder mutated = NmsUtils.moveReturnBlockEntity(floc,this.tile,this.state);
             if (mutated != null) this.tile = mutated;
             else this.tile = NmsUtils.createTileHolder(floc);
@@ -537,7 +541,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         }
         this.health = hp;
         if (isDead()) {
-            if (SmoothSailingPlugin.shipListener().isShipWheelBlock(this.getAsBlock()) && getShip() != null) {
+            if (SmoothSailingPlugin.shipListener().isShipWheelBlock(this.getBlock()) && getShip() != null) {
                 getShip().destroy();
                 return;
             }
@@ -545,7 +549,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
                 ShipInstance.updateDamagedBlock(ship,this);
             }
             if (this.tile != null) {
-                this.getAsBlock().breakNaturally(true);
+                this.getBlock().breakNaturally(true);
                 this.tile = null;
             }
             NmsUtils.setBlockFast(vector.toLocation(),occupiedBlock);
@@ -561,7 +565,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         this.state = ((CraftBlockData) data).getState();
     }
 
-    public Block getAsBlock() {
+    public Block getBlock() {
         return getLocation().getBlock();
     }
 
@@ -605,7 +609,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         if (this.state == null) return ShipPhysics.VOID;
         if (getShip() != null && !getShip().CHANGE_WORLD) {
             NmsUtils.runTaskInWorld(this.getLocation(),()->{
-                getAsBlock().getState(false).update(false,false);
+                getBlock().getState(false).update(false,false);
             });
         }
         BlockState otherState = NmsUtils.getBlockFaster(this.getLocation());

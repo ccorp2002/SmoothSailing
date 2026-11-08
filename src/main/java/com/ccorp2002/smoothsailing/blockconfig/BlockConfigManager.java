@@ -138,9 +138,8 @@ public class BlockConfigManager {
         boolean turretBase = config.getBoolean("turret_base", false);
         boolean engine = config.getBoolean("engine", false);
         boolean seat = config.getBoolean("seat", false);
-        boolean leadable = false;
         BlockProperties props = new BlockProperties(allowed, weight, seat, baseHealth, new ArrayList<BlockProperties.ConditionalRule>());
-        props.isEngine = engine;
+        props.setIsEngine(engine);
         props.setIsTurretBase(turretBase);
         applyToMaterials(key, props);
     }
@@ -316,7 +315,9 @@ public class BlockConfigManager {
 
     private Set<Material> resolveTag(String tagName) {
         try {
-            NamespacedKey key = NamespacedKey.minecraft(tagName.toLowerCase());
+            NamespacedKey key;
+            if (tagName.contains(":")) key = NamespacedKey.fromString(tagName.toLowerCase(Locale.ENGLISH));
+            else key = NamespacedKey.minecraft(tagName.toLowerCase(Locale.ENGLISH));
             Tag<Material> tag = Bukkit.getTag(Tag.REGISTRY_BLOCKS, key, Material.class);
 
             if (tag != null) {

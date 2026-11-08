@@ -9,6 +9,37 @@ import org.joml.Vector3f;
 
 public class Rotate {
 
+
+
+    public static boolean isMultipleOf22_5(double number) {
+        // Multiply by 10 to handle one decimal place: 22.5 -> 225
+        if (number == 0.0d) return false;
+        int intNumber = (int) Math.round(number * 10);
+        return intNumber % 225 == 0;
+    }
+    public static boolean isMultipleOf90_0(double number) {
+        // Multiply by 10 to handle one decimal place: 90.0 -> 900
+        if (number == 0.0d) return false;
+        int intNumber = (int) Math.round(number * 10);
+        return intNumber % 900 == 0;
+    }
+    public static int getMultipleOf90_0(double number) {
+        // Multiply by 10 to handle one decimal place: 90.0 -> 900
+        if (number == 0.0d) return -1;
+        int intNumber = (int) Math.round(number * 10);
+        int multiple = intNumber % 900;
+        if (multiple < 0) return -1;
+        return multiple;
+    }
+    public static int countDivisions(double a, double b) {
+        if (b < 2d) return 0; // Avoid infinite loops
+        int count = 0;
+        while (a % b == 0) {
+            a /= b;
+            count++;
+        }
+        return count;
+    }
     /**
      *
      * Sets the rotation of an ItemDisplayGroup around all 3 axis using a 4x4 matrix.

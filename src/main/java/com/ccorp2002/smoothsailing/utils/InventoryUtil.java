@@ -1,25 +1,113 @@
 package com.ccorp2002.smoothsailing.utils;
 
+
+
+import com.ccorp2002.smoothsailing.ship.ShipInstance;
+import com.ccorp2002.smoothsailing.utils.objects.Pair;
+import com.ccorp2002.smoothsailing.ship.MobileBlockState;
+
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.ChatColor;
+import org.bukkit.block.Block;
+import org.bukkit.block.Container;
+import org.bukkit.block.TileState;
+import org.bukkit.block.BlockState;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.components.CustomModelDataComponent;
 
+import java.util.Map;
 import java.util.List;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.logging.Logger;
 
-/** Small inventory & itemstack helpers for use in a future fuel system. */
+/** Small inventory & itemstack helpers for use in a future fuel & fuel item system. */
 public final class InventoryUtil {
 
     private InventoryUtil() {}
+    public static final Map<String,FuelType> FUEL_TYPES = new HashMap<>();
+    public static final String COAL_POWER_KEY = "__coal__"; // default fuel type
+    public static final String FUEL_KEY = "__fuel__";
+    static {
+        FuelType COAL_POWER = new FuelType();
+        COAL_POWER.id = COAL_POWER_KEY;
+        COAL_POWER = COAL_POWER.addFuelItem(ItemStack.of(Material.COAL));
+        COAL_POWER = COAL_POWER.addFuelItem(ItemStack.of(Material.CHARCOAL));
+        FUEL_TYPES.put(COAL_POWER_KEY,COAL_POWER);
 
+    }
+
+    public static MobileBlockState.MobileStateSet getDefaultFuelBlocks(ShipInstance ship) {
+        if (ship == null) return new MobileBlockState.MobileStateSet(0);
+        return ship.getMaterialAndTrack(FUEL_KEY,Material.FURNACE);
+    }
+
+    public static FuelType getFuelType(String id) {
+        if (id == null || id.isEmpty()) return null;
+        for (FuelType ft : FUEL_TYPES.values()) {
+            if (ft.id.equalsIgnoreCase(id)) return ft;
+        }
+        return null;
+    }
+    public static FuelType getFuelType(ItemStack data) {
+        if (data == null || data.isEmpty()) return null;
+        for (FuelType ft : FUEL_TYPES.values()) {
+            if (ft.isItemFuel(data)) return ft;
+        }
+        return null;
+    }
+
+    public static Pair<FuelType,ItemStack> getFuelType(Inventory inv) {
+        if (inv == null) return null;
+        if (inv.isEmpty()) return null;
+        for (ItemStack item : inv) {
+            FuelType fuel = getFuelType(item);
+            if (fuel != null) return new Pair<FuelType,ItemStack>(fuel,item);
+        }
+        return null;
+    }
+
+    public static boolean doBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner) {
+        if (ship == null) return false;
+        if (fuelBurner == null) fuelBurner = checkFuelTypeToBurn(ship);
+        if (fuelBurner != null) {
+            Pair<FuelType,ItemStack> fuel = fuelBurner.getLeft();
+            Inventory source = fuelBurner.getRight();
+            FuelType type = fuel.getLeft();
+            if (ShipInstance.RANDOM.nextDouble() >= type.burnChance) {
+                return true;
+            } else {
+                ItemStack toBurn = fuel.getRight().asOne();
+                return !reduceItemStack(source,toBurn,type.burnRate).isEmpty();
+            }
+        } else return false;
+    }
+
+    public static Pair<Pair<FuelType,ItemStack>,Inventory> checkFuelTypeToBurn(ShipInstance ship) {
+        if (ship == null) return null;
+        Pair<FuelType,ItemStack> fuel = null;
+        MobileBlockState.MobileStateSet STATES = ship.getTrackedBlocks(FUEL_KEY);
+        for (MobileBlockState state : STATES) {
+            if (state == null || state.isDead()) continue;
+            if (state.getBlock().getState(false) instanceof Container holder) {
+                final Inventory inv = holder.getInventory();
+                fuel = getFuelType(inv);
+                if (fuel != null) return new Pair(fuel,inv);
+            }
+        }
+        return null;
+    }
     public static ItemStack reduceItemStack(ItemStack stack, int amntChange) {
-        if (stack.getAmount() > 1) {
+        if (stack == null || stack.isEmpty()) return ItemStack.empty();
+        if (stack.getAmount() > 0) {
             int amount = stack.getAmount();
             amntChange *= -1;
             if (amount + amntChange > 0) {
@@ -33,6 +121,30 @@ public final class InventoryUtil {
         return stack;
     }
 
+    public static ItemStack reduceItemStack(final Inventory inv, ItemStack check, int amntChange) {
+        if (inv == null || inv.isEmpty()) return check;
+        else if (check == null || check.isEmpty()) return ItemStack.empty();
+        int index = getItemIndex(inv,check);
+        if (index == -1) return ItemStack.empty();
+        ItemStack reduced = reduceItemStack(check.clone(),amntChange);
+        inv.setItem(index, reduced);
+        return reduced;
+    }
+
+
+    public static int getItemIndex(final Inventory inv, ItemStack check) {
+        if (inv == null || inv.isEmpty()) return -1;
+        else if (check == null || check.isEmpty()) return -1;
+        for (int i = 0; i < inv.getSize(); i++) {
+            ItemStack stack = inv.getItem(i);
+            if (stack == null || stack.isEmpty()) continue;
+            if (isSimilar(stack,check)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     public static int countItemsInList(final Inventory inv, ItemStack check) {
         return countItemsInList(inv.getContents(), check);
     }
@@ -42,7 +154,7 @@ public final class InventoryUtil {
     }
     public static int countItemsInList(final ItemStack[] inv, ItemStack check) {
         if (check == null || check.isEmpty()) return 0;
-        return Arrays.stream(inv).filter(stack -> stack.isSimilar(check)).mapToInt(stack -> stack.getAmount()).sum();
+        return Arrays.stream(inv).filter(stack -> isSimilar(stack,check)).mapToInt(stack -> stack.getAmount()).sum();
     }
     
     public static ItemStack addItemModelData(String itemModelData, ItemStack itemStack) {
@@ -122,5 +234,28 @@ public final class InventoryUtil {
         } catch (Exception e) {
             if (log != null) log.warning("Failed to load inventory: " + e.getMessage());
         }
+    }
+    public static boolean isSimilar(ItemStack i1, ItemStack i2) {
+        if (i1 == null || i2 == null) return false;
+        if (i1.getType() != i2.getType()) return false;
+        if (i1.isEmpty() || i2.isEmpty()) return false;
+        else {
+            ItemMeta meta1 = i1.getItemMeta();
+            ItemMeta meta2 = i2.getItemMeta();
+            if (meta1 == null && meta2 == null) return true;
+            else if (meta1 == null || meta2 == null) return false;
+            if (meta1.hasItemModel() && meta2.hasItemModel()) {
+                if (meta1.getItemModel().getKey().equalsIgnoreCase(meta2.getItemModel().getKey())) return true;
+            }
+            if (meta1.hasCustomModelData() && meta2.hasCustomModelData()) {
+                if (meta1.getCustomModelData() == meta2.getCustomModelData()) return true;
+            }
+            if (meta1.hasItemName() && meta2.hasItemName()) {
+                if (ChatColor.stripColor(meta1.getItemName()).equalsIgnoreCase(ChatColor.stripColor(meta2.getItemName()))) return true;
+            } else if (meta1.hasDisplayName() && meta2.hasDisplayName()) {
+                if (ChatColor.stripColor(meta1.getDisplayName()).equalsIgnoreCase(ChatColor.stripColor(meta2.getDisplayName()))) return true;
+            }
+        }
+        return i1.isSimilar(i2);
     }
 }

@@ -2,6 +2,7 @@ package com.ccorp2002.smoothsailing.ship;
 
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.utils.*;
+import com.ccorp2002.smoothsailing.utils.vectors.*;
 import com.ccorp2002.smoothsailing.event.*;
 import com.ccorp2002.smoothsailing.nmsutils.*;
 import com.ccorp2002.smoothsailing.customships.*;
@@ -38,7 +39,10 @@ public class ShipInstance {
     public boolean isSinking = false;
     public static final String HITBOX_KEY = "BLOCK_STATES";
     public MobileBlockState.MobileStateSet BLOCK_STATES = null;
-    public Map<Object, MobileBlockState.MobileStateSet> TRACKED_STATE_MAP = new Object2ObjectOpenHashMap<>(1024,0.75f);
+
+    public final Map<String, Object> DATA_TAGS = new Object2ObjectOpenHashMap<>(1024,0.75f);
+    
+    public final Map<Object, MobileBlockState.MobileStateSet> TRACKED_STATE_MAP = new Object2ObjectOpenHashMap<>(1024,0.75f);
     public static float waterDensity() {
         return (float) ShipPhysics.getMedium("water").baseDensity;
     }
@@ -108,10 +112,6 @@ public class ShipInstance {
     public BlockFace facing = null;
     public org.bukkit.util.Vector forwards = new org.bukkit.util.Vector();
 
-    // Movement tracking for optimization
-    public Location previousVehicleLocation;
-    public float previousYaw;
-    public float previousPitch;
     public float weightCalc = 0;
     public int ticksSinceLastMovement = 0;
     public int blockCount = 0;
@@ -124,8 +124,12 @@ public class ShipInstance {
         this.bbox = new BoundingBox(minX(), minY(), minZ(), maxX(), maxY()+1.5, maxZ());
     }
     public World getWorld() {
-        if (this.vehicle.isDead()) return null;
+        if (this.vehicle == null) return null;
         return this.vehicle.getWorld();
+    }
+    public Location getLocation() {
+        if (this.vehicle == null) return null;
+        return this.vehicle.getLocation();
     }
 
     public BoundingBox getBoundingBox() {
@@ -293,383 +297,370 @@ public class ShipInstance {
         PDCUtils.setPDC(this.vehicle,"is_seat","true");
         PDCUtils.setPDC(this.parent,"is_seat","true");
         ENTITY_COMPOSITION.add(parent);
-        this.HIDDEN_ENTITIES = new ArrayList<>(model.blocks.size());
-
-        //Runnable runOnWorld = () -> {
-            int seatIndex = 0;
-            int wheelCount = 0;
-            // Spawn each block display part as a child
-            for (int blockIndex = 0; blockIndex < model.blocks.size(); blockIndex++) {
-                Location blockLoc = model.blocks.get(blockIndex);
-                float fbannerYaw = vehicle.getYaw();
-                final int currentBlockIndex = blockIndex;  // For use in lambda
-                Block block = blockLoc.getBlock();
-                BlockData blockData = block.getBlockData();
-                String block_id = blockData.getMaterial().toString();
-                final boolean isSeat = (block_id.contains("PLAYER_") || block_id.contains("TARGET") || block_id.contains("PISTON") || block_id.contains("_CARPET"));
-                BlockState state = block.getState(true);
-                boolean isRollingWheel = false;
-                if (block.getType() == Material.GRINDSTONE) {
-                    if (block.getRelative(BlockFace.UP).getType().toString().contains("CAULDRON")) {
-                        Block checked = block.getRelative(BlockFace.DOWN);
-                        boolean foundGround = false;
-                        isRollingWheel = true;
-                        for (int checkDist = 0; checkDist < 256; checkDist++) {
-                            if (checked.isSolid() && !foundGround) {
-                                foundGround = true;
-                            } else if (!foundGround) checked = checked.getRelative(BlockFace.DOWN);
-                            else continue;
-                        }
-                        if (foundGround) wheelCount++;
+        this.HIDDEN_ENTITIES = new ArrayList<>(512);
+        int seatIndex = 0;
+        int wheelCount = 0;
+        // Spawn each block display part as a child
+        for (int blockIndex = 0; blockIndex < model.blocks.size(); blockIndex++) {
+            Location blockLoc = model.blocks.get(blockIndex);
+            float fbannerYaw = vehicle.getYaw();
+            final int currentBlockIndex = blockIndex;  // For use in lambda
+            Block block = blockLoc.getBlock();
+            BlockData blockData = block.getBlockData();
+            String block_id = blockData.getMaterial().toString();
+            final boolean isSeat = (block_id.contains("PLAYER_") || block_id.contains("TARGET") || block_id.contains("PISTON") || block_id.contains("_CARPET"));
+            BlockState state = block.getState(true);
+            boolean isRollingWheel = false;
+            if (block.getType() == Material.GRINDSTONE) {
+                if (block.getRelative(BlockFace.UP).getType().toString().contains("CAULDRON")) {
+                    Block checked = block.getRelative(BlockFace.DOWN);
+                    boolean foundGround = false;
+                    isRollingWheel = true;
+                    for (int checkDist = 0; checkDist < 256; checkDist++) {
+                        if (checked.isSolid() && !foundGround) {
+                            foundGround = true;
+                        } else if (!foundGround) checked = checked.getRelative(BlockFace.DOWN);
+                        else continue;
                     }
+                    if (foundGround) wheelCount++;
                 }
-                // Check if this part needs special rendering (player head or banner)
-                boolean hasSkullProfile = block_id.toUpperCase().contains("PLAYER_") && block_id.toUpperCase().contains("HEAD"); //(state instanceof org.bukkit.block.Skull);
-                boolean hasBannerPatterns = block_id.toUpperCase().contains("BANNER"); //(state instanceof org.bukkit.block.Banner);
+            }
+            // Check if this part needs special rendering (player head or banner)
+            boolean hasSkullProfile = block_id.toUpperCase().contains("PLAYER_") && block_id.toUpperCase().contains("HEAD"); //(state instanceof org.bukkit.block.Skull);
+            boolean hasBannerPatterns = block_id.toUpperCase().contains("BANNER"); //(state instanceof org.bukkit.block.Banner);
 
-                Entity shulker = null;
-                blockLoc.setYaw(fbannerYaw);
-                Location loc = blockLoc;
+            Entity shulker = null;
+            blockLoc.setYaw(fbannerYaw);
+            Location loc = blockLoc;
 
-                float shulkerSize = 1f;
-                double health = 2.5d;
-                final BlockProperties props = BlockConfigManager.getInstance().getProperties(block.getType(), blockData);
-                ShipInstance.addBlock(this,block,true);
-                if (health <= 1d) health = 1d;
-                final double fHealth = health;
-                final int finalBlockIndex = currentBlockIndex;
-                if (dryFire) continue;
-                if (isSeat) {
-                    seatIndex++;
-                    final int fseatIndex = seatIndex;
-                    Location seatLoc = loc.clone();
-                    if (block_id.contains("TARGET") || block_id.contains("PISTON")) seatLoc.setY(seatLoc.getY()+1.0625d);
-                    else if (block_id.contains("PLAYER_")) {
-                        seatLoc = seatLoc.toCenterLocation();
+            float shulkerSize = 1f;
+            double health = 2.5d;
+            final BlockProperties props = BlockConfigManager.getInstance().getProperties(block.getType(), blockData);
+            ShipInstance.addBlock(this,block,true);
+            if (health <= 1d) health = 1d;
+            final double fHealth = health;
+            final int finalBlockIndex = currentBlockIndex;
+            if (dryFire) continue;
+            if (isSeat) {
+                seatIndex++;
+                final int fseatIndex = seatIndex;
+                Location seatLoc = loc.clone();
+                if (block_id.contains("TARGET") || block_id.contains("PISTON")) seatLoc.setY(seatLoc.getY()+1.0625d);
+                else if (block_id.contains("PLAYER_")) {
+                    seatLoc = seatLoc.toCenterLocation();
+                }
+                else seatLoc.setY(seatLoc.getY()+0.0125d);
+                loc = seatLoc;
+                shulker = ShipInstance.addEntity(seatLoc, org.bukkit.entity.ItemDisplay.class, s -> {
+                    if (s instanceof LivingEntity m) {
+                        m.setAI(false);
+                        m.setSilent(true);
+                        if (s instanceof Mob mb) mb.setAware(false);
+                        m.setCollidable(false);
+                        m.setInvulnerable(true);
                     }
-                    else seatLoc.setY(seatLoc.getY()+0.0125d);
-                    loc = seatLoc;
-                    shulker = ShipInstance.addEntity(seatLoc, org.bukkit.entity.ItemDisplay.class, s -> {
-                        if (s instanceof LivingEntity m) {
-                            m.setAI(false);
-                            m.setSilent(true);
-                            if (s instanceof Mob mb) mb.setAware(false);
-                            m.setCollidable(false);
-                            m.setInvulnerable(true);
-                        }
-                        s.setGravity(false);
-                        s.setInvisible(true);
-                        s.setPersistent(true);
-                        s.setCustomNameVisible(false);
-                        s.setCustomName("[Ship Seat]");
-                        PDCUtils.setPDC(s,"destroyable","false");
-                        //s.setPeek(0);  // Prevent shulker from peeking/moving up
-                        ShipListener.addTag(s,ShipListener.shipTag(this.id));
-                        PDCUtils.setPDC(s,"is_seat","true");
-                        if (s instanceof ArmorStand as) {
-                            var scaleAttr = as.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(0.25);
-                            as.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values());
-                            as.getEquipment().setHelmet(ItemStack.of(Material.TARGET));
-                            as.setInvulnerable(true);
-                            as.setMarker(true);
-                            as.setSmall(true);
+                    s.setGravity(false);
+                    s.setInvisible(true);
+                    s.setPersistent(true);
+                    s.setCustomNameVisible(false);
+                    s.setCustomName("[Ship Seat]");
+                    PDCUtils.setPDC(s,"destroyable","false");
+                    //s.setPeek(0);  // Prevent shulker from peeking/moving up
+                    ShipListener.addTag(s,ShipListener.shipTag(this.id));
+                    PDCUtils.setPDC(s,"is_seat","true");
+                    if (s instanceof ArmorStand as) {
+                        var scaleAttr = as.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(0.25);
+                        as.setDisabledSlots(org.bukkit.inventory.EquipmentSlot.values());
+                        as.getEquipment().setHelmet(ItemStack.of(Material.TARGET));
+                        as.setInvulnerable(true);
+                        as.setMarker(true);
+                        as.setSmall(true);
+                        ShipListener.addTag(s,ShipListener.seatTag(fseatIndex));
+                    } else if (s instanceof ItemDisplay its) {
+                        if (!block_id.contains("PLAYER_")) {
+                            its.setItemStack(ItemStack.of(Material.TARGET));
+                            DisplayScale.setSize(its,0.0625f,0.0625f,0.0625f);
+                            its.setInvisible(true);
                             ShipListener.addTag(s,ShipListener.seatTag(fseatIndex));
-                        } else if (s instanceof ItemDisplay its) {
-                            if (!block_id.contains("PLAYER_")) {
-                                its.setItemStack(ItemStack.of(Material.TARGET));
-                                DisplayScale.setSize(its,0.0625f,0.0625f,0.0625f);
-                                its.setInvisible(true);
-                                ShipListener.addTag(s,ShipListener.seatTag(fseatIndex));
-                            } else {
-                                PDCUtils.setPDC(its,"is_seat","false");
-                                its.setItemStack(ItemStack.of(Material.BLACK_WOOL));
-                                DisplayScale.setSize(its,0.0625f,0.0625f,0.0625f);
-                                its.setInvisible(true);
-                            }
-                            its.setViewRange(8f);
-                            its.setInterpolationDuration(0);
-                            its.setTeleportDuration(1);
-                            its.setShadowRadius(0f);
-                            its.setShadowStrength(0f);
+                        } else {
+                            PDCUtils.setPDC(its,"is_seat","false");
+                            its.setItemStack(ItemStack.of(Material.BLACK_WOOL));
+                            DisplayScale.setSize(its,0.0625f,0.0625f,0.0625f);
+                            its.setInvisible(true);
                         }
-                        // Apply scale attribute to change collision box size
-                        if (s instanceof LivingEntity le) {
-                            org.bukkit.attribute.AttributeInstance scaleAttr = le.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(shulkerSize);
-                        }
-                        if (s instanceof org.bukkit.entity.Slime slime) {
-                            var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(0.25);
-                            slime.setNoPhysics(true);
-                            slime.setWander(false);
-                            slime.setGlowing(false);  // Glow if debug mode enabled
-                            slime.setSize(1);
-                        }
-                        if (s instanceof org.bukkit.entity.MagmaCube slime) {
-                            var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(1);
-                            slime.setNoPhysics(true);
-                            slime.setWander(false);
-                            slime.setGlowing(false);  // Glow if debug mode enabled
-                            slime.setSize(1);
-                        }
-                        if (s instanceof org.bukkit.entity.HappyGhast happy) {
-                            var scaleAttr = happy.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(0.25);
-                            happy.setNoPhysics(true);
-                        }
-                        if (s instanceof LivingEntity le) {
-                            le.setRemoveWhenFarAway(false);
-                            org.bukkit.attribute.AttributeInstance maxHealthAttr = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
-                            if (maxHealthAttr != null) maxHealthAttr.setBaseValue(fHealth);
-                            le.setHealth(fHealth);
-                        }
-                        s.setVisibleByDefault(true);
-                    });
-                } else if (isRollingWheel) {
-                    shulker = ShipInstance.addEntity(loc, org.bukkit.entity.Minecart.class, s -> {
-                        s.setSilent(true);
-                        if (s instanceof Mob m) {
-                            m.setAI(false);
-                            m.setAware(false);
-                            m.setCollidable(false);
-                        }
-                        s.setGravity(false);
-                        s.setInvisible(true);
-                        s.setPersistent(true);
-                        s.setInvulnerable(true);
-                        s.setCustomNameVisible(true);
-                        s.setCustomName("[Rolling Wheel]");
-                        PDCUtils.setPDC(s,"destroyable","true");
-                        //s.setPeek(0);  // Prevent shulker from peeking/moving up
-                        ShipListener.addTag(s,ShipListener.shipTag(this.id));
-                        if (s instanceof ArmorStand as) {
-                            as.setInvulnerable(true);
-                            as.setMarker(true);
-                            as.setSmall(true);
-                        }
-                        PDCUtils.setPDC(s,"is_seat","false");
-                        // Apply scale attribute to change collision box size
-                        if (s instanceof LivingEntity le) {
-                            org.bukkit.attribute.AttributeInstance scaleAttr = le.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(shulkerSize);
-                        }
-                        if (s instanceof org.bukkit.entity.Slime slime) {
-                            var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(0.625);
-                            slime.setNoPhysics(true);
-                            slime.setWander(false);
-                            slime.setGlowing(false);  // Glow if debug mode enabled
-                            slime.setSize(1);
-                        }
-                        if (s instanceof org.bukkit.entity.MagmaCube slime) {
-                            var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(1);
-                            slime.setNoPhysics(true);
-                            slime.setWander(false);
-                            slime.setGlowing(false);  // Glow if debug mode enabled
-                            slime.setSize(1);
-                        }
-                        if (s instanceof org.bukkit.entity.HappyGhast happy) {
-                            var scaleAttr = happy.getAttribute(org.bukkit.attribute.Attribute.SCALE);
-                            if (scaleAttr != null) scaleAttr.setBaseValue(0.475);
-                            happy.setNoPhysics(true);
-                        }
-                        if (s instanceof LivingEntity le) {
-                            le.setRemoveWhenFarAway(false);
-                            org.bukkit.attribute.AttributeInstance maxHealthAttr = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
-                            if (maxHealthAttr != null) maxHealthAttr.setBaseValue(fHealth);
-                            le.setHealth(fHealth);
-                        }
-                        s.setVisibleByDefault(false);
-                    });
-                }
-                if (dryFire) {
-                    if (shulker != null) shulker.remove();
-                    continue;
-                }
-                if (shulker != null) {
-                    shulker.setCustomNameVisible(false);
-                    ENTITY_COMPOSITION.add(shulker);
-                    Location pos = shulker.getLocation().toBlockLocation().add(0.5,0.0,0.5);
-                    pos.setY(loc.getY()+0.0125d);
-                    NmsUtils.teleportSilentCurrentThread(pos,shulker);
-                    shulker.setRotation(fbannerYaw,0f);
-                    if (isSeat) {
-                        pos = shulker.getLocation();
-                        if (shulker instanceof HappyGhast happy) {
-                            pos = pos.toCenterLocation();
-                            pos.setY((pos.getY()+0.0625d));
-                        }
-                        shulker.setInvisible(true);
-
-                        for (org.bukkit.entity.Entity entity : shulker.getWorld().getNearbyEntities(blockLoc, 0.75, 1.25, 0.75)) {
-                            if (ENTITY_COMPOSITION.contains(entity)) continue;
-                            if (ShipListener.isFunctional(entity)) continue;
-                            if (entity instanceof ArmorStand) {
-                                ENTITY_COMPOSITION.add(entity);
-                                continue;
-                            }
-                            if (entity instanceof HappyGhast) continue;
-                            if (entity instanceof Endermite) continue;
-                            if (entity instanceof MagmaCube) continue;
-                            if (entity instanceof Mannequin) {
-                                ENTITY_COMPOSITION.add(entity);
-                                continue;
-                            }
-                            if (entity instanceof Player) {
-                                ENTITY_COMPOSITION.add(entity);
-                                continue;
-                            }
-                            if (entity instanceof Ghast) continue;
-                            if (entity instanceof Slime) continue;
-                            if (entity.equals(shulker)) continue;
-                            shulker.setRotation(fbannerYaw,vehicle.getPitch());
-                            entity.setRotation(fbannerYaw,vehicle.getPitch());
-                            ENTITY_COMPOSITION.add(entity);
-                            if (entity instanceof Display || block_id.contains("PLAYER_") || block_id.contains("_CARPET")) continue;
-                            shulker.addPassenger(entity);
-                        }
-                        PDCUtils.setPDC(shulker,"destroyable","false");
-                        PDCUtils.setPDC(shulker,"display_id",shulker.getUniqueId().toString());
-                        if (!block_id.contains("PLAYER_")) PDCUtils.setPDC(shulker,"is_seat","true");
-                        ENTITY_COMPOSITION.add(vehicle);
-                        HIDDEN_ENTITIES.remove(shulker);
-                    } else {
-                        HIDDEN_ENTITIES.add(shulker);
-                        PDCUtils.setPDC(shulker,"destroyable","true");
-                        PDCUtils.setPDC(shulker,"display_id",shulker.getUniqueId().toString());
+                        its.setViewRange(8f);
+                        its.setInterpolationDuration(0);
+                        its.setTeleportDuration(1);
+                        its.setShadowRadius(0f);
+                        its.setShadowStrength(0f);
                     }
-                    if (shulker instanceof org.bukkit.entity.Shulker shulk) {
-                        shulk.setPeek(0);
+                    // Apply scale attribute to change collision box size
+                    if (s instanceof LivingEntity le) {
+                        org.bukkit.attribute.AttributeInstance scaleAttr = le.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(shulkerSize);
                     }
-                    if (shulker instanceof org.bukkit.entity.Slime slim) {
-                        slim.setSize(1);
+                    if (s instanceof org.bukkit.entity.Slime slime) {
+                        var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(0.25);
+                        slime.setNoPhysics(true);
+                        slime.setWander(false);
+                        slime.setGlowing(false);  // Glow if debug mode enabled
+                        slime.setSize(1);
                     }
-
-                    // Mount shulker on carrier
-                    //carrier.addPassenger(shulker);
-                    //if (!carrier.equals(shulker)) carrier.remove();
-                    // Store leadable shulker reference for prefab ship lead attachment (single lead point)
-                    // Custom ships use per-fence attachment via leadable tags instead
-                    PDCUtils.setPDC(shulker,"ship_id",this.id.toString());
-                    if (isRollingWheel) PDCUtils.setPDC(shulker,"is_rolling_wheel","true");
-                    else PDCUtils.setPDC(shulker,"is_rolling_wheel","false");
-                    PDCUtils.setPDC(shulker,"ship_id",this.id.toString());
-                    ENTITY_COMPOSITION.add(shulker);
-                    PDCUtils.setPDC(shulker,"display_id",shulker.getUniqueId().toString());
-                }
-            }
-            this.model.blockCount = (int)this.blockCount;
-            this.model.totalWeight = (int)this.weightCalc;
-            this.isAirship = (model.getDensity() < airDensity());
-
-            if (wheelCount >= 2) {
-                isLandcraft = true;
-                isAirship = false;
-            }
-            this.physics = new ShipPhysics(this);
-            if (vehicle instanceof LivingEntity le) {
-                float tempMaxHealth = (float)java.lang.Math.min(SmoothSailingPlugin.MAX_POSSIBLE_HEALTH, java.lang.Math.max(25.0, maxHealth));
-                org.bukkit.attribute.AttributeInstance maxHealthAttr = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
-                if (maxHealthAttr != null) maxHealthAttr.setBaseValue(tempMaxHealth);
-                le.setHealth(tempMaxHealth);
-                setMaxHealth(maxHealth);
-            }
-            this.previousVehicleLocation = vehicle.getLocation().clone();
-            this.previousYaw = vehicle.getYaw();
-            this.previousPitch = vehicle.getPitch();
-            // Initialize chunk tracking for persistence
-            // Wait 1 tick for entities to spawn, then mount and start ticking
-            if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) {
-                System.out.println("STARTING BLOCK COUNT: "+this.BLOCK_STATES.size());
+                    if (s instanceof org.bukkit.entity.MagmaCube slime) {
+                        var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(1);
+                        slime.setNoPhysics(true);
+                        slime.setWander(false);
+                        slime.setGlowing(false);  // Glow if debug mode enabled
+                        slime.setSize(1);
+                    }
+                    if (s instanceof org.bukkit.entity.HappyGhast happy) {
+                        var scaleAttr = happy.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(0.25);
+                        happy.setNoPhysics(true);
+                    }
+                    if (s instanceof LivingEntity le) {
+                        le.setRemoveWhenFarAway(false);
+                        org.bukkit.attribute.AttributeInstance maxHealthAttr = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                        if (maxHealthAttr != null) maxHealthAttr.setBaseValue(fHealth);
+                        le.setHealth(fHealth);
+                    }
+                    s.setVisibleByDefault(true);
+                });
+            } else if (isRollingWheel) {
+                shulker = ShipInstance.addEntity(loc, org.bukkit.entity.Minecart.class, s -> {
+                    s.setSilent(true);
+                    if (s instanceof Mob m) {
+                        m.setAI(false);
+                        m.setAware(false);
+                        m.setCollidable(false);
+                    }
+                    s.setGravity(false);
+                    s.setInvisible(true);
+                    s.setPersistent(true);
+                    s.setInvulnerable(true);
+                    s.setCustomNameVisible(true);
+                    s.setCustomName("[Rolling Wheel]");
+                    PDCUtils.setPDC(s,"destroyable","true");
+                    //s.setPeek(0);  // Prevent shulker from peeking/moving up
+                    ShipListener.addTag(s,ShipListener.shipTag(this.id));
+                    if (s instanceof ArmorStand as) {
+                        as.setInvulnerable(true);
+                        as.setMarker(true);
+                        as.setSmall(true);
+                    }
+                    PDCUtils.setPDC(s,"is_seat","false");
+                    // Apply scale attribute to change collision box size
+                    if (s instanceof LivingEntity le) {
+                        org.bukkit.attribute.AttributeInstance scaleAttr = le.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(shulkerSize);
+                    }
+                    if (s instanceof org.bukkit.entity.Slime slime) {
+                        var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(0.625);
+                        slime.setNoPhysics(true);
+                        slime.setWander(false);
+                        slime.setGlowing(false);  // Glow if debug mode enabled
+                        slime.setSize(1);
+                    }
+                    if (s instanceof org.bukkit.entity.MagmaCube slime) {
+                        var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(1);
+                        slime.setNoPhysics(true);
+                        slime.setWander(false);
+                        slime.setGlowing(false);  // Glow if debug mode enabled
+                        slime.setSize(1);
+                    }
+                    if (s instanceof org.bukkit.entity.HappyGhast happy) {
+                        var scaleAttr = happy.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                        if (scaleAttr != null) scaleAttr.setBaseValue(0.475);
+                        happy.setNoPhysics(true);
+                    }
+                    if (s instanceof LivingEntity le) {
+                        le.setRemoveWhenFarAway(false);
+                        org.bukkit.attribute.AttributeInstance maxHealthAttr = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+                        if (maxHealthAttr != null) maxHealthAttr.setBaseValue(fHealth);
+                        le.setHealth(fHealth);
+                    }
+                    s.setVisibleByDefault(false);
+                });
             }
             if (dryFire) {
-                destroy();
-                return;
+                if (shulker != null) shulker.remove();
+                continue;
             }
-            Set<Location> INTERIOR = this.physics.getInteriorLocs();
-            boolean TEMP_DEBUG = SmoothSailingPlugin.DEBUG_DUMP;
-            SmoothSailingPlugin.DEBUG_DUMP = false;
-            MobileBlockState.MobileStateSet INTERIOR_BLOCKS = new MobileBlockState.MobileStateSet((int)(INTERIOR.size()*1.75));
-            INTERIOR.forEach(blk -> {
-                if (blk == null) return;
-                MobileBlockState movingState = new MobileBlockState(blk.toBlockLocation(),false);
-                movingState.resetHealth(1);
-                movingState.shipRef = new java.lang.ref.WeakReference<>(this);
-                INTERIOR_BLOCKS.add(movingState);
-            });
-            SmoothSailingPlugin.DEBUG_DUMP = TEMP_DEBUG;
-            this.BLOCK_STATES.addAll(INTERIOR_BLOCKS);
-            INTERIOR_BLOCKS.clear();
-            //this.TRACKED_STATE_MAP.put("__interior__",INTERIOR_BLOCKS);
-            if (this.vehicle instanceof org.bukkit.entity.LivingEntity s) {
-                s.setCollidable(false);
-                s.setGravity(false);
-                s.setSilent(true);
-                s.setAI(false);
-                // Force rotation to match spawn location (Bukkit doesn't auto-apply yaw from Location)
-                s.setInvulnerable(false);
-            }
-            this.currentHealth = this.maxHealth;
-            this.ENTITY_COMPOSITION.add(vehicle);
-            ENTITY_COMPOSITION.addAll(HIDDEN_ENTITIES);
-            calculateBoundingBox();
-            ShipRegistry.register(this);
-            if (facing == null) facing = vehicle.getFacing();
-            if (forwards == null || forwards.isZero()) forwards = vehicle.getLocation().getDirection();
-            Runnable RUN_ME = new Runnable() {
-                @Override
-                public void run() {
-                    vehicle.setRotation(previousYaw, previousPitch);
-                    parent.setRotation(previousYaw, previousPitch);
-                    Location bottomLoc = vehicle.getLocation().clone();
-                    Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(bottomLoc,ShipInstance.this.BLOCK_STATES,ShipInstance.this.model.totalWeight);
-                    Float floatOffset = -1f;
-                    Number floatOff = DATA.getOrDefault("surface_offset",null);
-                    float heightY = maxY() - minY();
-                    if (floatOff == null) floatOffset = (float)(-java.lang.Math.round(heightY/3.25f)) + (float)java.lang.Math.round((heightY/3f));
-                    else floatOffset = -1*floatOff.floatValue();
-                    PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"cemc:float_offset",""+floatOffset);
-                    PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"cemc:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
-                    DATA.clear();
-                    if (ShipInstance.this.physics != null) ShipInstance.this.physics.moving = false;
-                    ShipInstance.this.setProcessing(false);
-                    ShipInstance.this.updateWaterLogging();
-
-                    // Position collision boxes immediately before starting tick task
-                    // This prevents them from appearing to "jump" when player first interacts
-                    //updateCollisionPositions();
-                    // Start tick loop
-                    if (ShipInstance.this.engineCount <= 0) {
-                        ShipInstance.this.engineCount = 0;
-                        if (ShipInstance.this.isAirship && ShipInstance.this.physics != null) ShipInstance.this.physics.PER_MAX_SPEED = 0.75f;
-                    } else {
-                        ShipInstance.this.initialEngineCount = engineCount;
+            if (shulker != null) {
+                shulker.setCustomNameVisible(false);
+                ENTITY_COMPOSITION.add(shulker);
+                Location pos = shulker.getLocation().toBlockLocation().add(0.5,0.0,0.5);
+                pos.setY(loc.getY()+0.0125d);
+                NmsUtils.teleportSilentCurrentThread(pos,shulker);
+                shulker.setRotation(fbannerYaw,0f);
+                if (isSeat) {
+                    pos = shulker.getLocation();
+                    if (shulker instanceof HappyGhast happy) {
+                        pos = pos.toCenterLocation();
+                        pos.setY((pos.getY()+0.0625d));
                     }
-                    Runnable RUN_ME_2 = new Runnable() {
-                        @Override
-                        public void run() {
-                            // Check if chunk is loaded - if not, skip tick but don't destroy
-                            if (vehicle.isDead() || !vehicle.isValid()) {
-                                destroy();
-                                return;
-                            } else {
-                                Location loc = vehicle.getLocation();
-                                if (!loc.isChunkLoaded()) {
-                                    destroy();
-                                    return; // Chunk unloaded, suspend ship but don't destroy
-                                }
-                            }
-                            tick();
+                    shulker.setInvisible(true);
+
+                    for (org.bukkit.entity.Entity entity : shulker.getWorld().getNearbyEntities(blockLoc, 0.75, 1.25, 0.75)) {
+                        if (ENTITY_COMPOSITION.contains(entity)) continue;
+                        if (ShipListener.isFunctional(entity)) continue;
+                        if (entity instanceof ArmorStand) {
+                            ENTITY_COMPOSITION.add(entity);
+                            continue;
                         }
-                    };
-                    task = com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTaskTimer(RUN_ME_2, 2L, 2L);
+                        if (entity instanceof HappyGhast) continue;
+                        if (entity instanceof Endermite) continue;
+                        if (entity instanceof MagmaCube) continue;
+                        if (entity instanceof Mannequin) {
+                            ENTITY_COMPOSITION.add(entity);
+                            continue;
+                        }
+                        if (entity instanceof Player) {
+                            ENTITY_COMPOSITION.add(entity);
+                            continue;
+                        }
+                        if (entity instanceof Ghast) continue;
+                        if (entity instanceof Slime) continue;
+                        if (entity.equals(shulker)) continue;
+                        shulker.setRotation(fbannerYaw,vehicle.getPitch());
+                        entity.setRotation(fbannerYaw,vehicle.getPitch());
+                        ENTITY_COMPOSITION.add(entity);
+                        if (entity instanceof Display || block_id.contains("PLAYER_") || block_id.contains("_CARPET")) continue;
+                        shulker.addPassenger(entity);
+                    }
+                    PDCUtils.setPDC(shulker,"destroyable","false");
+                    PDCUtils.setPDC(shulker,"display_id",shulker.getUniqueId().toString());
+                    if (!block_id.contains("PLAYER_")) PDCUtils.setPDC(shulker,"is_seat","true");
+                    ENTITY_COMPOSITION.add(vehicle);
+                    HIDDEN_ENTITIES.remove(shulker);
+                } else {
+                    HIDDEN_ENTITIES.add(shulker);
+                    PDCUtils.setPDC(shulker,"destroyable","true");
+                    PDCUtils.setPDC(shulker,"display_id",shulker.getUniqueId().toString());
                 }
-            };
-            com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTaskLater(RUN_ME, 7L);
-            startIdleCheckTask();
+                if (shulker instanceof org.bukkit.entity.Shulker shulk) {
+                    shulk.setPeek(0);
+                }
+                if (shulker instanceof org.bukkit.entity.Slime slim) {
+                    slim.setSize(1);
+                }
+
+                // Mount shulker on carrier
+                //carrier.addPassenger(shulker);
+                //if (!carrier.equals(shulker)) carrier.remove();
+                // Store leadable shulker reference for prefab ship lead attachment (single lead point)
+                // Custom ships use per-fence attachment via leadable tags instead
+                PDCUtils.setPDC(shulker,"ship_id",this.id.toString());
+                if (isRollingWheel) PDCUtils.setPDC(shulker,"is_rolling_wheel","true");
+                else PDCUtils.setPDC(shulker,"is_rolling_wheel","false");
+                PDCUtils.setPDC(shulker,"ship_id",this.id.toString());
+                ENTITY_COMPOSITION.add(shulker);
+                PDCUtils.setPDC(shulker,"display_id",shulker.getUniqueId().toString());
+            }
+        }
+        this.model.blockCount = (int)this.blockCount;
+        this.model.totalWeight = (int)this.weightCalc;
+        this.isAirship = (model.getDensity() < airDensity());
+
+        if (wheelCount >= 2) {
+            isLandcraft = true;
+            isAirship = false;
+        }
+        this.physics = new ShipPhysics(this);
+        if (vehicle instanceof LivingEntity le) {
+            float tempMaxHealth = (float)java.lang.Math.min(SmoothSailingPlugin.MAX_POSSIBLE_HEALTH, java.lang.Math.max(25.0, maxHealth));
+            org.bukkit.attribute.AttributeInstance maxHealthAttr = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
+            if (maxHealthAttr != null) maxHealthAttr.setBaseValue(tempMaxHealth);
+            le.setHealth(tempMaxHealth);
+            setMaxHealth(maxHealth);
+        }
+        if (dryFire) {
+            destroy();
+            return;
+        }
+        Set<Location> INTERIOR = this.physics.getInteriorLocs();
+        boolean TEMP_DEBUG = SmoothSailingPlugin.DEBUG_DUMP;
+        SmoothSailingPlugin.DEBUG_DUMP = false;
+        MobileBlockState.MobileStateSet INTERIOR_BLOCKS = new MobileBlockState.MobileStateSet((int)(INTERIOR.size()*1.75));
+        INTERIOR.forEach(blk -> {
+            if (blk == null) return;
+            MobileBlockState movingState = new MobileBlockState(blk.toBlockLocation(),false);
+            movingState.resetHealth(1);
+            movingState.shipRef = new java.lang.ref.WeakReference<>(this);
+            INTERIOR_BLOCKS.add(movingState);
+        });
+        SmoothSailingPlugin.DEBUG_DUMP = TEMP_DEBUG;
+        if (this.vehicle instanceof org.bukkit.entity.LivingEntity s) {
+            s.setCollidable(false);
+            s.setGravity(false);
+            s.setSilent(true);
+            s.setAI(false);
+            // Force rotation to match spawn location (Bukkit doesn't auto-apply yaw from Location)
+            s.setInvulnerable(false);
+        }
+        this.currentHealth = this.maxHealth;
+        this.ENTITY_COMPOSITION.add(vehicle);
+        ENTITY_COMPOSITION.addAll(HIDDEN_ENTITIES);
+        calculateBoundingBox();
+        if (facing == null) facing = vehicle.getFacing();
+        if (forwards == null || forwards.isZero()) forwards = vehicle.getLocation().getDirection();
+        SmoothSailingPlugin.getInstance().getLogger().info("Piloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.BLOCK_STATES.size());
+        this.BLOCK_STATES.addAll(INTERIOR_BLOCKS);
+        INTERIOR_BLOCKS.clear();
+        ShipRegistry.register(this);
+        Runnable RUN_ME = new Runnable() {
+            @Override
+            public void run() {
+                Location bottomLoc = vehicle.getLocation().clone();
+                Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(bottomLoc,ShipInstance.this.BLOCK_STATES,ShipInstance.this.model.totalWeight);
+                Float floatOffset = -1f;
+                Number floatOff = DATA.getOrDefault("surface_offset",null);
+                float heightY = maxY() - minY();
+                if (floatOff == null) floatOffset = (float)(-java.lang.Math.round(heightY/3.25f)) + (float)java.lang.Math.round((heightY/3f));
+                else floatOffset = -1*floatOff.floatValue();
+                setDataTag("cemc:float_offset",floatOffset);
+                setDataTag("cemc:center_of_volume_y",DATA.getOrDefault("center_of_volume_y",null));
+                PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"cemc:float_offset",""+floatOffset);
+                PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"cemc:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
+                DATA.clear();
+                if (ShipInstance.this.physics != null) {
+                    ShipInstance.this.physics.handleBuoyancy(ShipInstance.this.getLocation());
+                    ShipInstance.this.physics.moving = false;
+                }
+                ShipInstance.this.setProcessing(false);
+                if (ShipInstance.this.engineCount <= 0) {
+                    ShipInstance.this.engineCount = 0;
+                    if (ShipInstance.this.isAirship && ShipInstance.this.physics != null) ShipInstance.this.physics.PER_MAX_SPEED = 0.75f;
+                } else {
+                    ShipInstance.this.initialEngineCount = engineCount;
+                }
+                Runnable RUN_ME_2 = new Runnable() {
+                    @Override
+                    public void run() {
+                        // Check if chunk is loaded - if not, skip tick but don't destroy
+                        if (vehicle.isDead() || !vehicle.isValid()) {
+                            destroy();
+                            return;
+                        } else {
+                            Location loc = vehicle.getLocation();
+                            if (!loc.isChunkLoaded()) {
+                                destroy();
+                                return; // Chunk unloaded, suspend ship but don't destroy
+                            }
+                        }
+                        tick();
+                    }
+                };
+                task = com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTaskTimer(RUN_ME_2, 1L, 1L);
+            }
+        };
+        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTaskLater(RUN_ME, 7L);
+        startIdleCheckTask();
     }
     
     /**
@@ -763,7 +754,8 @@ public class ShipInstance {
             ship.engineCount -= 1;
             if (ship.engineCount <= 0) {
                 ship.engineCount = 0;
-                if (ship.isAirship) ship.physics.PER_MAX_SPEED = 0.625f;
+                ship.physics.PER_MAX_SPEED = 0.75f;
+                ship.physics.MOVEMENT_COOLDOWN += 12; //1 Second total
             }
         }
         ship.model.blockCount -= 1;
@@ -783,28 +775,54 @@ public class ShipInstance {
             ship.sinkAndExplode();
         }
     }
+    public void updateRedstone() {
+        if (!this.CHANGE_WORLD) {
+            updateRedstone(this.BLOCK_STATES);
+        }
+    }
+    public void updateRedstone(final Collection<MobileBlockState> BLOCK_STATES) {
+        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTask(()->{
+            for (MobileBlockState st : BLOCK_STATES) {
+                if (st == null) continue;
+                final Location stloc = st.getLocation(getWorld());
+                NmsUtils.UPDATE_REDSTONE_AT(stloc);
+            }
+        });
+    }
 
     public void updateWaterLogging() {
+        updateWaterLogging(false);
+    }
+
+    public void updateWaterLogging(boolean init) {
         if (this.physics == null || this.CHANGE_WORLD) return;
-        if (this.isAirship) return;
-        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTask(()->{
-            final MobileBlockState.MobileStateSet NEW_STATES = new MobileBlockState.MobileStateSet(ShipInstance.this.BLOCK_STATES.size());
-            NEW_STATES.addAll(ShipInstance.this.BLOCK_STATES);
-            BlockData FLUID_BLOCK = (!isAirship && !isLandcraft) ? ShipPhysics.getPrimaryMediumBlockAtBelowY(ShipInstance.this.physics.getExterior(), ShipInstance.this.physics.CURRENT_FLUID_LEVEL) : ShipPhysics.VOID;
-            //System.out.println("CURRENT FLUID LEVEL: "+ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
-            //System.out.println("PRE-WATERLOGGED BLOCK COUNT: "+ShipInstance.this.BLOCK_STATES.size());
-            //final it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<MobileBlockState> NEW_STATES = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(this.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
-            for (MobileBlockState st : NEW_STATES) {
-                if (st.by() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) st.occupiedBlock = FLUID_BLOCK;
-                else if (st.by() > ShipInstance.this.physics.CURRENT_FLUID_LEVEL && st.occupiedBlock.matches(ShipPhysics.WATER)) st.occupiedBlock = ShipPhysics.VOID;
-                NEW_STATES.set(st);
-            }
-            ShipInstance.this.BLOCK_STATES.clear();
-            //System.out.println("NEW-STATES BLOCK COUNT: "+NEW_STATES.size());
-            ShipInstance.this.BLOCK_STATES.setAll(NEW_STATES);
-            //System.out.println("POST-WATERLOGGED BLOCK COUNT: "+ShipInstance.this.BLOCK_STATES.size());
-            //System.out.println("PRIMARY FLUID BLOCK DATA: "+FLUID_BLOCK.getAsString(true));
-        });
+        var floating = ShipInstance.this.getDataTag("cemc:float_offset");
+        Integer floatOffset = 1;
+        if (floating != null && floating instanceof Double ddbl) floatOffset = (int)java.lang.Math.floor(ddbl);
+        final int checkY = (int)(ShipInstance.this.physics.CURRENT_FLUID_LEVEL+floatOffset);
+        final BlockData FLUID_BLOCK = (!isAirship) ? ShipPhysics.getPrimaryMediumBlockAtBelowY(physics.getExterior(0,0), checkY) : ShipPhysics.VOID;
+        if (SmoothSailingPlugin.DEBUG) {
+            System.out.println("CURRENT FLUID LEVEL: "+ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
+            System.out.println("CHECKING FLUID LEVEL: "+checkY);
+            System.out.println("PRIMARY FLUID BLOCK: "+FLUID_BLOCK.getAsString(false));
+        }
+        if (init) {
+            final int shipHeight = maxY() - minY();
+            this.BLOCK_STATES.forEach(st -> {
+                if (st.getBlockY() < ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
+                    if (st.getBlockY() <= (shipHeight / 3.25)+minY()) {
+                        st.occupiedBlock = FLUID_BLOCK;
+                    }
+                }
+                if (st.getBlockData() instanceof org.bukkit.block.data.Waterlogged waterlogged) {
+                    waterlogged.setWaterlogged(st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
+                    st.setBlockData(waterlogged);
+                    st.teleport(st.getLocation());
+                }
+                ShipInstance.this.BLOCK_STATES.set(st);
+
+            });
+        }
     }
 
     public static final Set<org.bukkit.block.BlockFace> HORIZONTAL_FACES = Set.of(org.bukkit.block.BlockFace.NORTH,org.bukkit.block.BlockFace.SOUTH,org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST);
@@ -839,7 +857,7 @@ public class ShipInstance {
         physics.moving = true;
         NmsUtils.runOnMain(()->{
             physics.moving = true;
-            physics.applyDeckPhysics();
+            physics.detectNearbyEntities();
             physics.currentRotationVelocity = 0.0f;
             physics.currentYVelocity = 0f;
             physics.currentSpeed = 0f;
@@ -906,7 +924,7 @@ public class ShipInstance {
                 }
                 if (entity.getVehicle() == null) NmsUtils.teleportSilentCurrentThread(entLoc, entity);
                 //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
-            } //DEBUG WTF 0.1565624714 IS?????
+            }
             for (Object KEY : this.TRACKED_STATE_MAP.keySet()) {
                 if (KEY == null) continue;
                 boolean INTERIOR = false;
@@ -953,6 +971,7 @@ public class ShipInstance {
                 ShipInstance.this.calculateBoundingBox();
                 physics.moving = false;
                 setProcessing(false);
+                updateRedstone();
                 sendSolids();
             };
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(offsetf).runTaskLater(RUN_ME, 3L);
@@ -1035,7 +1054,8 @@ public class ShipInstance {
     }
     public void doTick() {
         if (firstTick) {
-            physics.applyDeckPhysics();
+            physics.detectNearbyEntities();
+            firstTick = false;
         }
         if (CHANGE_WORLD) {
             NmsUtils.loadChunksIn(this.vehicle.getWorld(),this.BLOCK_STATES);
@@ -1059,33 +1079,31 @@ public class ShipInstance {
         final ShipTickEvent ticking = new ShipTickEvent(this,this.vehicle);
         ticking.callEvent();
         handleSteeringInput();
-        //NmsUtils.loadChunksIn(this.vehicle.getWorld(),this.BLOCK_STATES);
         if (ticking.isCancelled()) return;
         Location currentVehicleLoc = vehicle.getLocation();
         float yaw = vehicle.getYaw();
         float pitch = vehicle.getPitch();
-        com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTask(physics::update);    // Apply physics (movement, rotation, buoyancy)
-        // Apply custom physics and steering (runs every tick)
-        // Get current vehicle state
-        // Check if ship has moved or rotated
+        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(currentVehicleLoc).runTask(physics::update);    // Apply physics (movement, rotation, buoyancy)
+    }
 
-        // Check if ship moved to different chunk - update chunk index
-        int newChunkX = currentVehicleLoc.getBlockX() >> 4;
-        int newChunkZ = currentVehicleLoc.getBlockZ() >> 4;
-        // Update previous state for next tick
-        previousVehicleLocation = currentVehicleLoc.clone();
-        previousYaw = yaw;
-        previousPitch = pitch;
-        //check if nearby players and use happy ghast for collision
-        if (!firstTick && ticksSinceLastMovement <= 600) {
-            // Ship hasn't moved, increment idle counter
-            ticksSinceLastMovement++;
-            return;
+    public MobileBlockState.MobileStateSet getMaterial(Material TEST) {
+        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
+        if (TEST == null) return BLOCKS;
+        this.BLOCK_STATES.forEach(state -> {
+            if (!state.isDead() && state.getBlockData().getMaterial() == TEST) BLOCKS.add(state);
+        });
+        return BLOCKS;
+    }
+
+    public MobileBlockState.MobileStateSet getMaterialAndTrack(Object KEY, Material... TEST) {
+        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
+        if (TEST == null || KEY == null) return BLOCKS;
+        for (Material TESTED : TEST) {
+            if (TESTED == null) continue;
+            BLOCKS.addAll(getMaterial(TESTED));
         }
-        // Mark first tick as complete
-        firstTick = false;
-        // Ship has moved, reset idle counter
-        ticksSinceLastMovement = 0;
+        this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
+        return BLOCKS;
     }
 
     public MobileBlockState.MobileStateSet getBlockData(BlockData TEST) {
@@ -1112,7 +1130,7 @@ public class ShipInstance {
     }
 
     public MobileBlockState.MobileStateSet getBlockDataAndTrack(Object KEY, BlockData... TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(12500,0.75f);
+        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
         if (TEST == null || KEY == null) return BLOCKS;
         for (BlockData TESTED : TEST) {
             if (TESTED == null) continue;
@@ -1153,7 +1171,7 @@ public class ShipInstance {
     }
 
     public MobileBlockState.MobileStateSet getTrackedBlocks(Object KEY) {
-        return this.TRACKED_STATE_MAP.getOrDefault(KEY,new MobileBlockState.MobileStateSet(100,0.75f));
+        return this.TRACKED_STATE_MAP.getOrDefault(KEY,new MobileBlockState.MobileStateSet(2500,0.75f));
     }
 
 
@@ -1431,7 +1449,7 @@ public class ShipInstance {
                 if (physics.customMoveTicks >= 256) {
                     physics.customMoveTicks = 0;
                     if (!physics.moving) {
-                        physics.applyDeckPhysics();
+                        physics.detectNearbyEntities();
                     }
                 }
                 physics.customMoveTicks++;
@@ -1439,21 +1457,6 @@ public class ShipInstance {
         };
         // Check periodically for movement based on config
         idleCheckTask.runTaskTimer(plugin, (long) IDLE_CHECK_INTERVAL*2, (long) IDLE_CHECK_INTERVAL*2);
-    }
-
-    /**
-     * Check if ship has moved since last tick based on position and rotation changes.
-     * Used by tick() and startIdleCheckTask() for idle detection.
-     */
-    public boolean hasMovedSinceLastTick(Location currentLoc, float currentYaw, float currentPitch) {
-        if (!currentLoc.getWorld().equals(previousVehicleLocation.getWorld())) return true;
-        double distanceMoved = currentLoc.distance(previousVehicleLocation);
-        double yawChange = java.lang.Math.abs(normalizeAngle(currentYaw - previousYaw));
-        double pitchChange = java.lang.Math.abs(normalizeAngle(currentPitch - previousPitch));
-
-        return distanceMoved >= MOVEMENT_THRESHOLD ||
-               yawChange >= ROTATION_THRESHOLD ||
-               pitchChange >= ROTATION_THRESHOLD;
     }
     
     public void sinkAndExplode() {
@@ -1598,11 +1601,7 @@ public class ShipInstance {
     public void removeNonRootEntities() {}
 
     public void destroy() {
-        //alignToGrid();
-        //if (STATES != null) STATES.clear();
-
-        // Cancel tick tasks (will be restarted on respawn)
-        System.out.println("LAST BLOCK COUNT: "+BLOCK_STATES.size());
+        SmoothSailingPlugin.getInstance().getLogger().info("Unpiloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.BLOCK_STATES.size());
         if (task != null) {
             task.cancel();
             task = null;
@@ -1626,6 +1625,7 @@ public class ShipInstance {
             if (state.shipRef != null) state.shipRef.clear();
             state.shipRef = null;
         }
+        DATA_TAGS.clear();
         BLOCK_STATES.clear();
         TRACKED_STATE_MAP.clear();
         ENTITY_COMPOSITION.clear();
@@ -1676,5 +1676,26 @@ public class ShipInstance {
 
         // Sound effect
         world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.5f);
+    }
+
+    public void setDataTag(String key, Object data) {
+        if (key == null) return;
+        if (data == null) return;
+        key = key.toLowerCase(Locale.ENGLISH);
+        this.DATA_TAGS.put(key, data);
+    }
+
+    public Object removeDataTag(String key) {
+        if (key == null) return null;
+        key = key.toLowerCase(Locale.ENGLISH);
+        Object tag = this.DATA_TAGS.getOrDefault(key, null);
+        this.DATA_TAGS.remove(key);
+        return tag;
+    }
+
+    public <V> V getDataTag(String key) {
+        if (key == null) return null;
+        key = key.toLowerCase(Locale.ENGLISH);
+        return (V) this.DATA_TAGS.getOrDefault(key, null);
     }
 }

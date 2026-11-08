@@ -23,6 +23,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.ArrayList;
+import java.util.Locale;
 import java.util.List;
 
 public class SmoothSailingPlugin extends JavaPlugin {
@@ -34,7 +35,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
     public static boolean NMS_TELEPORT = false;
     public static SmoothSailingPlugin INSTANCE = null;
     public List<IClaimInterface> CLAIM_INTEFACES;
-    public ShipListener displayShip;
+    public ShipListener shipListener;
     public ShipSteeringListener steeringListener = null;
     public ShipWheelManager shipWheelManager;
     public boolean GSIT_FOUND = false;
@@ -105,8 +106,8 @@ public class SmoothSailingPlugin extends JavaPlugin {
         }
 
         // Initialize and register ShipListener
-        displayShip = new ShipListener(INSTANCE);
-        Bukkit.getPluginManager().registerEvents(displayShip, INSTANCE);
+        shipListener = new ShipListener(INSTANCE);
+        Bukkit.getPluginManager().registerEvents(shipListener, INSTANCE);
         try {
             CANNONS_FOUND = Bukkit.getPluginManager().getPlugin("Cannons") != null;
             if (CANNONS_FOUND) Bukkit.getPluginManager().registerEvents(new CannonsUtils(), INSTANCE);
@@ -165,12 +166,12 @@ public class SmoothSailingPlugin extends JavaPlugin {
         if (shipWheelManager != null) {
             shipWheelManager.placedWheels.clear();
         }
-        if (displayShip != null) {
-            displayShip.shutdown();
+        if (shipListener != null) {
+            ShipListener.shutdown();
         }
         steeringListener = null;
         shipWheelManager = null;
-        displayShip = null;
+        shipListener = null;
         getLogger().info("SmoothSailing disabled.");
         com.ccorp2002.smoothsailing.nmsutils.NmsUtils.SENT_BLOCKS.clear();
         INSTANCE = null;
@@ -185,7 +186,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
     }
 
     public ShipListener getShipListener() {
-        return displayShip;
+        return shipListener;
     }
 
     public static ShipListener shipListener() {
@@ -270,11 +271,11 @@ public class SmoothSailingPlugin extends JavaPlugin {
                 }
                 ShipInstance ship = ShipListener.findShipByPlayer(player);
                 for (int i = 0; i < 50; i++) {
-                    com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskLater(()->{
+                    com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                         ship.isForwardPressed = true;
-                        ship.physics.currentSpeed = 5;
+                        ship.physics.currentSpeed = 2;
                         ship.physics.update();
-                    }, (Math.abs(i)*(ship.physics.MOVEMENT_COOLDOWN+15L))-Math.abs(i));
+                    }, (Math.abs(i)*(ship.physics.MOVEMENT_COOLDOWN+7L))-Math.abs(i));
                 }
                 return true;
             }
@@ -340,7 +341,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
             if (sender.hasPermission("smoothsailing.admin")) subcommands.add("releaseall");
 
             for (String sub : subcommands) {
-                if (sub.toLowerCase().startsWith(args[0].toLowerCase())) {
+                if (sub.toLowerCase(Locale.ENGLISH).startsWith(args[0].toLowerCase(Locale.ENGLISH))) {
                     completions.add(sub);
                 }
             }

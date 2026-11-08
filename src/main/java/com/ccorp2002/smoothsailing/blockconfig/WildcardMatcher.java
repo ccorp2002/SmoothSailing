@@ -3,6 +3,7 @@ package com.ccorp2002.smoothsailing.blockconfig;
 import org.bukkit.Material;
 
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -26,9 +27,9 @@ public class WildcardMatcher {
 
         String regex = pattern
             .replace("*", ".*")
-            .toLowerCase();
+            .toLowerCase(Locale.ENGLISH);
 
-        return materialName.toLowerCase().matches(regex);
+        return materialName.toLowerCase(Locale.ENGLISH).matches(regex);
     }
 
     /**

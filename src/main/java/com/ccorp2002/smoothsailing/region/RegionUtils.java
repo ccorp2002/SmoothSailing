@@ -20,7 +20,8 @@ public class RegionUtils {
 	 * @return Whether object is running in the current region
 	 */
 	public static boolean isOwnedByCurrentRegion(Object object) {
-		if (object instanceof Block block) return Bukkit.isOwnedByCurrentRegion(block);
+		if (object == null) return false;
+		else if (object instanceof Block block) return Bukkit.isOwnedByCurrentRegion(block);
 		else if (object instanceof Entity entity) return Bukkit.isOwnedByCurrentRegion(entity);
 		else if (object instanceof Location location) return Bukkit.isOwnedByCurrentRegion(location);
 		return true;
@@ -36,7 +37,8 @@ public class RegionUtils {
 	 * @return Whether chunk is running in the current region
 	 */
 	public static boolean isOwnedByCurrentRegion(World world, int chunkX, int chunkZ) {
-		return Bukkit.isOwnedByCurrentRegion(world, chunkX, chunkZ);
+		if (world == null) return false;
+		else return Bukkit.isOwnedByCurrentRegion(world, chunkX, chunkZ);
 	}
 
 }

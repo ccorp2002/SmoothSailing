@@ -37,11 +37,8 @@ public final class ShipRegistry {
     public static List<ShipInstance> getShipsInWorld(World world) {
         List<ShipInstance> result = new ArrayList<>();
         for (ShipInstance inst : byId.values()) {
-            if (inst.vehicle == null) {
-                byId.remove(inst.id);
-                continue;
-            }
-            if (inst.vehicle.getWorld().equals(world)) result.add(inst);
+            if (inst == null) continue;
+            if (inst.getWorld().equals(world)) result.add(inst);
         }
         return result;
     }
@@ -63,6 +60,10 @@ public final class ShipRegistry {
             }
         }
         return result;
+    }
+
+    public static void destroyAllInWorld(World world) {
+        getShipsInWorld(world).forEach(ShipInstance::destroy);
     }
 
     public static void destroyAll() {

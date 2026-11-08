@@ -172,26 +172,37 @@ public class ShipPhysics {
         }
         return null;
     }
-    public static BlockData getPrimaryMediumAtBelowY(Collection<MobileBlockState> BLOCK_STATES, int y) {
-        BLOCK_STATES.removeIf(s -> s.getBlockY() >= y+1);
+    public static BlockData getPrimaryMediumAtBelowY(final Collection<MobileBlockState> BLOCK_STATES, int y) {
+        BLOCK_STATES.removeIf(s -> s.getBlockY() >= y);
         Map.Entry<String, Integer> maxEntry = getPrimaryMedium(BLOCK_STATES);
+        if (maxEntry == null) return VOID;
         Medium medium = getMedium(maxEntry.getKey());
-        if (medium == null) return ShipPhysics.VOID;
+        if (medium == null) return VOID;
         return medium.getBlockDatas().getFirst();
     }
 
     public static BlockData getPrimaryMediumBlockAtBelowY(Collection<Block> BLOCKS, int y) {
-        BLOCKS.removeIf(s -> s.getY() >= y+1);
+        BLOCKS.removeIf(s -> s.getY() > y);
         Map.Entry<String, Integer> maxEntry = getPrimaryMediumBlock(BLOCKS);
+        if (maxEntry == null) return VOID;
         Medium medium = getMedium(maxEntry.getKey());
-        if (medium == null) return ShipPhysics.VOID;
+        if (medium == null) return VOID;
+        return medium.getBlockDatas().getFirst();
+    }
+    
+    public static BlockData getPrimaryMediumBlockData(Collection<Block> BLOCK_STATES) {
+        Map.Entry<String, Integer> maxEntry = getPrimaryMediumBlock(BLOCK_STATES);
+        if (maxEntry == null) return VOID;
+        Medium medium = getMedium(maxEntry.getKey());
+        if (medium == null) return VOID;
         return medium.getBlockDatas().getFirst();
     }
     
     public static BlockData getPrimaryMediumData(Collection<MobileBlockState> BLOCK_STATES) {
         Map.Entry<String, Integer> maxEntry = getPrimaryMedium(BLOCK_STATES);
+        if (maxEntry == null) return VOID;
         Medium medium = getMedium(maxEntry.getKey());
-        if (medium == null) return ShipPhysics.VOID;
+        if (medium == null) return VOID;
         return medium.getBlockDatas().getFirst();
     }
 
@@ -206,7 +217,7 @@ public class ShipPhysics {
             FLUID_COUNTER.put(m.id,mi);
         }
         if (FLUID_COUNTER.isEmpty()) {
-            FLUID_COUNTER.put("water",5);
+            return null;
         }
         Map.Entry<String, Integer> maxEntry = Collections.max(
             FLUID_COUNTER.entrySet(), 
@@ -226,7 +237,7 @@ public class ShipPhysics {
             FLUID_COUNTER.put(m.id,mi);
         }
         if (FLUID_COUNTER.isEmpty()) {
-            FLUID_COUNTER.put("water",5);
+            return null;
         }
         Map.Entry<String, Integer> maxEntry = Collections.max(
             FLUID_COUNTER.entrySet(), 
@@ -239,23 +250,26 @@ public class ShipPhysics {
     public float getFluidMediumDrag() {
         // Apply drag based on medium presence (unless actively pressing W/S)
         if (ship == null) return 0f;
+        if (ship.isNotProcessing()) return 0.45f;
         ShipConfig config = ShipInstance.config;
         float dragMultiplier = 0f;
         Map.Entry<String, Integer> maxEntry = getPrimaryMedium(ship.BLOCK_STATES);
+        if (maxEntry == null) return 0.25f;
         Integer maxValue = maxEntry.getValue();
         dragMultiplier = maxValue + 0.0f;
         if (Math.abs(dragMultiplier) >= 1) { //Fallback
-            dragMultiplier = 0.75f;
+            dragMultiplier = 0.125f;
         }
         return dragMultiplier;
     }
 
     public float getMaxEngineSpeedFactor() {
         if (ship == null) return ShipPhysics.MAX_SPEED;
-        float speedFactor = 0.25f;
-        final double enginePercent = ship.engineCount / ship.initialEngineCount;
+        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 1.25f;
+        final double enginePercent = (ship.engineCount / ship.initialEngineCount) * 100d;
+        float speedFactor = this.PER_MAX_SPEED;
         if (ship.engineCount > 0 && enginePercent >= 0.75d) {
-            speedFactor = Math.abs(this.PER_MAX_SPEED - (this.PER_MAX_SPEED * (float)(ship.blockCount / ship.engineCount)));
+            speedFactor = Math.abs(this.PER_MAX_SPEED);
         }
         return speedFactor;
     }
@@ -298,14 +312,14 @@ public class ShipPhysics {
     public volatile int physicsInterval = 0;
     public volatile int loadTicks = 0;
     // Velocity state
-    public static float MAX_SPEED = 10f;
+    public static float MAX_SPEED = 3f;
     public float PER_MAX_SPEED = MAX_SPEED;
     public volatile float currentSpeed = 0.0f;
     public volatile float currentYVelocity = 0.0f;
     public volatile float currentRotationVelocity = 0.0f;
-    public int ROTATION_INCR = 0;
+    public int ROTATION_INCR = 1;
     public volatile boolean moving = false;
-    public long MOVEMENT_COOLDOWN = 3l;
+    public long MOVEMENT_COOLDOWN = 8l;
     public int GLOBAL_WATER_SURFACE = -127;
     public int CURRENT_FLUID_LEVEL = GLOBAL_WATER_SURFACE;
 
@@ -315,11 +329,11 @@ public class ShipPhysics {
 
     public ShipPhysics(ShipInstance ship) {
         this.ship = ship;
-        this.CURRENT_FLUID_LEVEL = this.GLOBAL_WATER_SURFACE;
         this.GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",63);
-        if (ship.isAirship) PER_MAX_SPEED = 7f;
-        else if (ship.isLandcraft) PER_MAX_SPEED = 3f;
-        else PER_MAX_SPEED = 5f;
+        this.CURRENT_FLUID_LEVEL = this.GLOBAL_WATER_SURFACE;
+        if (ship.isAirship) PER_MAX_SPEED = 5f;
+        else if (ship.isLandcraft) PER_MAX_SPEED = 2f;
+        else PER_MAX_SPEED = 3f;
     }
 
     public static double ROUND_VALUE(double value, int precision) {
@@ -388,7 +402,7 @@ public class ShipPhysics {
                     forwardZ = ROUND_VALUE(forwardZ,2);
                 }
             }
-            float accel = (float)0.475f+((PER_MAX_SPEED*0.625f));
+            float accel = (float)0.475f+((getMaxEngineSpeedFactor()*0.625f));
             if (ship.isForwardPressed) {
                 currentSpeed = Math.min(currentSpeed + accel, PER_MAX_SPEED);
             } else if (ship.isBackwardPressed) {
@@ -420,12 +434,10 @@ public class ShipPhysics {
             currentRotationVelocity = 0f;
         }
         if (ship.isSinking) currentYVelocity = -1.5f;
-        if (physicsInterval >= 30) {
+        if (physicsInterval >= 20) {
+            handleBuoyancy(ship.getLocation());
             physicsInterval = 0;
-            if (!ship.isSinking) handleBuoyancy(vehicleLoc);
         } else physicsInterval++;
-        boolean hasHorizontalMovement = (Math.abs(currentSpeed)) >= 0.375f;
-        boolean hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.395f;
         if (SmoothSailingPlugin.INSTANCE == null) {
             ship.setProcessing(false);
             ship.isLeftPressed = false;
@@ -440,7 +452,7 @@ public class ShipPhysics {
             this.moving = false;
             return;
         }
-        applyDeckPhysics();
+        detectNearbyEntities();
         List<Entity> FILTERED_ENTS = ship.ENTITY_COMPOSITION.stream()
                 .filter(p -> p.isValid())
                 .collect(Collectors.toList());
@@ -528,7 +540,7 @@ public class ShipPhysics {
                 return;
             }
             newLoc.setPitch(ship.vehicle.getPitch());
-            com.ccorp2002.smoothsailing.event.ShipMoveEvent mevent = new com.ccorp2002.smoothsailing.event.ShipMoveEvent(ship,newLoc,ship.vehicle);
+            com.ccorp2002.smoothsailing.event.ShipRotateEvent mevent = new com.ccorp2002.smoothsailing.event.ShipRotateEvent(ship,newLoc,ship.vehicle,TURN_BLOCK_DATA);
             mevent.callEvent();
             if (mevent.isCancelled()) {
                 ship.isLeftPressed = false;
@@ -552,7 +564,7 @@ public class ShipPhysics {
             //NmsUtils.refreshChunksIn(ship.vehicle.getWorld(),TEMPS);
             ship.setProcessing(true);
             this.moving = true;
-            applyDeckPhysics();
+            detectNearbyEntities();
             this.currentSpeed = 0f;
             this.currentYVelocity = 0f;
             //System.out.println("STARTING BLOCK COUNT: "+TEMPS.length);
@@ -577,7 +589,6 @@ public class ShipPhysics {
                 BlockData TURNED = st.getBlockData().clone();
                 TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
                 st.setBlockData(TURNED);
-                NmsUtils.setBlockFast(updLoc,TURNED);
                 st.teleport(updLoc,false);
                 st.setLocation(updLoc);
                 var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelAt(stloc);
@@ -655,36 +666,61 @@ public class ShipPhysics {
             }
             ship.sendSolids();
             ship.calculateBoundingBox();
-            if (!ship.CHANGE_WORLD && (this.moving || !ship.isNotProcessing())) {
-                for (MobileBlockState st : ship.BLOCK_STATES) {
-                    if (st == null) continue;
-                    final Location stloc = st.getLocation(ship.getWorld());
-                    NmsUtils.UPDATE_REDSTONE_AT(stloc);
-                }
-            }
+            ship.updateRedstone();
             this.currentRotationVelocity = 0.0f;
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 currentYVelocity = yVelocity;
                 currentSpeed = xzVelocity/2f;
                 moving = false;
                 ship.setProcessing(false);
-            },(long)(MOVEMENT_COOLDOWN)+15L);
+            },(long)(MOVEMENT_COOLDOWN));
             return;
         }
+        boolean hasHorizontalMovement = (Math.abs(currentSpeed)) >= 0.375f;
+        boolean hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.45f;
         if ((hasHorizontalMovement || hasVerticalMovement) && !(ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving)) {
             Location newLoc = vehicleLoc.clone();
             double fx = 0d;
             double fy = 0d;
             double fz = 0d;
-            if (hasVerticalMovement) {
-                if ((ship.isLandcraft || !ship.isAirship) && !ship.isSinking) currentYVelocity = CLAMP_VALUE(currentYVelocity, -3, 3);
-                fy = Math.round(CLAMP_VALUE(currentYVelocity, (float)-((PER_MAX_SPEED/1.25)+2d), (float)((PER_MAX_SPEED/1.25)+2d)));
-            }
             if (hasHorizontalMovement) {
+                handleBuoyancy(ship.getLocation());
                 fx = forwardX * (currentSpeed);
                 fz = forwardZ * (currentSpeed);
                 if (Math.abs(fx)<1) fx = 0;
                 if (Math.abs(fz)<1) fz = 0;
+                hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.45f;
+            }
+            if (hasVerticalMovement) {
+                fy = Math.round(CLAMP_VALUE(currentYVelocity, (float)-((PER_MAX_SPEED/1.25)+2d), (float)((PER_MAX_SPEED/1.25)+2d)));
+            }
+            if (ship.isSinking) {
+                fy = -2d;
+            } else if (!ship.isLandcraft && !ship.isAirship) {
+                var floating = ship.getDataTag("cemc:float_offset");
+                Double floatOffset = -2d;
+                if (floating != null && floating instanceof Double ddbl) floatOffset = ddbl;
+                boolean isInAir = (getMedium(ShipPhysics.getPrimaryMediumBlockAtBelowY(getExterior(0,0), CURRENT_FLUID_LEVEL)).id.equalsIgnoreCase("void"));
+                if (fy < 0d) {
+                    if (ship.model.minY > CURRENT_FLUID_LEVEL + floatOffset) {
+                        fy = -1;
+                    } else if (ship.model.minY + Math.abs(floatOffset) <= CURRENT_FLUID_LEVEL) {
+                        fy = 1;
+                    } else {
+                        if (isInAir) fy = -1;
+                        else fy = 0;
+                    }
+                } else if (fy >= 1d) {
+                    if (ship.model.minY > CURRENT_FLUID_LEVEL + floatOffset) {
+                        if (isInAir) fy = -1;
+                        else fy = 0;
+                    } else if (ship.model.minY - (floatOffset+2) < CURRENT_FLUID_LEVEL) {
+                        fy = 1;
+                    } else {
+                        if (isInAir) fy = -1;
+                        else fy = 0;
+                    }
+                }
             }
             Location offset = new Location(ship.vehicle.getWorld(),fx,fy,fz);
             com.ccorp2002.smoothsailing.event.ShipMoveEvent mevent = new com.ccorp2002.smoothsailing.event.ShipMoveEvent(ship,offset,ship.vehicle);
@@ -706,7 +742,6 @@ public class ShipPhysics {
             offset = mevent.getLocation();
             ship.CHANGE_WORLD = !offset.getWorld().equals(ship.vehicle.getWorld());
             if (ship.CHANGE_WORLD) {
-                ship.setProcessing(true);
                 ship.isLeftPressed = false;
                 ship.isRightPressed = false;
                 ship.isForwardPressed = false;
@@ -715,8 +750,9 @@ public class ShipPhysics {
                 ship.isSpacePressed = false;
                 this.currentRotationVelocity = 0.0f;
                 this.currentYVelocity = 0f;
+                ship.setProcessing(false);
                 this.currentSpeed = 0f;
-                this.moving = true;
+                this.moving = false;
                 return;
             } else {
                 com.ccorp2002.smoothsailing.event.ShipPreProcessMoveEvent collideEvent = new com.ccorp2002.smoothsailing.event.ShipPreProcessMoveEvent(ship,offset,ship.vehicle);
@@ -766,23 +802,22 @@ public class ShipPhysics {
                 updLoc = updLoc.add(offsetf);
                 updLoc = updLoc.toBlockLocation();
                 boolean isAccessible = updLoc.isChunkLoaded() && updLoc.isGenerated();
-                if (SmoothSailingPlugin.DEBUG_DUMP) {
-                    System.out.println("MOVING STATE?: "+st.getBlockData().getMaterial().toString()+" TO POSITION?: "+updLoc.toVector().toString());
-                    System.out.println("POSITION IS ACCESSIBLE?: "+isAccessible);
-                }
                 if (!isAccessible) {
                     NmsUtils.getChunkFastest(updLoc);
                     isAccessible = updLoc.isChunkLoaded() && updLoc.isGenerated();
                 }
                 if (!isAccessible) {
                     NmsUtils.getChunkFastest(updLoc);
-                    if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("POSITION IS NOT ACCESSIBLE: "+updLoc.toVector().toString());
+                    isAccessible = updLoc.isChunkLoaded() && updLoc.isGenerated();
+                    if (SmoothSailingPlugin.DEBUG_DUMP) {
+                        System.out.println("MOVING STATE?: "+st.getBlockData().getMaterial().toString()+" TO POSITION?: "+updLoc.toVector().toString());
+                        System.out.println("POSITION IS ACCESSIBLE?: "+isAccessible);
+                    }
                     collisionCount++;
                     continue;
                 }
                 Block block = updLoc.getBlock();
                 if (DESTRUCTIBLE.contains(block.getType()) && !MobileBlockState.doesShipHave(ship,updLoc) && !FRAGILE_MATERIALS.contains(block.getType())) {
-                    if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("COLLIDED & BROKE?: "+block.getType()+" LOCATION?: "+updLoc.toVector().toString());
                     block.breakNaturally(true);
                 }
                 if (MobileBlockState.doesShipHave(ship,updLoc)) {
@@ -808,8 +843,8 @@ public class ShipPhysics {
             ship.setProcessing(true);
             this.moving = true;
             //Runnable runMe = () -> {
-            applyDeckPhysics();
-            //System.out.println("STARTING BLOCK COUNT: "+TEMPS.length);
+            detectNearbyEntities();
+            //boolean isShipBobbingUp = offsetf.getBlockY() > 0 && !ship.isAirship;
             for (int indx = 0; indx < TEMPS.length; indx ++) {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
@@ -819,7 +854,6 @@ public class ShipPhysics {
                 TEMPS[indx] = st;
             }
             ship.sendVoids(Arrays.asList(TEMPS));
-            //System.out.println("MID MOVEMENT BLOCK COUNT: "+TEMPS.length);
             for (int indx = 0; indx < TEMPS.length; indx ++) {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
@@ -833,7 +867,7 @@ public class ShipPhysics {
                     SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, updLoc, ship.facing);
                 }
                 st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
-                NmsUtils.setBlockFast(updLoc,st.state);
+                
                 st.teleport(updLoc,false);
                 st.setLocation(updLoc);
                 TEMPS[indx] = st;
@@ -866,7 +900,7 @@ public class ShipPhysics {
                     ShipListener.addTag(entity,ShipListener.wheelTag(entity.getLocation()));
                 }
                 //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
-            } //DEBUG WTF 0.1565624714 IS?????
+            }
             for (Object KEY : this.ship.TRACKED_STATE_MAP.keySet()) {
                 if (KEY == null) continue;
                 boolean INTERIOR = false;
@@ -893,53 +927,16 @@ public class ShipPhysics {
                 this.ship.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
                 if (INTERIOR) ship.sendSolids(VALUE);
             }
-            ship.sendSolids(ship.BLOCK_STATES);
+            ship.sendSolids();
             ship.calculateBoundingBox();
-            if (!ship.CHANGE_WORLD && (this.moving || !ship.isNotProcessing())) {
-                for (MobileBlockState st : ship.BLOCK_STATES) {
-                    if (st == null) continue;
-                    final Location stloc = st.getLocation(ship.getWorld());
-                    NmsUtils.UPDATE_REDSTONE_AT(stloc);
-                }
-            }
+            ship.updateRedstone();
             this.currentRotationVelocity = 0.0f;
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 moving = false;
                 ship.setProcessing(false);
-            },(long)(MOVEMENT_COOLDOWN)+7L);
+            },(long)(MOVEMENT_COOLDOWN));
             return;
         }
-    }
-
-
-    public static boolean isMultipleOf22_5(double number) {
-        // Multiply by 10 to handle one decimal place: 22.5 -> 225
-        if (number == 0.0d) return false;
-        int intNumber = (int) Math.round(number * 10);
-        return intNumber % 225 == 0;
-    }
-    public static boolean isMultipleOf90_0(double number) {
-        // Multiply by 10 to handle one decimal place: 90.0 -> 900
-        if (number == 0.0d) return false;
-        int intNumber = (int) Math.round(number * 10);
-        return intNumber % 900 == 0;
-    }
-    public static int getMultipleOf90_0(double number) {
-        // Multiply by 10 to handle one decimal place: 90.0 -> 900
-        if (number == 0.0d) return -1;
-        int intNumber = (int) Math.round(number * 10);
-        int multiple = intNumber % 900;
-        if (multiple < 0) return -1;
-        return multiple;
-    }
-    public static int countDivisions(double a, double b) {
-        if (b < 2d) return 0; // Avoid infinite loops
-        int count = 0;
-        while (a % b == 0) {
-            a /= b;
-            count++;
-        }
-        return count;
     }
     public void rotateSegment3AxisIncr(Vector axis, double amount) {
         rotateSegment3AxisIncr(axis,null,amount);
@@ -991,7 +988,7 @@ public class ShipPhysics {
                     collisionCount++;
                 }
             }
-            applyDeckPhysics();
+            detectNearbyEntities();
             List<Entity> FILTERED_ENTS = ship.ENTITY_COMPOSITION.stream()
                     .filter(p -> p.isValid() && !ship.vehicle.equals(p) && (p.getWorld().equals(CENTER_POINT.getWorld())))
                     .collect(Collectors.toList());
@@ -1010,7 +1007,7 @@ public class ShipPhysics {
             ship.setProcessing(true);
             this.moving = true;
             //Runnable runMe = () -> {
-            applyDeckPhysics();
+            detectNearbyEntities();
             //System.out.println("STARTING BLOCK COUNT: "+TEMPS.length);
             for (int indx = 0; indx < TEMPS.length; indx ++) {
                 MobileBlockState st = TEMPS[indx];
@@ -1035,7 +1032,6 @@ public class ShipPhysics {
                     SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, updLoc, ship.facing);
                 }
                 st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
-                NmsUtils.setBlockFast(updLoc,st.state);
                 st.teleport(updLoc,false);
                 st.setLocation(updLoc);
                 TEMPS[indx] = st;
@@ -1068,7 +1064,7 @@ public class ShipPhysics {
                     ShipListener.addTag(entity,ShipListener.wheelTag(entity.getLocation()));
                 }
                 //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
-            } //DEBUG WTF 0.1565624714 IS?????
+            }
             for (Object KEY : this.ship.TRACKED_STATE_MAP.keySet()) {
                 if (KEY == null) continue;
                 boolean INTERIOR = false;
@@ -1099,7 +1095,7 @@ public class ShipPhysics {
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 moving = false;
                 ship.setProcessing(false);
-            },(long)(MOVEMENT_COOLDOWN)+5L);   
+            },(long)(MOVEMENT_COOLDOWN)+5L);
         }
     }
 
@@ -1124,7 +1120,7 @@ public class ShipPhysics {
         int collisionCount = 0;
         boolean canEnterAt = true;
         if (ship.driver instanceof Player player) pilot = player;
-        applyDeckPhysics();
+        detectNearbyEntities();
         List<Entity> FILTERED_ENTS = ship.ENTITY_COMPOSITION.stream()
                 .filter(p -> p.isValid() && !ship.vehicle.equals(p) && (p.getWorld().equals(CENTER_POINT.getWorld()) && p.getLocation().distance(CENTER_POINT) <= 7.5d))
                 .collect(Collectors.toList());
@@ -1192,7 +1188,7 @@ public class ShipPhysics {
         //NmsUtils.refreshChunksIn(ship.vehicle.getWorld(),TEMPS);
         ship.setProcessing(true);
         this.moving = true;
-        applyDeckPhysics();
+        detectNearbyEntities();
         for (int indx = 0; indx < TEMPS.length; indx ++) {
             MobileBlockState st = TEMPS[indx];
             ship.BLOCK_STATES.remove(st);
@@ -1225,13 +1221,13 @@ public class ShipPhysics {
                 System.out.println("  SEGMENT-ROTATION TYPE: "+LEFT_RIGHT);
                 System.out.println("  SEGMENT-NEW BLOCK DATA: "+NmsUtils.BlockDataGetter.get(NmsUtils.getBlockState(TURNED)).getAsString(false));
             }
-            NmsUtils.setBlockFast(updLoc,st.state);
             st.teleport(updLoc,false);
             st.setLocation(updLoc);
             TEMPS[indx] = st;
             //ship.BLOCK_STATES.add(st);
         }
         ship.BLOCK_STATES.addAll(TEMPS);
+        ship.updateRedstone(Arrays.asList(TEMPS));
         ship.calculateBoundingBox();
         ship.sendSolids();
         for (Entity entity : FILTERED_ENTS) {
@@ -1348,7 +1344,7 @@ public class ShipPhysics {
         //NmsUtils.refreshChunksIn(ship.vehicle.getWorld(),TEMPS);
         ship.setProcessing(true);
         this.moving = true;
-        applyDeckPhysics();
+        detectNearbyEntities();
         for (int indx = 0; indx < TEMPS.length; indx ++) {
             MobileBlockState st = TEMPS[indx];
             ship.BLOCK_STATES.remove(st);
@@ -1380,7 +1376,6 @@ public class ShipPhysics {
                 System.out.println("  SEGMENT-ROTATION TYPE: "+LEFT_RIGHT);
                 System.out.println("  SEGMENT-NEW BLOCK DATA: "+NmsUtils.BlockDataGetter.get(NmsUtils.getBlockState(TURNED)).getAsString(false));
             }
-            NmsUtils.setBlockFast(updLoc,st.state);
             st.teleport(updLoc,false);
             st.setLocation(updLoc);
             TEMPS[indx] = st;
@@ -1388,6 +1383,7 @@ public class ShipPhysics {
         ship.BLOCK_STATES.addAll(TEMPS);
         ship.sendSolids();
         ship.calculateBoundingBox();
+        ship.updateRedstone(Arrays.asList(TEMPS));
         for (Entity entity : FILTERED_ENTS) {
             if (entity == null) continue;
             if (entity instanceof Player pl && !pl.isConnected()) {
@@ -1451,20 +1447,24 @@ public class ShipPhysics {
     public Set<Block> getInterior() {
         World world = ship.getWorld();
         if (world == null) return new HashSet<Block>();
-        Set<Block> outsideBlocks = new HashSet<>();
-        Set<Block> outerHull = new HashSet<>();
-        Set<Block> innerShip = new HashSet<>();
-        scanHull(outsideBlocks, outerHull, innerShip);
+        Set<Block> outsideBlocks = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> outerHull = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> innerShip = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        scanHull(outsideBlocks, outerHull, innerShip, 0, 0);
         return innerShip;
     }
 
     public Set<Block> getExterior() {
+        return getExterior(0, 0);
+    }
+
+    public Set<Block> getExterior(Integer houtset, Integer voutset) {
         World world = ship.getWorld();
         if (world == null) return new HashSet<Block>();
-        Set<Block> outsideBlocks = new HashSet<>();
-        Set<Block> outerHull = new HashSet<>();
-        Set<Block> innerShip = new HashSet<>();
-        scanHull(outsideBlocks, outerHull, innerShip);
+        Set<Block> outsideBlocks = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> outerHull = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> innerShip = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        scanHull(outsideBlocks, outerHull, innerShip, houtset, voutset);
         return outsideBlocks;
     }
 
@@ -1475,10 +1475,10 @@ public class ShipPhysics {
     public boolean isUnderwater(boolean truly) {
         World world = ship.getWorld();
         if (world == null) return false;
-        Set<Block> outsideBlocks = new HashSet<>();
-        Set<Block> outerHull = new HashSet<>();
-        Set<Block> innerShip = new HashSet<>();
-        scanHull(outsideBlocks, outerHull, innerShip);
+        Set<Block> outsideBlocks = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> outerHull = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> innerShip = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        scanHull(outsideBlocks, outerHull, innerShip, 0, 1);
         boolean foundOne = false;
         BoundingBox bbox = ship.getBoundingBox();
         for (Block b : outsideBlocks) {
@@ -1497,11 +1497,12 @@ public class ShipPhysics {
         World world = ship.getWorld();
         int fluidY = this.GLOBAL_WATER_SURFACE;
         if (world == null) return fluidY;
-        Set<Block> outsideBlocks = new HashSet<>();
-        Set<Block> outerHull = new HashSet<>();
-        Set<Block> innerShip = new HashSet<>();
-        fluidY = -127;
-        scanHull(outsideBlocks, outerHull, innerShip);
+        Set<Block> outsideBlocks = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> outerHull = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> innerShip = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        fluidY = Math.max(world.getMinHeight(), (int)(ship.model.minY - 2f));
+        if (m.id.equalsIgnoreCase("void")) return fluidY;
+        scanHull(outsideBlocks, outerHull, innerShip, 0, 0);
         for (Block b : outsideBlocks) {
             if (m.isDataMedium(b.getBlockData())) {
                 fluidY = Math.max(b.getY(), fluidY);
@@ -1588,12 +1589,20 @@ public class ShipPhysics {
      *                      blocks) and/or are not on the outside of the ship
      */
     public void scanHull(Set<Block> outsideBlocks, Set<Block> outerHull, Set<Block> innerShip) {
+        scanHull(outsideBlocks,outerHull,innerShip,1,1);
+    }
+    public void scanHull(Set<Block> outsideBlocks, Set<Block> outerHull, Set<Block> innerShip, Integer vhoutset) {
+        scanHull(outsideBlocks,outerHull,innerShip,vhoutset,vhoutset);
+    }
+    public void scanHull(Set<Block> outsideBlocks, Set<Block> outerHull, Set<Block> innerShip, Integer houtset, Integer voutset) {
         World world = ship.getWorld();
         if (world == null) return;
-        Set<Block> allBlocks = new HashSet<>();
-        Set<Block> nextLayer = new HashSet<>();
-        int x1 = ship.minX(); int y1 = ship.minY(); int z1 = ship.minZ();
-        int x2 = ship.maxX(); int y2 = ship.maxY(); int z2 = ship.maxZ();
+        if (voutset == null) voutset = 0;
+        if (houtset == null) houtset = 0;
+        Set<Block> allBlocks = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Block> nextLayer = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        int x1 = ship.minX()-houtset; int y1 = ship.minY()-voutset; int z1 = ship.minZ()-houtset;
+        int x2 = ship.maxX()+houtset; int y2 = ship.maxY()+voutset; int z2 = ship.maxZ()+houtset;
         for (int x = x1 - 1; x <= x2 + 1; x++) {
             for (int y = y1 - 1; y <= y2 + 1; y++) {
                 for (int z = z1 - 1; z <= z2 + 1; z++) {
@@ -1605,7 +1614,8 @@ public class ShipPhysics {
             }
         }
         while (!nextLayer.isEmpty()) {
-            Set<Block> thisLayer = new HashSet<>(nextLayer);
+            Set<Block> thisLayer = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+            thisLayer.addAll(nextLayer);
             outsideBlocks.addAll(nextLayer);
             nextLayer.clear();
             for (Block b : thisLayer) {
@@ -2061,18 +2071,20 @@ public class ShipPhysics {
         if (ship.isLandcraft) return;
         if (ship.CHANGE_WORLD) return;
         int MIN_BY = ship.minY();
-        if (MIN_BY < -127) return;
+        if (MIN_BY < ship.getWorld().getMinHeight()) return;
         ship.model.minY = MIN_BY;
 
         int MAX_BY = ship.maxY();
-        if (MAX_BY < -127) return;
+        if (MAX_BY >= ship.getWorld().getMaxHeight()) return;
         ship.model.maxY = MAX_BY;
-        ship.updateWaterLogging();
         Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(vehicleLoc, ship.BLOCK_STATES, ship.model.totalWeight);
-        this.CURRENT_FLUID_LEVEL = this.getFluidLevel(getPrimaryMediumData(ship.BLOCK_STATES));
+        Set<Block> EXT = getExterior(0,0);
+        float heightY = MAX_BY - MIN_BY;
+        EXT.removeIf(b -> b.getY() > (heightY / 3.25)+MIN_BY);
+        BlockData MEDIUM = getPrimaryMediumBlockData(EXT);
+        this.CURRENT_FLUID_LEVEL = this.getFluidLevel(MEDIUM);
 
         double waterSurfaceY = (double)this.CURRENT_FLUID_LEVEL;
-        float heightY = MAX_BY - MIN_BY;
         Float floatOffset = -1f;
         Number floatOff = DATA.getOrDefault("surface_offset",null);
         if (floatOff == null) floatOffset = (float)(-Math.round(heightY/3.25f)) + (float)Math.round((heightY/3f));
@@ -2082,7 +2094,7 @@ public class ShipPhysics {
         double currentY = (double)MIN_BY;
         double targetY = CURRENT_FLUID_LEVEL + floatOffset;
         double yDifference = Math.abs(targetY - currentY);
-        if (SmoothSailingPlugin.DEBUG_DUMP) {
+        if (SmoothSailingPlugin.DEBUG) {
             System.out.println("SHIP HEIGHT: "+heightY);
             System.out.println("WATER SURFACE Y: "+waterSurfaceY);
 
@@ -2093,22 +2105,19 @@ public class ShipPhysics {
         }
         if (yDifference >= 1d) {
             if (MIN_BY > targetY) {
+                currentSpeed = 0f;
                 currentYVelocity = -1f; // Gravity
+                ship.updateWaterLogging(true);
             } else if (MIN_BY <= targetY+1) {
                 currentYVelocity = 1f; // Floatation
+                ship.updateWaterLogging(true);
             } else {
                 currentYVelocity = 0f;
             }
         }
     }
 
-    /**
-     * Apply ship velocity to players standing on deck.
-     * Called per-collider from updateCollisionPositions().
-     */
-    public static double NEARBY_DISTANCE_SQ = 4.5*4.5d;
-
-    public void applyDeckPhysics() {
+    public void detectNearbyEntities() {
         if (ship.CHANGE_WORLD) return;
         else if (ship.vehicle == null) return;
         else if (ship.vehicle.isDead()) return;
@@ -2132,15 +2141,12 @@ public class ShipPhysics {
             players.clear();
         });
     }
-
-    public void snapToFineGrid() {
-        alignToGrid();
-    }
+    
     public void alignToGrid() {
         ship.vehicle.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
         currentSpeed = 0.0f;
         currentRotationVelocity = 0.0f;
         currentYVelocity = 0.0f;
-        applyDeckPhysics();
+        detectNearbyEntities();
     }
 }

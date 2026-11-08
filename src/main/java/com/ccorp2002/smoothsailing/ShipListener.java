@@ -135,107 +135,14 @@ public class ShipListener implements Listener {
     public static boolean isWheel(Entity entity) {
         return hasWheelLocation(entity.getPersistentDataContainer());
     }
-    /**
-     * Applies a custom texture to a player head from a Base64-encoded texture value.
-     * This is the unified implementation used by both ship kits and custom items.
-     *
-     * @param meta The SkullMeta to apply texture to
-     * @param textureBase64 The Base64-encoded texture JSON (format: {"textures":{"SKIN":{"url":"..."}}})
-     * @param plugin The plugin instance (for logging)
-     */
-    public static void applyPlayerHeadTextureFromBase64(SkullMeta meta, String textureBase64, Plugin plugin) {
-        if (textureBase64 == null || textureBase64.isEmpty()) {
-            return;
-        }
 
-        try {
-            // Decode Base64 to get texture URL (format: {"textures":{"SKIN":{"url":"..."}}}
-            String decoded = new String(Base64.getDecoder().decode(textureBase64));
-
-            // Extract URL from JSON (simple string parsing)
-            int urlStart = decoded.indexOf("\"url\":\"") + 7;
-            int urlEnd = decoded.indexOf("\"", urlStart);
-
-            if (urlStart > 7 && urlEnd > urlStart) {
-                String urlString = decoded.substring(urlStart, urlEnd);
-                URL textureUrl = new URL(urlString);
-
-                // Create player profile with texture
-                var profile = Bukkit.createPlayerProfile(UUID.randomUUID());
-                var textures = profile.getTextures();
-                textures.setSkin(textureUrl);
-                profile.setTextures(textures);
-                meta.setOwnerProfile(profile);
-            }
-        } catch (Exception e) {
-            // Silently fail - texture application is optional
-            if (plugin != null) {
-                plugin.getLogger().warning("Failed to apply player head texture: " + e.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Formats a material name for display.
-     * Converts "DARK_OAK" -> "Dark Oak" or "SPRUCE" -> "Spruce"
-     *
-     * @param name The material name to format
-     * @return The formatted name
-     */
-    public static String formatMaterialName(String name) {
-        return Arrays.stream(name.split("_"))
-                .map(word -> word.substring(0, 1).toUpperCase() + word.substring(1).toLowerCase())
-                .collect(Collectors.joining(" "));
-    }
-    /**
-     * Get a texture from a named texture set
-     * @param setName The name of the texture set (e.g., "CRATES")
-     * @param woodType The wood type (e.g., "OAK", "SPRUCE") - will fall back to _DEFAULT if not found
-     * @return The base64 texture string, or null if the set doesn't exist
-     */
-    public static String LEGACY$getTexture() {
-        return "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNjQ2YzUzOTNjM2M1Nzc0MmM5OTJjNTZhN2I3YThiOThkMjY3NTM4ZGU5NDdjMTA5NmZlNzYzNDE0MzEwMDhmMiJ9fX0=";
-    }
-
-    /**
-     * Scans all loaded chunks for ship entities that aren't registered in ShipRegistry.
-     * This handles: spawn chunks that never unload, server restart, pre-migration ships.
-     */
-    public void recoverUnregisteredShips() {}
-
-    /**
-     * Scans a chunk for ship root entities that aren't registered and recovers them.
-     * @return Number of ships recovered
-     */
-    public int recoverUnregisteredShipsInChunk(org.bukkit.Chunk chunk) {
-        return 0;
-    }
-
-    /**
-     * Starts a periodic task to save ship data for ships in always-loaded chunks.
-     * Ships in spawn chunks never trigger onChunkUnload, so they need periodic saving.
-     */
-    public void startPeriodicSaveTask() {}
-
-    public void loadShips() {}
-
-    public void saveShips() {}
-
-    /**
-     * Migrates ship data from legacy ships.yml to per-world YAML storage.
-     * This is a one-time migration that runs when the plugin detects ships.yml exists.
-     */
-    public void migrateLegacyShipData() {}
-
-    public void extractDefaultModelFiles() {}
-
-    public void shutdown() {
-        // Save all ships to per-world storage before shutdown
+    public static void shutdown() {
         ShipRegistry.destroyAll();
     }
-
-    // ===== Chunk & Orphan Management =====
-
+    @EventHandler
+    public void onWorldUnload(org.bukkit.event.world.WorldUnloadEvent event) {
+        ShipRegistry.destroyAllInWorld(event.getWorld());
+    }
     /**
      * Handles chunk unload events.
      * Suspends ship tasks and unregisters from ShipRegistry.
@@ -248,11 +155,9 @@ public class ShipListener implements Listener {
             if (!ship.vehicle.getWorld().equals(chunk.getWorld())) {
                 continue;
             } else if (ship.vehicle == null || ship.vehicle.isDead()) {
-                NmsUtils.runOnMain(()->{
-                    ShipRegistry.unregister(ship);
-                    ship.destroy();
-                    plugin.getLogger().warning("Released ship " + ship.id + " for chunk unload at " + chunk.getX() + "," + chunk.getZ() + "," + chunk.getWorld().getName());
-                });
+                ShipRegistry.unregister(ship);
+                ship.destroy();
+                plugin.getLogger().warning("Released ship " + ship.id + " for chunk unload at " + chunk.getX() + "," + chunk.getZ() + "," + chunk.getWorld().getName());
                 continue;
             }
         }
@@ -829,36 +734,6 @@ public class ShipListener implements Listener {
             return PDCUtils.getPDC(lect.getPersistentDataContainer(),"custom_item_id").equalsIgnoreCase("ship_wheel");
         }
         return false;
-    }
-
-    /**
-     * Creates a ship wheel item for dropping.
-     */
-    public ItemStack createShipWheelItem() {
-        ItemStack item = ItemStack.of(Material.PLAYER_HEAD);
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return item;
-
-        // Set display name with variant substitution
-        String displayName = "Ship Wheel";
-        meta.setDisplayName(displayName);
-
-        // Store custom item data in PDC
-        PersistentDataContainer pdc = meta.getPersistentDataContainer();
-        pdc.set(NamespacedKey.fromString("smoothsailing:custom_item_id"), PersistentDataType.STRING, "ship_wheel");
-        pdc.set(NamespacedKey.fromString("smoothsailing:item_variant"), PersistentDataType.STRING, "_DEFAULT");
-
-        // Add lore
-        List<net.kyori.adventure.text.Component> lore = new ArrayList<>();
-
-        // Ship wheel has special lore with usage instructions
-        lore.add(net.kyori.adventure.text.Component.text("Place down and right click to open the control menu")
-                .color(net.kyori.adventure.text.format.NamedTextColor.GRAY));
-        applyPlayerHeadTextureFromBase64((SkullMeta) meta, "eyJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNjQ2YzUzOTNjM2M1Nzc0MmM5OTJjNTZhN2I3YThiOThkMjY3NTM4ZGU5NDdjMTA5NmZlNzYzNDE0MzEwMDhmMiJ9fX0=", plugin);
-        meta.lore(lore);
-
-        item.setItemMeta(meta);
-        return item;
     }
     // 6 directions: +X, -X, +Y, -Y, +Z, -Z (no diagonals)
     public static final int[][] DIRECTIONS = {

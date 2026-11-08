@@ -24,17 +24,10 @@ import org.bukkit.block.data.type.Slab;
 import org.bukkit.block.data.type.Stairs;
 import org.bukkit.block.data.type.TrapDoor;
 import org.bukkit.block.data.BlockData;
-import org.bukkit.scheduler.*;
 import org.bukkit.util.Vector;
 import org.bukkit.block.BlockFace;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
-import org.bukkit.entity.*;
-import org.bukkit.util.BoundingBox;
-import org.bukkit.Tag;
-import org.joml.Vector3f;
-import java.util.stream.Collectors;
-import java.util.concurrent.Callable;
 import java.util.*;
 
 public class Medium {
@@ -72,11 +65,11 @@ public class Medium {
     public List<BlockData> getBlockDatas() {
         return BLOCKS;
     }
-    public static boolean isDataMedium(Medium m, BlockData data) {
-        return m.isDataMedium(data);
-    }
     public boolean isDataMedium(BlockData data) {
         if (data.matches(BLOCKS.getFirst())) return true; //quick check for common fluid types (index 0)
         return BLOCKS.contains(data);
+    }
+    public static boolean isDataMedium(Medium m, BlockData data) {
+        return m.isDataMedium(data);
     }
 }

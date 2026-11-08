@@ -373,12 +373,7 @@ public class ShipWheelManager {
         //System.out.println("INI: Y "+newLoc.getYaw()+" / P"+newLoc.getPitch());
         if (asevent.isCancelled()) {
             if (asevent.getEntity() instanceof Player playr) playr.sendMessage("§cShip assembly action denied!");
-            if (!dryFire) {
-                disassembleShip(player,wheelData,true);
-                try {
-                    ship.destroy();
-                } catch (Throwable thr) {}
-            }
+            disassembleShip(player,wheelData,true);
             return false;
         }
         seat.setCustomNameVisible(true);
@@ -408,27 +403,6 @@ public class ShipWheelManager {
     }
 
     /**
-     * Aligns a ship to the block grid (position and rotation).
-     */
-    public boolean alignToGrid(Player player, ShipWheelData wheelData) {
-        if (!wheelData.isAssembled()) {
-            player.sendMessage("§cNo ship to align! Assemble a ship first.");
-            return false;
-        }
-
-        ShipInstance ship = ShipRegistry.byId(wheelData.getAssembledShipUUID());
-        if (ship == null) {
-            player.sendMessage("§cShip not found!");
-            wheelData.setAssembledShipUUID(null);
-            return false;
-        }
-
-        // Align the ship
-        player.sendMessage("§aShip aligned to grid!");
-        return true;
-    }
-
-    /**
      * Disassembles a ship back into blocks.
      */
     public boolean disassembleShip(@Nullable Player player, ShipWheelData wheelData) {
@@ -451,6 +425,9 @@ public class ShipWheelManager {
         }
 
         ShipInstance ship = ShipRegistry.byId(wheelData.getAssembledShipUUID());
+        if (ship == null && player != null) {
+            ship = SmoothSailingPlugin.shipListener().getShipFromEntity(player);
+        }
         if (ship == null) {
             if (player != null) player.sendMessage("§cShip not found!");
             wheelData.setAssembledShipUUID(null);
@@ -497,12 +474,13 @@ public class ShipWheelManager {
                 }
             }
         }
+        ShipInstance fship = ship;
         com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskLater(()->{
-            ShipRegistry.unregister(ship);
+            ShipRegistry.unregister(fship);
             // Destroy the ship
             // Unlink from wheel
             wheelData.setAssembledShipUUID(null);
-            ship.destroy();
+            fship.destroy();
         },3L);
 
         if (player != null) player.sendMessage("§aShip disassembled!");

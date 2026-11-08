@@ -12,8 +12,8 @@ max-scan-size: 28700  # Maximum blocks to scan when ship hits the above limit (f
 # - Density > water: sinks lower (surface offset decreases, eventually sinks)
 buoyancy:
   # Reference density of air (ships lighter than this become airships)
-  air-density: -0.25
-  # Reference density of water (ships lighter than this become sailing ships)
+  air-density: -2.5
+  # Reference density of water (ships lighter than this become sailing ships, and ships heavier may become submarines, where the water-level becomes their max height)
   water-density: 10.0
 # See `blocks.yml` to further understand block configurations, and how they impact a ships function.
 

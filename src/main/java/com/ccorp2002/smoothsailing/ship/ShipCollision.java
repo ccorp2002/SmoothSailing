@@ -52,6 +52,13 @@ public class ShipCollision {
         int zCollision = 0;
         boolean canEnterAt = true;
         if (!ship.isLandcraft || !checkForLand) {
+            int MIN_BY = ship.minY();
+            if (MIN_BY <= ship.getWorld().getMinHeight()) {
+                newOffset.setX(0);
+                newOffset.setY(0);
+                newOffset.setZ(0);
+                return newOffset;
+            }
             for (MobileBlockState bs : ship.BLOCK_STATES) {
                 // 1. Check terrain collisions
                 Location newLoc = bs.getLocation().clone().add(offset.toVector()).toBlockLocation();
@@ -109,7 +116,7 @@ public class ShipCollision {
             int obz = offset.getBlockZ();
 
             int MIN_BY = ship.minY();
-            if (MIN_BY < -127) {
+            if (MIN_BY <= ship.getWorld().getMinHeight()) {
                 newOffset.setX(0);
                 newOffset.setY(0);
                 newOffset.setZ(0);

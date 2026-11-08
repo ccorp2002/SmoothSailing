@@ -9,6 +9,11 @@ import java.util.Arrays;
 
 public class LocationLib {
 
+	public static String readLocationToString(Location loc) {
+		if (loc == null || loc.getWorld() == null) return null;
+		else return loc.getBlockX()+","+loc.getBlockY()+","+loc.getBlockZ()+","+loc.getWorld().getName();
+	}
+
 	public static Location[] getCircle(Location[] locations, double radius, double density) {
 		Vector[] circle = VectorLib.getCircle(radius, density);
 		return offset(locations, circle);
