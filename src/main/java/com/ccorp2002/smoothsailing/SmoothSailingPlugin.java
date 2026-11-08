@@ -152,9 +152,9 @@ public class SmoothSailingPlugin extends JavaPlugin {
             NmsUtils.removeChunksToLoad(world,world.getForceLoadedChunks());
         }
 
-        TaskUtils.cancelTasks();
-
         getLogger().info("Cleared " + removedCount + " force-loaded chunks");
+
+        TaskUtils.cancelTasks();
         
         if (this.CLAIM_INTEFACES != null) this.CLAIM_INTEFACES.clear();
         
@@ -199,7 +199,24 @@ public class SmoothSailingPlugin extends JavaPlugin {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (command.getName().equalsIgnoreCase("release") || command.getName().equalsIgnoreCase("unpilot")) {
+        if (command.getName().equalsIgnoreCase("gear") || command.getName().equalsIgnoreCase("gears")) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("Only players can use this command.");
+                return true;
+            }
+            if (!sender.hasPermission("smoothsailing.gears")) {
+                sender.sendMessage("You don't have permission to use this command.");
+                return true;
+            }
+
+            // First destroy all registered ships (cleans up properly)
+            for (ShipInstance SHIP : ShipRegistry.getAllShips()) {
+                if (player.equals(SHIP.driver)) {
+                    SHIP.cycleGears();
+                }
+            }
+            return true;
+        } else if (command.getName().equalsIgnoreCase("release") || command.getName().equalsIgnoreCase("unpilot")) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage("Only players can use this command.");
                 return true;
@@ -220,14 +237,23 @@ public class SmoothSailingPlugin extends JavaPlugin {
             }
             sender.sendMessage("Unpiloted " + removedCount + " registered Ship(s)");
             return true;
-        }
-        if (command.getName().equalsIgnoreCase("smoothsailing")) {
+        } else if (command.getName().equalsIgnoreCase("smoothsailing")) {
             if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
                 if (!sender.hasPermission("smoothsailing.reload") && !sender.hasPermission("smoothsailing.admin")) {
                     sender.sendMessage("You don't have permission to reload this plugin.");
                     return true;
                 }
+                ShipRegistry.destroyAll();
                 reloadConfig();
+                
+                int removedCount = 0;
+
+                for (World world : Bukkit.getWorlds()) {
+                    removedCount+=world.getForceLoadedChunks().size();
+                    NmsUtils.removeChunksToLoad(world,world.getForceLoadedChunks());
+                }
+
+                getLogger().info("Cleared " + removedCount + " force-loaded chunks");
                 // Reload global physics config
                 ShipInstance.loadGlobalPhysicsConfig(this);
                 DEBUG = this.getConfig().getConfigurationSection("debug").getBoolean("enabled",false);
@@ -338,6 +364,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
             if (sender.hasPermission("smoothsailing.reload")) subcommands.add("reload");
             if (sender.hasPermission("smoothsailing.release")) subcommands.add("release");
             if (sender.hasPermission("smoothsailing.cruise")) subcommands.add("cruise");
+            if (sender.hasPermission("smoothsailing.admin")) subcommands.add("releaseall");
             if (sender.hasPermission("smoothsailing.admin")) subcommands.add("releaseall");
 
             for (String sub : subcommands) {

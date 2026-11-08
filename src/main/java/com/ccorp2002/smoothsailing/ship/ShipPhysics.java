@@ -264,8 +264,8 @@ public class ShipPhysics {
     }
 
     public float getMaxEngineSpeedFactor() {
-        if (ship == null) return ShipPhysics.MAX_SPEED;
-        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 1.25f;
+        if (ship == null) return 0.125f;
+        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 0.125f;
         final double enginePercent = (ship.engineCount / ship.initialEngineCount) * 100d;
         float speedFactor = this.PER_MAX_SPEED;
         if (ship.engineCount > 0 && enginePercent >= 0.75d) {
@@ -453,9 +453,7 @@ public class ShipPhysics {
             return;
         }
         detectNearbyEntities();
-        List<Entity> FILTERED_ENTS = ship.ENTITY_COMPOSITION.stream()
-                .filter(p -> p.isValid())
-                .collect(Collectors.toList());
+        List<Entity> FILTERED_ENTS = ship.ENTITY_COMPOSITION.stream().filter(p -> p.isValid()).collect(Collectors.toList());
         final Location ABS_CENTER = new Location(ship.vehicle.getWorld(),0,0,0);
         // Move the vehicle
         if ((ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving)) {
@@ -638,32 +636,6 @@ public class ShipPhysics {
             this.currentYVelocity = 0f;
             ship.model.minY = ship.minY();
             ship.model.maxY = ship.maxY();
-            for (Object KEY : this.ship.TRACKED_STATE_MAP.keySet()) {
-                if (KEY == null) continue;
-                boolean INTERIOR = false;
-                if (KEY instanceof String key && key.equals("__interior__")) INTERIOR = true;
-                Set<MobileBlockState> VALUE = ship.TRACKED_STATE_MAP.getOrDefault(KEY,new MobileBlockState.MobileStateSet(1));
-                final MobileBlockState[] _COPY = VALUE.toArray(MobileBlockState[]::new);
-                for (int indx = 0; indx < _COPY.length; indx ++) {
-                    MobileBlockState st = _COPY[indx];
-                    if (st == null) continue;
-                    final Location stloc = st.getLocation(ship.getWorld());
-                    Location updLoc = stloc.clone();
-                    updLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, stloc.subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
-                    BlockData occupiedBlock = VOID;
-                    st.setLocation(updLoc);
-                    st.setBlockData(NmsUtils.rotateBlockData(LEFT_RIGHT,st.getBlockData()));
-                    if (INTERIOR) NmsUtils.setBlockFast(updLoc,st.state);
-                    st.state = NmsUtils.getBlockFaster(updLoc);
-                    st.tile = NmsUtils.createTileHolder(updLoc);
-                    _COPY[indx] = st;
-                }
-                VALUE.clear();
-                VALUE = new MobileBlockState.MobileStateSet(_COPY.length);
-                ((MobileBlockState.MobileStateSet)VALUE).setAll(_COPY);
-                this.ship.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
-                if (INTERIOR) ship.sendSolids(VALUE);
-            }
             ship.sendSolids();
             ship.calculateBoundingBox();
             ship.updateRedstone();
@@ -683,10 +655,22 @@ public class ShipPhysics {
             double fx = 0d;
             double fy = 0d;
             double fz = 0d;
+            boolean toBurnFuel = InventoryUtil.canBurnFuelType(ship,null);
             if (hasHorizontalMovement) {
                 handleBuoyancy(ship.getLocation());
-                fx = forwardX * (currentSpeed);
-                fz = forwardZ * (currentSpeed);
+                fx = (forwardX * (currentSpeed));
+                fz = (forwardZ * (currentSpeed));
+                if (ship.getGear() > 1) {
+                    if (toBurnFuel) {
+                        fx *= ship.getGear();
+                        fz *= ship.getGear();
+                    }
+                    fx = (double)CLAMP_VALUE((float)fx, (float)-((PER_MAX_SPEED/1.25)+ship.getGear()+2), (float)((PER_MAX_SPEED/1.25)+ship.getGear()+2));
+                    fz = (double)CLAMP_VALUE((float)fz, (float)-((PER_MAX_SPEED/1.25)+ship.getGear()+2), (float)((PER_MAX_SPEED/1.25)+ship.getGear()+2));
+                } else {
+                    fx = (double)CLAMP_VALUE((float)fx, (float)-((PER_MAX_SPEED/1.25)+1), (float)((PER_MAX_SPEED/1.25)+1));
+                    fz = (double)CLAMP_VALUE((float)fz, (float)-((PER_MAX_SPEED/1.25)+1), (float)((PER_MAX_SPEED/1.25)+1));
+                }
                 if (Math.abs(fx)<1) fx = 0;
                 if (Math.abs(fz)<1) fz = 0;
                 hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.45f;
@@ -901,36 +885,13 @@ public class ShipPhysics {
                 }
                 //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
             }
-            for (Object KEY : this.ship.TRACKED_STATE_MAP.keySet()) {
-                if (KEY == null) continue;
-                boolean INTERIOR = false;
-                if (KEY instanceof String key && key.equals("__interior__")) INTERIOR = true;
-                Set<MobileBlockState> VALUE = ship.TRACKED_STATE_MAP.getOrDefault(KEY,new MobileBlockState.MobileStateSet(1));
-                final MobileBlockState[] _COPY = VALUE.toArray(MobileBlockState[]::new);
-                for (int indx = 0; indx < _COPY.length; indx ++) {
-                    MobileBlockState st = _COPY[indx];
-                    if (st == null) continue;
-                    final Location stloc = st.getLocation(offsetf.getWorld());
-                    Location updLoc = stloc.clone();
-                    updLoc.setWorld(offsetf.getWorld());
-                    updLoc = updLoc.add(offsetf).toBlockLocation();
-                    st.setLocation(updLoc);
-                    st.occupiedBlock = VOID;
-                    if (INTERIOR) NmsUtils.setBlockFast(updLoc,st.state);
-                    st.state = NmsUtils.getBlockFaster(updLoc);
-                    st.tile = NmsUtils.createTileHolder(updLoc);
-                    _COPY[indx] = st;
-                }
-                VALUE.clear();
-                VALUE = new MobileBlockState.MobileStateSet(_COPY.length);
-                ((MobileBlockState.MobileStateSet)VALUE).setAll(_COPY);
-                this.ship.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
-                if (INTERIOR) ship.sendSolids(VALUE);
-            }
             ship.sendSolids();
             ship.calculateBoundingBox();
             ship.updateRedstone();
             this.currentRotationVelocity = 0.0f;
+            if (toBurnFuel) {
+                InventoryUtil.doBurnFuelType(ship,null,false);
+            }
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 moving = false;
                 ship.setProcessing(false);
@@ -1064,31 +1025,6 @@ public class ShipPhysics {
                     ShipListener.addTag(entity,ShipListener.wheelTag(entity.getLocation()));
                 }
                 //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
-            }
-            for (Object KEY : this.ship.TRACKED_STATE_MAP.keySet()) {
-                if (KEY == null) continue;
-                boolean INTERIOR = false;
-                if (KEY instanceof String key && key.equals("__interior__")) INTERIOR = true;
-                Set<MobileBlockState> VALUE = ship.TRACKED_STATE_MAP.getOrDefault(KEY,new MobileBlockState.MobileStateSet(1));
-                final MobileBlockState[] _COPY = VALUE.toArray(MobileBlockState[]::new);
-                for (int indx = 0; indx < _COPY.length; indx ++) {
-                    MobileBlockState st = _COPY[indx];
-                    if (st == null) continue;
-                    final Location stloc = st.getLocation(ship.getWorld());
-                    Location updLoc = stloc.clone();
-                    updLoc = LocationLib.rotate(updLoc,CENTER_POINT,axis,amount);
-                    updLoc.setWorld(newLoc.getWorld());
-                    st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
-                    st.setLocation(updLoc);
-                    if (INTERIOR) NmsUtils.setBlockFast(updLoc,st.state);
-                    st.state = NmsUtils.getBlockFaster(updLoc);
-                    st.tile = NmsUtils.createTileHolder(updLoc);
-                    _COPY[indx] = st;
-                }
-                VALUE.clear();
-                VALUE = new MobileBlockState.MobileStateSet(_COPY.length);
-                ((MobileBlockState.MobileStateSet)VALUE).setAll(_COPY);
-                this.ship.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
             }
             ship.sendSolids();
             ship.calculateBoundingBox();
@@ -2067,9 +2003,7 @@ public class ShipPhysics {
      * Handle buoyancy physics for water-based ships.
      */
     public void handleBuoyancy(Location vehicleLoc) {
-        if (ship.isAirship) return;
-        if (ship.isLandcraft) return;
-        if (ship.CHANGE_WORLD) return;
+        if (ship.isAirship || ship.isLandcraft || ship.CHANGE_WORLD) return;
         int MIN_BY = ship.minY();
         if (MIN_BY < ship.getWorld().getMinHeight()) return;
         ship.model.minY = MIN_BY;
@@ -2140,13 +2074,5 @@ public class ShipPhysics {
             ship.ENTITY_COMPOSITION.addAll(players);
             players.clear();
         });
-    }
-    
-    public void alignToGrid() {
-        ship.vehicle.setVelocity(new org.bukkit.util.Vector(0, 0, 0));
-        currentSpeed = 0.0f;
-        currentRotationVelocity = 0.0f;
-        currentYVelocity = 0.0f;
-        detectNearbyEntities();
     }
 }

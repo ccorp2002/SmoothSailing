@@ -5,9 +5,11 @@ package com.ccorp2002.smoothsailing.utils;
 import com.ccorp2002.smoothsailing.ship.ShipInstance;
 import com.ccorp2002.smoothsailing.utils.objects.Pair;
 import com.ccorp2002.smoothsailing.ship.MobileBlockState;
+import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.Location;
 import org.bukkit.ChatColor;
 import org.bukkit.block.Block;
 import org.bukkit.block.Container;
@@ -47,7 +49,7 @@ public final class InventoryUtil {
 
     public static MobileBlockState.MobileStateSet getDefaultFuelBlocks(ShipInstance ship) {
         if (ship == null) return new MobileBlockState.MobileStateSet(0);
-        return ship.getMaterialAndTrack(FUEL_KEY,Material.FURNACE);
+        return ship.getMaterial(Material.FURNACE);
     }
 
     public static FuelType getFuelType(String id) {
@@ -75,18 +77,41 @@ public final class InventoryUtil {
         return null;
     }
 
-    public static boolean doBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner) {
+    public static boolean canBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner) {
         if (ship == null) return false;
+        if (ship.engineCount == 0) return false;
+        if (ship.getGear() <= 1) return false;
         if (fuelBurner == null) fuelBurner = checkFuelTypeToBurn(ship);
         if (fuelBurner != null) {
+            return true;
+        } else return false;
+    }
+
+    public static boolean doBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner) {
+        return doBurnFuelType(ship,fuelBurner,false);
+    }
+
+    public static boolean doBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner, boolean force) {
+        if (ship == null) return false;
+        if (ship.engineCount == 0) return false;
+        if (ship.getGear() <= 1) return false;
+        if (fuelBurner == null) fuelBurner = checkFuelTypeToBurn(ship);
+        if (canBurnFuelType(ship,fuelBurner)) {
             Pair<FuelType,ItemStack> fuel = fuelBurner.getLeft();
             Inventory source = fuelBurner.getRight();
+            ItemStack toBurn = fuel.getRight().asOne();
             FuelType type = fuel.getLeft();
-            if (ShipInstance.RANDOM.nextDouble() >= type.burnChance) {
-                return true;
+            if (ShipInstance.RANDOM.nextDouble() > type.burnChance || force) {
+                MobileBlockState STATE = MobileBlockState.getStateFromLoc(source.getLocation());
+                boolean burnt = !reduceItemStack(source,toBurn,type.burnRate).isEmpty();
+                if (STATE != null) {
+                    Location pos = STATE.getLocation();
+                    ShipInstance.spawnFuelBurnEffects(pos);
+                    STATE.updateBlockState();
+                }
+                return burnt;
             } else {
-                ItemStack toBurn = fuel.getRight().asOne();
-                return !reduceItemStack(source,toBurn,type.burnRate).isEmpty();
+                return true;
             }
         } else return false;
     }
@@ -94,8 +119,8 @@ public final class InventoryUtil {
     public static Pair<Pair<FuelType,ItemStack>,Inventory> checkFuelTypeToBurn(ShipInstance ship) {
         if (ship == null) return null;
         Pair<FuelType,ItemStack> fuel = null;
-        MobileBlockState.MobileStateSet STATES = ship.getTrackedBlocks(FUEL_KEY);
-        for (MobileBlockState state : STATES) {
+        if (ship.getGear() <= 1) return null;
+        for (MobileBlockState state : getDefaultFuelBlocks(ship)) {
             if (state == null || state.isDead()) continue;
             if (state.getBlock().getState(false) instanceof Container holder) {
                 final Inventory inv = holder.getInventory();
@@ -107,14 +132,8 @@ public final class InventoryUtil {
     }
     public static ItemStack reduceItemStack(ItemStack stack, int amntChange) {
         if (stack == null || stack.isEmpty()) return ItemStack.empty();
-        if (stack.getAmount() > 0) {
-            int amount = stack.getAmount();
-            amntChange *= -1;
-            if (amount + amntChange > 0) {
-                stack.setAmount(amount + amntChange);
-            } else {
-                stack = ItemStack.empty();
-            }
+        if (stack.getAmount() - amntChange > 0) {
+            stack = stack.subtract(amntChange);
         } else {
             stack = ItemStack.empty();
         }
@@ -126,8 +145,9 @@ public final class InventoryUtil {
         else if (check == null || check.isEmpty()) return ItemStack.empty();
         int index = getItemIndex(inv,check);
         if (index == -1) return ItemStack.empty();
-        ItemStack reduced = reduceItemStack(check.clone(),amntChange);
+        ItemStack reduced = reduceItemStack(inv.getItem(index),amntChange);
         inv.setItem(index, reduced);
+        //System.out.println("REDUCED: "+check.toString()+" BY "+amntChange + " INTO: "+reduced.toString());
         return reduced;
     }
 

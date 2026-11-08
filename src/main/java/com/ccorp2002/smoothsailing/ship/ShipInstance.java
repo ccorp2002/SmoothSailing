@@ -42,7 +42,7 @@ public class ShipInstance {
 
     public final Map<String, Object> DATA_TAGS = new Object2ObjectOpenHashMap<>(1024,0.75f);
     
-    public final Map<Object, MobileBlockState.MobileStateSet> TRACKED_STATE_MAP = new Object2ObjectOpenHashMap<>(1024,0.75f);
+    //public final Map<Object, MobileBlockState.MobileStateSet> TRACKED_STATE_MAP = new Object2ObjectOpenHashMap<>(1024,0.75f);
     public static float waterDensity() {
         return (float) ShipPhysics.getMedium("water").baseDensity;
     }
@@ -169,10 +169,43 @@ public class ShipInstance {
     public boolean isLandcraft = false;
 
 
+    public int maxGear = 1;
+    public int currentGear = 1;
     public int engineCount = 0;
     public int initialEngineCount = engineCount;
     public float maxHealth = 12.5f;
     public float currentHealth = maxHealth;
+
+    public int getMaxGear() {
+        return this.maxGear;
+    }
+    public void setMaxGear(int maxGear) {
+        this.maxGear = maxGear;
+    }
+    public int getGear() {
+        return this.currentGear;
+    }
+    public void setGear(int currentGear) {
+        this.currentGear = java.lang.Math.max(1, java.lang.Math.min(maxGear, currentGear));
+    }
+    public void cycleGears() {
+        if (engineCount != 0) {
+            if (getGear() + 1 > getMaxGear()) {
+                setGear(1);
+            } else {
+                setGear(getGear() + 1);
+            }
+        }
+        StringBuilder bar = new StringBuilder();
+        String color = "§5";
+
+        bar.append("§c§lGears: §r").append(color).append(" §e[");
+        bar.append(color).append(""+getGear()).append("§r§6§o/§d§l"+getMaxGear());
+        bar.append("§r§e]§r");
+        // Send to action bar
+        final net.kyori.adventure.text.Component BAR = net.kyori.adventure.text.Component.text(bar.toString());
+        ENTITY_COMPOSITION.forEach(ent -> {if (ent instanceof Player passenger && passenger.isConnected()) passenger.sendActionBar(BAR);});
+    }
 
     public float getHealth() {
         return this.currentHealth;
@@ -635,7 +668,7 @@ public class ShipInstance {
                 ShipInstance.this.setProcessing(false);
                 if (ShipInstance.this.engineCount <= 0) {
                     ShipInstance.this.engineCount = 0;
-                    if (ShipInstance.this.isAirship && ShipInstance.this.physics != null) ShipInstance.this.physics.PER_MAX_SPEED = 0.75f;
+                    if (ShipInstance.this.isAirship && ShipInstance.this.physics != null) ShipInstance.this.physics.PER_MAX_SPEED = 0.25f;
                 } else {
                     ShipInstance.this.initialEngineCount = engineCount;
                 }
@@ -730,9 +763,9 @@ public class ShipInstance {
         } else {
             movingState.resetHealth((long)(blockHealth));
             ship.currentHealth = ship.maxHealth;
+            if (props.isEngine()) ship.engineCount+=1;
         }
         ship.BLOCK_STATES.set(movingState);
-        if (props.isEngine()) ship.engineCount+=1;
     }
 
     public static void updateDamagedBlock(final ShipInstance ship, MobileBlockState state) {
@@ -755,8 +788,11 @@ public class ShipInstance {
             if (ship.engineCount <= 0) {
                 ship.engineCount = 0;
                 ship.physics.PER_MAX_SPEED = 0.75f;
-                ship.physics.MOVEMENT_COOLDOWN += 12; //1 Second total
+                ship.physics.MOVEMENT_COOLDOWN += 12; //1 Second minimum
+            } else {
+                ship.physics.MOVEMENT_COOLDOWN += 2;
             }
+            ship.displayEngineStatus();
         }
         ship.model.blockCount -= 1;
         ship.blockCount = ship.model.blockCount;
@@ -780,6 +816,7 @@ public class ShipInstance {
             updateRedstone(this.BLOCK_STATES);
         }
     }
+
     public void updateRedstone(final Collection<MobileBlockState> BLOCK_STATES) {
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTask(()->{
             for (MobileBlockState st : BLOCK_STATES) {
@@ -925,33 +962,6 @@ public class ShipInstance {
                 if (entity.getVehicle() == null) NmsUtils.teleportSilentCurrentThread(entLoc, entity);
                 //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
             }
-            for (Object KEY : this.TRACKED_STATE_MAP.keySet()) {
-                if (KEY == null) continue;
-                boolean INTERIOR = false;
-                if (KEY instanceof String key && key.equals("__interior__")) INTERIOR = true;
-                Set<MobileBlockState> VALUE = this.TRACKED_STATE_MAP.getOrDefault(KEY,new MobileBlockState.MobileStateSet(1));
-                final MobileBlockState[] _COPY = VALUE.toArray(MobileBlockState[]::new);
-                for (int indx = 0; indx < _COPY.length; indx ++) {
-                    MobileBlockState st = _COPY[indx];
-                    if (st == null) continue;
-                    final Location stloc = st.getLocation();
-                    Location updLoc = stloc.clone();
-                    updLoc.setWorld(offsetf.getWorld());
-                    updLoc = updLoc.add(offsetf);
-                    BlockData occupiedBlock = ShipPhysics.VOID;
-                    if (ShipPhysics.isDataMedium(updLoc.getBlock()) || ShipPhysics.LANDCRAFT_PASSTHROUGH.contains(updLoc.getBlock().getType())) occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
-                    st.occupiedBlock = occupiedBlock;
-                    st.setLocation(updLoc);
-                    if (INTERIOR) NmsUtils.setBlockFast(updLoc,st.state);
-                    st.state = NmsUtils.getBlockFaster(updLoc);
-                    st.tile = NmsUtils.createTileHolder(updLoc);
-                    _COPY[indx] = st;
-                }
-                VALUE.clear();
-                VALUE = new MobileBlockState.MobileStateSet(_COPY.length);
-                ((MobileBlockState.MobileStateSet)VALUE).setAll(_COPY);
-                this.TRACKED_STATE_MAP.put(KEY,((MobileBlockState.MobileStateSet)VALUE));
-            }
             setProcessing(true);
             physics.currentRotationVelocity = 0.0f;
             physics.currentYVelocity = 0f;
@@ -1016,14 +1026,6 @@ public class ShipInstance {
             HashMap::new              // Supplier: create a HashMap
         )));
     }
-
-    public void hideEntities(Set<Entity> temp) {}
-
-    public void hideEntities() {}
-
-    public void showSeats() {}
-
-    public void showEntities() {}
 
     public int maxX() {
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bx).max().orElse(0));
@@ -1095,17 +1097,6 @@ public class ShipInstance {
         return BLOCKS;
     }
 
-    public MobileBlockState.MobileStateSet getMaterialAndTrack(Object KEY, Material... TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
-        if (TEST == null || KEY == null) return BLOCKS;
-        for (Material TESTED : TEST) {
-            if (TESTED == null) continue;
-            BLOCKS.addAll(getMaterial(TESTED));
-        }
-        this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
-        return BLOCKS;
-    }
-
     public MobileBlockState.MobileStateSet getBlockData(BlockData TEST) {
         final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
         if (TEST == null) return BLOCKS;
@@ -1113,65 +1104,6 @@ public class ShipInstance {
             if (!state.isDead() && state.getBlockData().matches(TEST)) BLOCKS.add(state);
         });
         return BLOCKS;
-    }
-
-    public MobileBlockState.MobileStateSet getBlockDataAndTrack(BlockData TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = getBlockDataAndTrack(null,TEST);
-        if (TEST == null) return BLOCKS;
-        this.TRACKED_STATE_MAP.put(TEST,BLOCKS);
-        return BLOCKS;
-    }
-
-    public MobileBlockState.MobileStateSet getBlockDataAndTrack(Object KEY, BlockData TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = getBlockData(TEST);
-        if (TEST == null || KEY == null) return BLOCKS;
-        this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
-        return BLOCKS;
-    }
-
-    public MobileBlockState.MobileStateSet getBlockDataAndTrack(Object KEY, BlockData... TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
-        if (TEST == null || KEY == null) return BLOCKS;
-        for (BlockData TESTED : TEST) {
-            if (TESTED == null) continue;
-            BLOCKS.addAll(getBlockData(TESTED));
-        }
-        this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
-        return BLOCKS;
-    }
-
-    public MobileBlockState.MobileStateSet getBlockDataAndTrack(Object KEY, Collection<BlockData> TEST) {
-        return getBlockDataAndTrack(KEY,TEST.toArray(BlockData[]::new));
-    }
-
-    public MobileBlockState.MobileStateSet setTrackedBlocks(Object KEY, Block... TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
-        if (TEST == null || KEY == null) return BLOCKS;
-        for (Block TESTED : TEST) {
-            if (TESTED == null) continue;
-            MobileBlockState STATE = new MobileBlockState(TESTED);
-            STATE.setShip(this);
-            BLOCKS.add(STATE);
-        }
-        this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
-        return BLOCKS;
-    }
-
-    public MobileBlockState.MobileStateSet setTrackedBlocks(Object KEY, Collection<Location> TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
-        if (TEST == null || KEY == null) return BLOCKS;
-        for (Location TESTED : TEST) {
-            if (TESTED == null) continue;
-            MobileBlockState STATE = new MobileBlockState(TESTED,false);
-            STATE.setShip(this);
-            BLOCKS.add(STATE);
-        }
-        this.TRACKED_STATE_MAP.put(KEY,BLOCKS);
-        return BLOCKS;
-    }
-
-    public MobileBlockState.MobileStateSet getTrackedBlocks(Object KEY) {
-        return this.TRACKED_STATE_MAP.getOrDefault(KEY,new MobileBlockState.MobileStateSet(2500,0.75f));
     }
 
 
@@ -1242,6 +1174,7 @@ public class ShipInstance {
         // This method just displays current speed to the player
 
         // Only update action bar if speed changed significantly (optimization)
+        if (engineCount == 0 || initialEngineCount == 0) return;
         double enginePercent = this.engineCount / this.initialEngineCount;  // -1.0 to 1.0
 
         // Display current speed as action bar with visual progress bar
@@ -1526,9 +1459,6 @@ public class ShipInstance {
                     //System.out.println("WHEEL DATA: "+wheelData);
                     boolean disassembled = false;
                     if (wheelData != null) {
-                        // 1. Align ship to grid alignToGrid();
-
-                        // 2. Collect explosion locations BEFORE destruction
                         explosionLocations.add(vehicle.getLocation().clone()); // Always include root/wheel location
                         // 4. Break the ship wheel block
                         Location wheelLoc = wheelData.getBlockLocation();
@@ -1627,50 +1557,33 @@ public class ShipInstance {
         }
         DATA_TAGS.clear();
         BLOCK_STATES.clear();
-        TRACKED_STATE_MAP.clear();
         ENTITY_COMPOSITION.clear();
         ShipRegistry.unregister(this);
     }
 
-    // ===== Custom Ship Methods =====
-
     /**
-     * Aligns the ship to the block grid by snapping position and rotation.
-     * Position is rounded to the nearest block coordinates.
-     * Rotation is snapped to the nearest 90-degree increment.
+     * Spawns smoke particles at cannon location when fired.
      */
-    public void alignToGrid() {
-        if (physics == null) return;
-        physics.alignToGrid();
-    }
+    public static void spawnFuelBurnEffects(Location loc) {
+        if (loc == null) return;
+        World world = loc.getWorld();
+        if (world == null) return;
+        loc = loc.toCenterLocation();
+        world.spawnParticle(Particle.FLAME, loc, 10, 0.2, 0.2, 0.2, 0.05);
+        world.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, loc, 3, 0.05, 0.05, 0.05, 0.01);
 
-    /**
-     * Transforms a local direction (BlockFace) to world direction accounting for ship rotation.
-     */
-    public Vector3f transformLocalDirectionToWorld(BlockFace localFace) {
-        Vector3f localDir = new Vector3f(
-            localFace.getModX(),
-            localFace.getModY(),
-            localFace.getModZ()
-        );
-        return localDir.normalize();
-    }
-
-    /**
-     * Transforms a local position to world coordinates.
-     */
-    public Vector3f transformLocalPositionToWorld(Vector3f localPos) {
-        Vector3f worldPos = new Vector3f(localPos);
-        return worldPos;
+        // Sound effect
+        world.playSound(loc, Sound.ENTITY_BLAZE_SHOOT, 0.45f, 0.35f);
     }
 
     /**
      * Spawns smoke particles at cannon location when fired.
      */
     public static void spawnCannonEffects(Location loc) {
+        if (loc == null) return;
         World world = loc.getWorld();
         if (world == null) return;
-        // Smoke particles on dispenser face
+        loc = loc.toCenterLocation();
         world.spawnParticle(Particle.SMOKE, loc, 10, 0.1, 0.1, 0.1, 0.05);
         world.spawnParticle(Particle.CAMPFIRE_COSY_SMOKE, loc, 3, 0.05, 0.05, 0.05, 0.01);
 

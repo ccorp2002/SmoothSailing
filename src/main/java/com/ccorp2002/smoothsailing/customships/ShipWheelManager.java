@@ -419,23 +419,20 @@ public class ShipWheelManager {
      * @return true if disassembly succeeded, false otherwise
      */
     public boolean disassembleShip(@Nullable Player player, ShipWheelData wheelData, boolean force) {
-        if (!wheelData.isAssembled()) {
-            if (player != null) player.sendMessage("§cNo ship to disassemble!");
-            return false;
-        }
-
         ShipInstance ship = ShipRegistry.byId(wheelData.getAssembledShipUUID());
         if (ship == null && player != null) {
             ship = SmoothSailingPlugin.shipListener().getShipFromEntity(player);
         }
+        if (!wheelData.isAssembled() && ship == null) {
+            if (player != null) player.sendMessage("§cNo ship to disassemble!");
+            return false;
+        }
+
         if (ship == null) {
             if (player != null) player.sendMessage("§cShip not found!");
             wheelData.setAssembledShipUUID(null);
             return false;
         }
-        // Get the ship's model
-
-        // Align to grid first
         Entity actor = ship.vehicle;
         if (player != null) {
             player.closeInventory();
@@ -443,7 +440,6 @@ public class ShipWheelManager {
         }
         com.ccorp2002.smoothsailing.event.ShipDisassembleEvent disevent = new com.ccorp2002.smoothsailing.event.ShipDisassembleEvent(ship,ship.vehicle.getLocation(),player);
         disevent.callEvent();
-        //System.out.println("INI: Y "+newLoc.getYaw()+" / P"+newLoc.getPitch());
         if (disevent.isCancelled()) {
             if (player != null) player.sendMessage("§cDisassembly action denied!");
             return false;

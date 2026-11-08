@@ -34,6 +34,7 @@ public class FuelType {
         return this.FUEL_ITEMS;
     }
     public boolean isItemFuel(ItemStack item) {
+        if (FUEL_ITEMS.isEmpty()) return false;
         if (InventoryUtil.isSimilar(item,FUEL_ITEMS.getFirst())) return true; //quick check for common fuel type (index 0)
         for (ItemStack fuel : this.getFuelItems()) {
             if (InventoryUtil.isSimilar(item,fuel)) return true;
