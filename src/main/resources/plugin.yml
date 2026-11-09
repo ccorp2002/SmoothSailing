@@ -9,10 +9,13 @@ commands:
   smoothsailing:
     description: SmoothSailing plugin commands
     usage: |
-      /smoothsailing reload - Reload the plugin configuration
+      /smoothsailing reload - Reload the plugin configuration and applies the new or updated options.
       /smoothsailing cruise - Forces your SmoothSailing Ship to move forwards for a period of time.
       /smoothsailing release - Releases/unpilots your SmoothSailing Ship(s)
       /smoothsailing releaseall - Releases/unpilots all SmoothSailing Ships
+    permission: smoothsailing.admin
+  savefuel:
+    usage: "Saves a player's held item to a basic FuelType in the config.yml; Requires the permission: 'smoothsailing.admin'."
     permission: smoothsailing.admin
   gear:
     usage: Cycles through your ships gears.
@@ -34,11 +37,11 @@ permissions:
     description: Allows unpiloting all active ships (admin command)
     default: op
   smoothsailing.cruise:
-    description: Makes the executor's piloted ship cruise for x movements
+    description: Makes the executor's currently boarded ship cruise straight for 50 movements.
     default: op
   smoothsailing.reload:
-    description: Allows reloading the plugin configuration
+    description: Allows reloading the plugin configuration file and its options.
     default: op
   smoothsailing.admin:
-    description: Allows all admin commands (reload, releaseall)
+    description: Allows all admin commands (reload, releaseall, savefuel)
     default: op

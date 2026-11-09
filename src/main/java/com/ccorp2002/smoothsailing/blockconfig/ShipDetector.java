@@ -191,15 +191,6 @@ public class ShipDetector {
                 frontier.add(neighbor.clone());
             }
         }
-        /**
-            if (pilot != null) {
-                for (final com.ccorp2002.smoothsailing.utils.claims.IClaimInterface ICLAIM : SmoothSailingPlugin.INSTANCE.CLAIM_INTEFACES) {
-                    shipBlocks.removeIf(pos -> 
-                        !ICLAIM.canBreakAt(pilot,pos)
-                    );
-                }
-            }
-        */
         return new InternalScanResult(shipBlocks, exceededLimit, false);
     }
 

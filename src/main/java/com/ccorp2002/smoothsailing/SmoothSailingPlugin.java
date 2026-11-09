@@ -13,6 +13,7 @@ import com.ccorp2002.smoothsailing.nmsutils.ShipSteeringListener;
 import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
 import com.ccorp2002.smoothsailing.nmsutils.CEUtils;
 import com.ccorp2002.smoothsailing.region.TaskUtils;
+import com.ccorp2002.smoothsailing.ship.MobileBlockState;
 import com.ccorp2002.smoothsailing.ship.ShipInstance;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -26,8 +27,11 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.serialization.ConfigurationSerializable;
+import org.bukkit.configuration.serialization.ConfigurationSerialization;
 
 import java.io.File;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.List;
@@ -121,7 +125,6 @@ public class SmoothSailingPlugin extends JavaPlugin {
 
         getLogger().info("SmoothSailing enabled.");
         registerFuelTypes();
-        getLogger().info("Loaded Configured FuelTypes.");
         // First destroy all registered ships (cleans up properly)
         int shipCount = ShipRegistry.getAllShips().size();
         ShipRegistry.destroyAll();
@@ -149,56 +152,36 @@ public class SmoothSailingPlugin extends JavaPlugin {
     public void registerFuelTypes() {
 
         int counter = 0;
-        ConfigurationSection fuelConfig = getConfig().getConfigurationSection("fuelTypes");
-        if (fuelConfig == null) {
-            getConfig().set("fuelTypes", new ArrayList<String>());
-            getLogger().info("Loading Default FuelTypes; None defined...");
-            return;
-        }
-        // Parse all block entries from root level
-        for (final String key : fuelConfig.getKeys(false)) {
-            if (key == null) continue;
-            ConfigurationSection fuelType = fuelConfig.getConfigurationSection(key);
-            Integer burnAmount = fuelType.getInt("amount",1);
-            Double burnChance = fuelType.getDouble("chance",0.25d);
-            String base64Item = fuelType.getString("item","");
-            if (base64Item != null && !base64Item.isEmpty()) {
-                ItemStack stack = InventoryUtil.decode(base64Item,getLogger());
-                if (stack != null && !stack.isEmpty()) {
-                    FuelType FUEL_TYPE = new FuelType();
-                    FUEL_TYPE.id = key.toLowerCase(Locale.ENGLISH);
-                    FUEL_TYPE = FUEL_TYPE.addFuelItem(stack);
-                    FUEL_TYPE.burnChance = burnChance;
-                    FUEL_TYPE.burnRate = burnAmount;
-                    if (FUEL_TYPE.getFuelItems().size() > 0) {
-                        getLogger().info("Registered FuelType: "+FUEL_TYPE.id);
-                        FUEL_TYPE.registerOrUpdate();
-                        counter++;
-                    }
-                } else continue;
+        ConfigurationSection fuel = getConfig().getConfigurationSection("fuel-types");
+        if (fuel == null) {
+            FuelType COAL_POWER = InventoryUtil.FUEL_TYPES.getOrDefault(InventoryUtil.COAL_POWER_KEY,null);
+            if (COAL_POWER == null) {
+                getLogger().warning("Failed to load Default FuelTypes...");
+                return;
             } else {
-                List<String> base64Items = fuelType.getStringList("item");
-                if (base64Items == null || base64Items.isEmpty()) continue;
-                FuelType FUEL_TYPE = new FuelType();
-                FUEL_TYPE.id = key.toLowerCase(Locale.ENGLISH);
-                FUEL_TYPE.burnChance = burnChance;
-                FUEL_TYPE.burnRate = burnAmount;
-                for (String listItem : base64Items) {
-                    if (listItem == null || listItem.isEmpty()) continue;
-                    ItemStack stack = InventoryUtil.decode(listItem,getLogger());
-                    if (stack != null && !stack.isEmpty()) {
-                        FUEL_TYPE = FUEL_TYPE.addFuelItem(stack);
-                    }
-                };
-                if (FUEL_TYPE.getFuelItems().size() > 0) {
+                getLogger().warning("Loading Default FuelTypes...");
+                String defualtKey = "fuel-types."+COAL_POWER.id;
+                getConfig().set(defualtKey, COAL_POWER.serialize());
+                this.saveConfig();
+                counter++;
+                return;
+            }
+        }
+        for (final String key : fuel.getKeys(false)) {
+            if (key == null) continue;
+            final Object map = fuel.get(key,null);
+            if (map != null && map instanceof ConfigurationSection configSec) {
+                try {
+                    FuelType FUEL_TYPE = FuelType.deserialize(configSec);
                     getLogger().info("Registered FuelType: "+FUEL_TYPE.id);
                     FUEL_TYPE.registerOrUpdate();
                     counter++;
+                } catch (Exception thr) {
+                    thr.printStackTrace();
                 }
             }
         }
         getLogger().info("Loaded "+counter+" valid FuelTypes.");
-        
     }
 
     @Override
@@ -259,6 +242,38 @@ public class SmoothSailingPlugin extends JavaPlugin {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+        if (command.getName().equalsIgnoreCase("savefuel")) {
+            if (!(sender instanceof Player player)) {
+                sender.sendMessage("Only players can use this command.");
+                return true;
+            }
+            if (!sender.hasPermission("smoothsailing.admin")) {
+                sender.sendMessage("You don't have permission to use this command.");
+                return true;
+            }
+            if (args.length > 0) {
+                String id = args[0].toLowerCase(Locale.ENGLISH);
+                if (id == null || id.isEmpty()) {
+                    sender.sendMessage("You must specify a non-empty String for an Id.");
+                    return true;
+                }
+                ItemStack stack = player.getInventory().getItemInMainHand();
+                if (stack.isEmpty()) {
+                    sender.sendMessage("You have an Item in your Main Hand to be saved.");
+                    return true;
+                }
+                FuelType FUEL_TYPE = InventoryUtil.FUEL_TYPES.getOrDefault(id,new FuelType());
+                FUEL_TYPE.id = id;
+                FUEL_TYPE = FUEL_TYPE.addFuelItem(stack);
+                sender.sendMessage("Saving/Adding Held Item to FuelType of Id: "+FUEL_TYPE.id+"...");
+                String fuelKey = "fuel-types."+FUEL_TYPE.id;
+                getConfig().set(fuelKey, FUEL_TYPE.serialize());
+                this.saveConfig();
+            } else {
+                sender.sendMessage("You must specify an Id to save this FuelType.");
+            }
+            return true;
+        }
         if (command.getName().equalsIgnoreCase("gear") || command.getName().equalsIgnoreCase("gears")) {
             if (!(sender instanceof Player player)) {
                 sender.sendMessage("Only players can use this command.");
@@ -303,7 +318,6 @@ public class SmoothSailingPlugin extends JavaPlugin {
                     sender.sendMessage("You don't have permission to reload this plugin.");
                     return true;
                 }
-                ShipRegistry.destroyAll();
                 reloadConfig();
                 
                 int removedCount = 0;
@@ -318,6 +332,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
                 ShipInstance.loadGlobalPhysicsConfig(this);
                 DEBUG = this.getConfig().getConfigurationSection("debug").getBoolean("enabled",false);
                 // Reload block configuration
+                registerFuelTypes();
                 BlockConfigManager.getInstance().reloadConfig();
                 sender.sendMessage("SmoothSailing config reloaded!");
                 return true;
@@ -342,7 +357,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
                         removedCount++;
                     }
                 }
-                sender.sendMessage("Unpiloted " + removedCount + " registered Ship(s)");
+                sender.sendMessage("Unpiloted " + removedCount + " Ship(s) under your command.");
                 return true;
             }
 
@@ -355,7 +370,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
                     sender.sendMessage("You don't have permission to use this command.");
                     return true;
                 }
-                ShipInstance ship = ShipListener.findShipByPlayer(player);
+                ShipInstance ship = MobileBlockState.getShipFromLoc(player.getLocation().clone().add(0,-1,0));
                 for (int i = 0; i < 50; i++) {
                     com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                         ship.isForwardPressed = true;
@@ -403,7 +418,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
                     }
                 }
 
-                sender.sendMessage("Unpiloted " + shipCount + " registered Ship(s)");
+                sender.sendMessage("Unpiloted " + shipCount + " registered Ship(s).");
                 return true;
             }
         }
@@ -421,11 +436,11 @@ public class SmoothSailingPlugin extends JavaPlugin {
         if (args.length == 1) {
             // Complete subcommands based on permissions
             List<String> subcommands = new ArrayList<>();
-            if (sender.hasPermission("smoothsailing.reload")) subcommands.add("reload");
-            if (sender.hasPermission("smoothsailing.release")) subcommands.add("release");
-            if (sender.hasPermission("smoothsailing.cruise")) subcommands.add("cruise");
-            if (sender.hasPermission("smoothsailing.admin")) subcommands.add("releaseall");
-            if (sender.hasPermission("smoothsailing.admin")) subcommands.add("releaseall");
+            if (sender.hasPermission("smoothsailing.reload") || sender.hasPermission("smoothsailing.admin")) subcommands.add("reload");
+            if (sender.hasPermission("smoothsailing.release") || sender.hasPermission("smoothsailing.admin")) subcommands.add("release");
+            if (sender.hasPermission("smoothsailing.cruise") || sender.hasPermission("smoothsailing.admin")) subcommands.add("cruise");
+            if (sender.hasPermission("smoothsailing.releaseall") || sender.hasPermission("smoothsailing.admin")) subcommands.add("releaseall");
+            if (sender.hasPermission("smoothsailing.admin")) subcommands.add("savefuel");
 
             for (String sub : subcommands) {
                 if (sub.toLowerCase(Locale.ENGLISH).startsWith(args[0].toLowerCase(Locale.ENGLISH))) {
@@ -433,7 +448,6 @@ public class SmoothSailingPlugin extends JavaPlugin {
                 }
             }
         }
-
         return completions;
     }
 }

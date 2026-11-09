@@ -595,7 +595,7 @@ public class ShipPhysics {
                 if (st == null) continue;
                 final Location stloc = st.getLocation(ship.getWorld());
                 st.tile = NmsUtils.createTileHolder(stloc);
-                NmsUtils.setBlockFast(stloc,VOID);
+                NmsUtils.setBlockFast(stloc,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
             ship.sendVoids(Arrays.asList(TEMPS));
@@ -866,7 +866,7 @@ public class ShipPhysics {
                 if (st == null) continue;
                 final Location stloc = st.getLocation(ship.getWorld());
                 st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
-                NmsUtils.setBlockFast(stloc,VOID);
+                NmsUtils.setBlockFast(stloc,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
             ship.sendVoids(Arrays.asList(TEMPS));
@@ -1009,7 +1009,7 @@ public class ShipPhysics {
                 if (st == null) continue;
                 final Location stloc = st.getLocation(ship.getWorld());
                 st.tile = NmsUtils.createTileHolder(stloc);
-                NmsUtils.setBlockFast(stloc,VOID);
+                NmsUtils.setBlockFast(stloc,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
             ship.sendVoids(Arrays.asList(TEMPS));
@@ -1165,7 +1165,7 @@ public class ShipPhysics {
             if (st == null) continue;
             final Location stloc = st.getLocation(ship.getWorld());
             st.tile = NmsUtils.createTileHolder(stloc);
-            NmsUtils.setBlockFast(stloc,VOID);
+            NmsUtils.setBlockFast(stloc,st.occupiedBlock);
             TEMPS[indx] = st;
         }
         ship.sendVoids(Arrays.asList(TEMPS));
@@ -1323,7 +1323,7 @@ public class ShipPhysics {
             if (st == null) continue;
             final Location stloc = st.getLocation(ship.getWorld());
             st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
-            NmsUtils.setBlockFast(stloc,VOID);
+            NmsUtils.setBlockFast(stloc,st.occupiedBlock);
         }
         ship.sendVoids(Arrays.asList(TEMPS));
         if (SmoothSailingPlugin.CANNONS_FOUND) {
@@ -2102,10 +2102,12 @@ public class ShipPhysics {
         if (ship.CHANGE_WORLD) return;
         else if (ship.vehicle == null) return;
         else if (ship.vehicle.isDead()) return;
-        for (Long key : ship.FLUIDS.keySet()) {
-            BlockData data = ship.FLUIDS.get(key);
+        var ENTRY_SET = ship.FLUIDS.internalMap.long2ObjectEntrySet();
+        ENTRY_SET.fastForEach(entry -> {
+            long key = entry.getLongKey();
+            BlockData data = entry.getValue();
             Location loc = MobileBlockState.unpackLocation(key,ship.getWorld());
-            if (MobileBlockState.doesShipHave(ship,loc)) continue;
+            if (MobileBlockState.doesShipHave(ship,loc)) return;
             System.out.println("LOCATION KEY: "+key);
             if (data != null && !data.getMaterial().isAir()) {
                 NmsUtils.setBlockFast(loc,data);
@@ -2114,9 +2116,9 @@ public class ShipPhysics {
                     System.out.println("ATTEMPTING TO RESTORE FLUID @ " + LocationLib.readLocationToString(loc) + " W/BLOCK DATA:" + data);
                 }
             }
-            ship.FLUIDS.remove(key);
-        }
-        ship.updateWaterLogging(true);
+        });
+        ship.FLUIDS.internalMap.keySet().removeIf(key -> !(MobileBlockState.doesShipHave(ship,MobileBlockState.unpackLocation(key,ship.getWorld())))
+        );
     }
 
     public void detectNearbyEntities() {

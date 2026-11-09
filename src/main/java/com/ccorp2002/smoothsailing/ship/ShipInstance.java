@@ -865,22 +865,7 @@ public class ShipInstance {
         if (init) {
             final int shipHeight = maxY() - minY();
             this.BLOCK_STATES.forEach(st -> {
-                Medium BELOW_MEDIUM = ShipPhysics.getMedium(NmsUtils.toBukkitBlockDataFast(st.getLocation().clone().add(0,-1,0)));
-                if (BELOW_MEDIUM != null && BELOW_MEDIUM.id.equalsIgnoreCase("void")) {
-                    if (st.getBlockData() instanceof org.bukkit.block.data.Waterlogged waterlogged) {
-                        waterlogged.setWaterlogged(false);
-                        st.setBlockData(waterlogged);
-                        st.teleport(st.getLocation());
-                    }
-                    st.occupiedBlock = ShipPhysics.VOID;
-                } else if (st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
-                    if (st.getBlockY() <= (shipHeight / 3.75)+minY()) {
-                        if (st.getBlockData() instanceof org.bukkit.block.data.Waterlogged waterlogged) {
-                            waterlogged.setWaterlogged(st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
-                            st.setBlockData(waterlogged);
-                            st.teleport(st.getLocation());
-                        }
-                    }
+                if (st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
                     st.occupiedBlock = FLUID_BLOCK;
                     FLUIDS.set(st.getLocation(),FLUID_BLOCK);
                 } else {
@@ -941,7 +926,7 @@ public class ShipInstance {
                 if (st == null) continue;
                 final Location stloc = st.getLocation();
                 st.tile = NmsUtils.createTileHolder(stloc);
-                NmsUtils.setBlockFast(stloc,ShipPhysics.VOID);
+                NmsUtils.setBlockFast(stloc,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
             this.sendVoids(Arrays.asList(TEMPS));

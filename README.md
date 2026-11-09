@@ -16,6 +16,20 @@ Inspired by the legacy of `Movecraft` (By `Airship-Pirates/APDev`), and borrowin
 
 ## Dependancies & Other Info
 
+> **Commands & Permissions:**
+
+> (Base command: `/smoothsailing`)
+
+```
+/gears | Permssion: "smoothsailing.gears" | By default; enabled for everyone, Cycles through your ships gears/speed. Gears control how many blocks per movement.
+/unpilot | Permssion: "smoothsailing.release"| By default; enabled for everyone, But may be revoked through your permssions plugin of choice.
+/smoothsailing releaseall | Permssion: "smoothsailing.releaseall" | By default limited to those with permission; Releases every player's Ships, regardless of where they are.
+/smoothsailing cruise | Permssion: "smoothsailing.cruise" | Makes the executor's currently boarded ship cruise straight for 50 movements.
+/smoothsailing reload | Permssion: "smoothsailing.reload" | Reloads the plugin configuration and applies the new or updated options.
+/savefuel | Permssion: "smoothsailing.admin" | Saves an Admin's held item to a basic FuelType in the config.yml. Once the admin is done editing the FuelType's config, run "/smoothsailing reload"
+
+```
+
 
 > **Hard Dependancies:** `PaperMC 1.21.9+`
 
