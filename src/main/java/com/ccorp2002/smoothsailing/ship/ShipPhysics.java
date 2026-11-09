@@ -61,6 +61,7 @@ public class ShipPhysics {
         FLUID.addAll(Tag.CORAL_PLANTS.getValues());
         FLUID.addAll(Tag.LEAVES.getValues());
         FLUID.addAll(FragileBlocks.FRAGILE_BLOCKS);
+        FLUID.remove(Material.LILY_PAD);
         FLUID.add(Material.CAVE_AIR);
         LANDCRAFT_PASSTHROUGH.addAll(Tag.LEAVES.getValues());
         LANDCRAFT_PASSTHROUGH.addAll(Tag.LOGS.getValues());
@@ -81,6 +82,7 @@ public class ShipPhysics {
             Material.COMPARATOR,
             Material.REDSTONE_WIRE)
         );
+        DESTRUCTIBLE.add(Material.LILY_PAD);
         DESTRUCTIBLE.removeAll(Tag.DOORS.getValues());
         DESTRUCTIBLE.removeAll(Tag.CARPETS.getValues());
         DESTRUCTIBLE.removeAll(Tag.RAILS.getValues());
@@ -96,6 +98,7 @@ public class ShipPhysics {
             Material.COMPARATOR,
             Material.REDSTONE_WIRE)
         );
+        FRAGILE_MATERIALS.add(Material.LILY_PAD);
         FRAGILE_MATERIALS.add(Material.PISTON_HEAD);
         FRAGILE_MATERIALS.add(Material.TORCH);
         FRAGILE_MATERIALS.add(Material.REDSTONE_WIRE);
@@ -264,8 +267,8 @@ public class ShipPhysics {
     }
 
     public float getMaxEngineSpeedFactor() {
-        if (ship == null) return 0.5f;
-        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 0.5f;
+        if (ship == null) return 0.75f;
+        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 0.75f;
         final double enginePercent = (ship.engineCount / ship.initialEngineCount);
         float speedFactor = this.PER_MAX_SPEED;
         if (ship.engineCount > 0 && enginePercent >= 0.25d) {
@@ -701,8 +704,8 @@ public class ShipPhysics {
                     fx = (double)CLAMP_VALUE((float)fx, (float)-((PER_MAX_SPEED/1.25)+ship.getGear()+2), (float)((PER_MAX_SPEED/1.25)+ship.getGear()+2));
                     fz = (double)CLAMP_VALUE((float)fz, (float)-((PER_MAX_SPEED/1.25)+ship.getGear()+2), (float)((PER_MAX_SPEED/1.25)+ship.getGear()+2));
                 } else {
-                    fx = (double)CLAMP_VALUE((float)fx, (float)-((PER_MAX_SPEED/1.25)+1), (float)((PER_MAX_SPEED/1.25)+1));
-                    fz = (double)CLAMP_VALUE((float)fz, (float)-((PER_MAX_SPEED/1.25)+1), (float)((PER_MAX_SPEED/1.25)+1));
+                    fx = (double)CLAMP_VALUE((float)fx, -2f, 2f);
+                    fz = (double)CLAMP_VALUE((float)fz, -2f, 2f);
                 }
                 if (Math.abs(fx)<1) fx = 0;
                 if (Math.abs(fz)<1) fz = 0;
@@ -719,9 +722,9 @@ public class ShipPhysics {
                 if (floating != null && floating instanceof Double ddbl) floatOffset = ddbl;
                 boolean isInAir = (getMedium(ShipPhysics.getPrimaryMediumBlockAtBelowY(getExterior(0,0,(int)Math.abs(floatOffset)), CURRENT_FLUID_LEVEL)).id.equalsIgnoreCase("void"));
                 if (fy < 0d) {
-                    if (ship.model.minY > CURRENT_FLUID_LEVEL + floatOffset) {
+                    if (ship.model.minY >= CURRENT_FLUID_LEVEL + floatOffset) {
                         fy = -1;
-                    } else if (ship.model.minY + Math.abs(floatOffset) < CURRENT_FLUID_LEVEL) {
+                    } else if (ship.model.minY - floatOffset < CURRENT_FLUID_LEVEL) {
                         fy = 1;
                     } else {
                         if (isInAir) fy = -1;
@@ -924,7 +927,7 @@ public class ShipPhysics {
             ship.updateRedstone();
             this.currentRotationVelocity = 0.0f;
             if (toBurnFuel) {
-                InventoryUtil.doBurnFuelType(ship,null,ship.getGear() > 1);
+                InventoryUtil.doBurnFuelType(ship,null,ship.getGear() >= ship.getMaxGear()-1);
             }
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 processFluidRestore();

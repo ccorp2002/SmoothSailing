@@ -61,6 +61,13 @@ reinforced_deepslate:
 bedrock:
   allowed: false
 
+#BASIC ENGINE CONFIG (WORKS, BUT STILL NOT FINISHED)
+redstone_lamp:
+  allowed: true
+  engine: true
+  weight: 15
+  health: 25
+
 
 note_block:
 # ENABLE IF CUSTOM-BLOCK PLUGIN IS INSTALLED
