@@ -2108,11 +2108,11 @@ public class ShipPhysics {
             BlockData data = entry.getValue();
             Location loc = MobileBlockState.unpackLocation(key,ship.getWorld());
             if (MobileBlockState.doesShipHave(ship,loc)) return;
-            System.out.println("LOCATION KEY: "+key);
             if (data != null && !data.getMaterial().isAir()) {
                 NmsUtils.setBlockFast(loc,data);
                 NmsUtils.renderBlockChanges(loc);
                 if (SmoothSailingPlugin.DEBUG) {
+                    System.out.println("LOCATION KEY: "+key);
                     System.out.println("ATTEMPTING TO RESTORE FLUID @ " + LocationLib.readLocationToString(loc) + " W/BLOCK DATA:" + data);
                 }
             }

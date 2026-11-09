@@ -343,8 +343,7 @@ public class BlockStructureScanner {
 
             blockIndex++;
         }
-        System.out.println("FOUND BLOCK COUNT: "+shipBlocks.size());
-
+        
         // Must have at least one block
         if (shipBlocks.isEmpty()) {
             return null;
