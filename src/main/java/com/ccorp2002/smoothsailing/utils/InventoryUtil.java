@@ -104,13 +104,15 @@ public final class InventoryUtil {
             FuelType type = fuel.getLeft();
             ShipBurnFuelEvent burnEvent = new ShipBurnFuelEvent(ship,ship.vehicle,type);
             burnEvent.callEvent();
-            type = burnEvent.getFuelType();
+            FuelType newType = burnEvent.getFuelType();
             if (burnEvent.isCancelled()) {
                 return type != null;
-            } else if (type == null) return true;
-            if (ShipInstance.RANDOM.nextDouble() > type.burnChance || force) {
+            } else if (newType == null) {
+                newType = type;
+            }
+            if (ShipInstance.RANDOM.nextDouble() > newType.burnChance || force) {
                 MobileBlockState STATE = MobileBlockState.getStateFromLoc(source.getLocation());
-                boolean burnt = !reduceItemStack(source,toBurn,type.burnRate).isEmpty();
+                boolean burnt = !reduceItemStack(source,toBurn,newType.burnRate).isEmpty();
                 if (STATE != null) {
                     Location pos = STATE.getLocation();
                     ShipInstance.spawnFuelBurnEffects(pos);
@@ -135,9 +137,11 @@ public final class InventoryUtil {
                 if (fuel != null) {
                     ShipDetectFuelEvent detectEvent = new ShipDetectFuelEvent(ship,ship.vehicle,fuel.getLeft(),state.getBlock());
                     detectEvent.callEvent();
-                    if (detectEvent.getBlock().getState(false) instanceof Container newHolder) {
-                        inv = newHolder.getInventory();
-                        fuel = getFuelType(inv);
+                    if (detectEvent.isCancelled()) {
+                        if (detectEvent.getBlock().getState(false) instanceof Container newHolder) {
+                            inv = newHolder.getInventory();
+                            fuel = getFuelType(inv);
+                        }
                     }
                     if (fuel != null) return new Pair(fuel,inv);
                 }

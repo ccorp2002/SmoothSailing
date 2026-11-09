@@ -684,7 +684,8 @@ public class ShipPhysics {
             boolean toBurnFuel = InventoryUtil.canBurnFuelType(ship,null);
             if (!toBurnFuel) {
                 if (ship.isAirship) {
-                    currentYVelocity += -0.75;
+                    if (ship.getGear() > 1) currentYVelocity += -0.75;
+                    else currentYVelocity += -0.25;
                 }
                 ship.setGear(1);
             }
