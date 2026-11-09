@@ -482,93 +482,6 @@ public class ShipWheelManager {
         if (player != null) player.sendMessage("§aShip disassembled!");
         return true;
     }
-
-    /**
-     * Finds all entities that are leashed to a fence block via LeashHitch.
-     * Uses Paper's Leashable interface to support boats, mobs, and other leashable entities.
-     *
-     * @param fenceLoc The location of the fence block
-     * @return List of leashable entities leashed to the fence
-     */
-    private List<org.bukkit.entity.Entity> findEntitiesLeashedToFence(Location fenceLoc) {
-        List<org.bukkit.entity.Entity> leashed = new ArrayList<>();
-        if (fenceLoc.getWorld() == null) {
-            return leashed;
-        }
-        if (true) return leashed;
-
-        Location fenceBlockLoc = fenceLoc.getBlock().getLocation();
-
-        // Search for entities within lead range (10 blocks is Minecraft's lead limit)
-        // Use Paper's Leashable interface to support boats, mobs, and other leashable entities
-        for (org.bukkit.entity.Entity entity : fenceLoc.getWorld().getNearbyEntities(fenceLoc, 10, 10, 10)) {
-            if (entity instanceof io.papermc.paper.entity.Leashable) {
-                io.papermc.paper.entity.Leashable leashable = (io.papermc.paper.entity.Leashable) entity;
-                if (leashable.isLeashed()) {
-                    org.bukkit.entity.Entity holder = leashable.getLeashHolder();
-                    if (holder instanceof org.bukkit.entity.LeashHitch) {
-                        // Check if the LeashHitch is at this fence block
-                        Location hitchLoc = holder.getLocation().getBlock().getLocation();
-                        if (hitchLoc.equals(fenceBlockLoc)) {
-                            leashed.add(entity);
-                        }
-                    }
-                }
-            }
-        }
-
-        return leashed;
-    }
-
-    /**
-     * Finds the collision shulker for a given block index.
-     *
-     * @param ship The ship instance
-     * @param blockIndex The block index to find
-     * @return The shulker entity, or null if not found
-     */
-    private org.bukkit.entity.Entity findShulkerByBlockIndex(ShipInstance ship, int blockIndex) {
-        return null;
-    }
-
-    /**
-     * Transfers leads from ship's shulkers to fence blocks (via LeashHitch).
-     * Called during disassembly after blocks are placed but before ship is destroyed.
-     *
-     * @param ship The ship instance being disassembled
-     * @param model The ship model containing leadable block info
-     * @param shipLoc The ship's current location (used as origin for block positions)
-     * @param currentYaw The ship's current yaw rotation
-     */
-    private void transferLeadsFromShip(ShipInstance ship, ShipModel model, Location shipLoc, float currentYaw) {}
-
-    /**
-     * Finds all entities that are leashed to the given entity (shulker).
-     * Uses Paper's Leashable interface to support boats, mobs, and other leashable entities.
-     *
-     * @param holder The entity that might be holding leads
-     * @return List of leashable entities leashed to the holder
-     */
-    public List<org.bukkit.entity.Entity> findEntitiesLeashedTo(org.bukkit.entity.Entity holder) {
-        List<org.bukkit.entity.Entity> leashed = new ArrayList<>();
-        if (holder.getWorld() == null) {
-            return leashed;
-        }
-
-        // Search for entities within lead range (10 blocks is Minecraft's lead limit)
-        // Use Paper's Leashable interface to support boats, mobs, and other leashable entities
-        for (org.bukkit.entity.Entity entity : holder.getWorld().getNearbyEntities(holder.getLocation(), 10, 10, 10)) {
-            if (entity instanceof io.papermc.paper.entity.Leashable) {
-                io.papermc.paper.entity.Leashable leashable = (io.papermc.paper.entity.Leashable) entity;
-                if (leashable.isLeashed() && holder.equals(leashable.getLeashHolder())) {
-                    leashed.add(entity);
-                }
-            }
-        }
-
-        return leashed;
-    }
-
     /**
      * Detects and previews which blocks would be included in a ship.
      * Shows block count, total weight, and spawns particles to visualize the ship.
@@ -594,19 +507,16 @@ public class ShipWheelManager {
         // (world blocks are removed when ship is assembled)
         if (wheelData.isAssembled()) {
             ShipInstance ship = ShipRegistry.byId(wheelData.getAssembledShipUUID());
+            if (ship == null && player != null) {
+                ship = SmoothSailingPlugin.shipListener().getShipFromEntity(player);
+            }
             if (ship != null && ship.vehicle != null && ship.vehicle.isValid()) {
                 int blockCount = ship.BLOCK_STATES.size();
-                double currentHealth = 10d;
                 double maxHealth = ship.maxHealth;
-                if (ship.vehicle instanceof org.bukkit.entity.LivingEntity le) {
-                    le.setRemoveWhenFarAway(false);
-                    currentHealth = le.getHealth();
-                    maxHealth = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getBaseValue();
-                }
+                double currentHealth = ship.currentHealth;
                 wheelData.setLastDetectedStats(blockCount, ship.model.totalWeight, (int)maxHealth);
                 wheelData.setLastHealth(currentHealth, maxHealth);
                 // Store buoyancy data from ship model
-                wheelData.lastCenterOfVolumeY = ship.model.centerOfVolume.y();
                 wheelData.lastMinY = ship.model.minY;
                 wheelData.lastSurfaceOffset = ship.model.waterFloatOffset;
                 return true;
@@ -632,10 +542,7 @@ public class ShipWheelManager {
         ShipConfig config = ShipInstance.config;
         boolean isAirship = ship.isAirship;
         boolean isLandcraft = ship.isLandcraft;
-        Set<Location> shipBlocks = new HashSet<>(ship.BLOCK_STATES.size());
-        ship.BLOCK_STATES.forEach(k->{
-            if (k != null) shipBlocks.add(k.getLocation());
-        });
+        Set<Location> shipBlocks = new HashSet<>(ship.model.blocks);
         wheelData.lastMaxHealth = ship.maxHealth;
         wheelData.lastCurrentHealth = ship.maxHealth;
         Location driverSeat = wheelLoc.clone().toBlockLocation();
@@ -672,9 +579,6 @@ public class ShipWheelManager {
 
         if (showParticles) {
             player.sendMessage("§7(Showing particles for ~5 seconds...)");
-
-            // Calculate and spawn waterline visualization shulker
-            // UNUSED spawnWaterlineShulker(wheelData, shipBlocks, totalWeight);
 
             // Start particle visualization
             startParticleVisualization(shipBlocks);
@@ -880,16 +784,9 @@ public class ShipWheelManager {
             surfaceOffset = 0;
         }
 
-        wheelData.lastCenterOfVolumeY = centerOfVolumeY;
         wheelData.lastMinY = minY;
         wheelData.lastSurfaceOffset = surfaceOffset;
     }
-
-    /**
-     * Spawns a glowing shulker at the predicted waterline position.
-     * The shulker is invisible, invincible, has no AI/gravity, and glows.
-     */
-    private void spawnWaterlineShulker(ShipWheelData wheelData, Set<Location> shipBlocks, int totalWeight) {}
 
     /**
      * Starts a repeating task to spawn particles on detected blocks.
@@ -913,50 +810,16 @@ public class ShipWheelManager {
                             NmsUtils.sendBlockChange(blockLoc,blockLoc.getBlock().getBlockData());
                             spawnBlockParticles(blockLoc, PARTICLE_WHITE);
                         }
-                        /*
-
-                            // Spawn orange particles on passenger seat blocks
-                            for (Location blockLoc : finalSeatBlocks) {
-                                //NmsUtils.sendBlockChange(blockLoc,blockLoc.getBlock().getBlockData());
-                                spawnBlockParticles(blockLoc, PARTICLE_ORANGE);
-                            }
-
-                            // Spawn red particles on driver seat
-                            if (finalDriverSeat != null) {
-                                //NmsUtils.sendBlockChange(finalDriverSeat,finalDriverSeat.getBlock().getBlockData());
-                                spawnBlockParticles(finalDriverSeat, PARTICLE_RED);
-                            }
-                        */
                         this.cancel();
                         return;
                     }
-                    //NmsUtils.sendBlockChanges(finalRegularBlocks,Material.WHITE_STAINED_GLASS.createBlockData());
                     NmsUtils.sendBlockDataChanges(shipBlocks,Material.LIME_STAINED_GLASS.createBlockData());
-                    // Spawn white particles on regular blocks
-                    /*
-
-                    // Spawn orange particles on passenger seat blocks
-                    //NmsUtils.sendBlockChanges(finalRegularBlocks,Material.ORANGE_STAINED_GLASS.createBlockData());
-                    NmsUtils.sendBlockChanges(finalSeatBlocks,Material.WHITE_STAINED_GLASS.createBlockData());
-                    for (Location blockLoc : finalSeatBlocks) {
-                        spawnBlockParticles(blockLoc, PARTICLE_ORANGE);
-                    }
-
-                    // Spawn red particles on driver seat
-                    if (finalDriverSeat != null) {
-                        NmsUtils.sendBlockChange(finalDriverSeat,Material.RED_STAINED_GLASS.createBlockData());
-                        spawnBlockParticles(finalDriverSeat, PARTICLE_RED);
-                    }
-                    */
                 }
             };
             if (SmoothSailingPlugin.getPlugin() != null) {
-                particleTask.runTaskLaterAsynchronously(SmoothSailingPlugin.getPlugin(), (long)(20L)+(iter*iterationsLeft));
+                particleTask.runTaskLater(SmoothSailingPlugin.getPlugin(), (long)(20L)+(iter*iterationsLeft));
             }
         }
-
-        // Run every 10 ticks (0.5 seconds)
-        //wheelData.setParticleTask(particleTask.runTaskTimer(plugin, 0L, 10L));
     }
 
     /**

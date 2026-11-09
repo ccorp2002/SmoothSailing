@@ -72,4 +72,10 @@ public class Medium {
     public static boolean isDataMedium(Medium m, BlockData data) {
         return m.isDataMedium(data);
     }
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) return false;
+        if (!(obj instanceof Medium oth)) return false;
+        else return this.id.equalsIgnoreCase(oth.id);
+    }
 }

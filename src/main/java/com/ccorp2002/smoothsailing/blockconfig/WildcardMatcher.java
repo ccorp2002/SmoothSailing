@@ -1,6 +1,8 @@
 package com.ccorp2002.smoothsailing.blockconfig;
 
+import org.bukkit.block.data.BlockData;
 import org.bukkit.Material;
+import org.bukkit.Bukkit;
 
 import java.util.EnumSet;
 import java.util.Locale;
@@ -10,7 +12,7 @@ import java.util.Set;
  * Utility for matching materials against wildcard patterns.
  * Supports patterns like "*_fence", "oak_*", etc.
  */
-public class WildcardMatcher {
+public final class WildcardMatcher {
 
     /**
      * Check if a material name matches a wildcard pattern.
@@ -45,6 +47,21 @@ public class WildcardMatcher {
         }
 
         return matching;
+    }
+
+    /**
+     * Get all materials that match a wildcard pattern.
+     */
+    public static BlockData getBlockDataFor(Material material, String blockData) {
+        if (material == null || !material.isBlock() || material == Material.AIR) return Bukkit.createBlockData(blockData.toLowerCase(Locale.ENGLISH));
+        if (blockData == null || blockData.isEmpty()) {
+            return material.createBlockData();
+        } else {
+            try {
+                material.createBlockData(blockData.toLowerCase(Locale.ENGLISH));
+            } catch (Exception thr) {}
+            return material.createBlockData();
+        }
     }
 
     /**

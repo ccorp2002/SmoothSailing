@@ -13,11 +13,11 @@ import org.bukkit.block.data.type.Stairs;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
-import org.joml.Vector3f;
 
 import java.io.File;
 import java.util.*;
 import java.util.logging.Logger;
+import org.joml.Vector3f;
 
 /**
  * Manages block configuration for custom ships.
@@ -164,128 +164,36 @@ public class BlockConfigManager {
             if (blockData == null) continue;
 
             // Create properties (inherit weight/allowed from parent)
-            BlockProperties props = new BlockProperties(allowed, weight, false);
+            BlockProperties props = new BlockProperties(allowed, weight, false, null, new ArrayList<BlockProperties.ConditionalRule>());
 
-            rules.add(new BlockProperties.ConditionalRule(createMatcherForData(blockData), props));
+            rules.add(new BlockProperties.ConditionalRule(blockData, props));
         }
 
         return rules;
     }
 
     public static BlockProperties.ConditionalRule createConditionalRule(BlockData blockData, boolean allowed, Integer weight) {
-        return createConditionalRule(blockData, allowed, weight, null);
+        return createConditionalRule(blockData, allowed, weight, 1d);
     }
 
     public static BlockProperties.ConditionalRule createConditionalRule(BlockData blockData, boolean allowed, Integer weight, Double health) {
         if (blockData == null) return null;
         // Create properties (inherit weight/allowed from parent)
-        BlockProperties props = new BlockProperties(allowed, weight, false);
-        if (health == null || health <= 1d) props.baseHealth = 1d;
-        else props.baseHealth = health;
+        BlockProperties props = new BlockProperties(allowed, weight, false, health, new ArrayList<BlockProperties.ConditionalRule>());
 
-        return new BlockProperties.ConditionalRule(createMatcherForData(blockData), props);
+        return new BlockProperties.ConditionalRule(blockData, props);
     }
 
-    private List<BlockProperties.ConditionalRule> parseConditionalRules(List<?> rulesConfigs) {
-        List<BlockProperties.ConditionalRule> rules = new ArrayList<>();
-        if (rulesConfigs == null) return rules;
-
-        for (Object ruleObj : rulesConfigs) {
-            if (!(ruleObj instanceof Map<?, ?> ruleMap)) continue;
-
-            Object conditionObj = ruleMap.get("condition");
-            if (!(conditionObj instanceof Map<?, ?> conditionMap)) continue;
-
-            // Parse condition
-            BlockProperties.BlockDataMatcher matcher = createMatcherFromMap(conditionMap);
-
-            // Parse properties for this condition
-            boolean seat = ruleMap.containsKey("seat") && Boolean.TRUE.equals(ruleMap.get("seat"));
-
-            // Create properties (inherit weight/allowed from parent)
-            BlockProperties props = new BlockProperties(true, 0, seat);
-
-            rules.add(new BlockProperties.ConditionalRule(matcher, props));
-        }
-
-        return rules;
+    public static BlockProperties.ConditionalRule createConditionalRule(BlockData blockData, BlockProperties props) {
+        if (blockData == null || props == null) return null;
+        return new BlockProperties.ConditionalRule(blockData, props);
     }
 
-    private BlockProperties.BlockDataMatcher createMatcher(ConfigurationSection conditionSection) {
-        Map<String, String> conditions = new HashMap<>();
-        for (String key : conditionSection.getKeys(false)) {
-            conditions.put(key, conditionSection.getString(key));
-        }
-
-        return blockData -> {
-            for (Map.Entry<String, String> condition : conditions.entrySet()) {
-                String property = condition.getKey();
-                String expectedValue = condition.getValue().toUpperCase();
-
-                // Check different block data types
-                if (blockData instanceof Slab slab) {
-                    if (property.equals("type") && !slab.getType().name().equals(expectedValue)) {
-                        return false;
-                    }
-                } else if (blockData instanceof Stairs stairs) {
-                    if (property.equals("half") && !stairs.getHalf().name().equals(expectedValue)) {
-                        return false;
-                    }
-                    if (property.equals("shape") && !stairs.getShape().name().equals(expectedValue)) {
-                        return false;
-                    }
-                    if (property.equals("facing") && !stairs.getFacing().name().equals(expectedValue)) {
-                        return false;
-                    }
-                } else if (blockData instanceof Orientable orientable) {
-                    if (property.equals("axis") && !orientable.getAxis().name().equals(expectedValue)) {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        };
-    }
 
     public static BlockProperties.BlockDataMatcher createMatcherForData(BlockData data) {
         return blockData -> {
+            if (data == null) return false;
             return data.matches(blockData) || blockData.matches(data);
-        };
-    }
-
-    public static BlockProperties.BlockDataMatcher createMatcherFromMap(Map<?, ?> conditionMap) {
-        Map<String, String> conditions = new HashMap<>();
-        for (Map.Entry<?, ?> entry : conditionMap.entrySet()) {
-            conditions.put(entry.getKey().toString(), entry.getValue().toString());
-        }
-
-        return blockData -> {
-            for (Map.Entry<String, String> condition : conditions.entrySet()) {
-                String property = condition.getKey();
-                String expectedValue = condition.getValue().toUpperCase();
-
-                // Check different block data types
-                if (blockData instanceof Slab slab) {
-                    if (property.equals("type") && !slab.getType().name().equals(expectedValue)) {
-                        return false;
-                    }
-                } else if (blockData instanceof Stairs stairs) {
-                    if (property.equals("half") && !stairs.getHalf().name().equals(expectedValue)) {
-                        return false;
-                    }
-                    if (property.equals("shape") && !stairs.getShape().name().equals(expectedValue)) {
-                        return false;
-                    }
-                    if (property.equals("facing") && !stairs.getFacing().name().equals(expectedValue)) {
-                        return false;
-                    }
-                } else if (blockData instanceof Orientable orientable) {
-                    if (property.equals("axis") && !orientable.getAxis().name().equals(expectedValue)) {
-                        return false;
-                    }
-                }
-            }
-            return true;
         };
     }
 
@@ -305,10 +213,16 @@ public class BlockConfigManager {
         } else {
             // Specific material
             try {
-                Material material = Material.valueOf(key.toUpperCase());
-                blockPropertiesCache.putIfAbsent(material, properties);
-            } catch (IllegalArgumentException e) {
-                logger.warning("Unknown material: " + key);
+                if (key.contains(":") && key.contains("[") && key.contains("]")) {
+                    BlockData data = WildcardMatcher.getBlockDataFor(Material.AIR,key);
+                    Material material = data.getMaterial();
+                    addConditionalToBlock(material,createConditionalRule(data,properties));
+                } else {
+                    Material material = Material.valueOf(key.toUpperCase());
+                    blockPropertiesCache.putIfAbsent(material, properties);
+                }
+            } catch (Exception e) {
+                logger.warning("Unknown material or block data: " + key);
             }
         }
     }
@@ -335,14 +249,24 @@ public class BlockConfigManager {
     /**
      * Check if a material is allowed for ship construction.
      */
-    public boolean isAllowed(Material material) {
-        if (material == null) return false;
-        BlockProperties props = blockPropertiesCache.get(material);
+    public boolean isAllowed(BlockData data) {
+        if (data == null) return false;
+        BlockProperties props = getProperties(data.getMaterial(),data);
         return props != null && props.isAllowed();
     }
 
     /**
      * Check if a material is allowed for ship construction.
+     */
+    public boolean isAllowed(Material material) {
+        if (material == null) return false;
+        BlockProperties props = getProperties(material);
+        return props != null && props.isAllowed();
+    }
+
+
+    /**
+     * Check if a material is disallowed for turrets/subsections, but allowed on ships.
      */
     public boolean isTurretBase(Material material) {
         if (material == null) return false;
@@ -350,22 +274,41 @@ public class BlockConfigManager {
         return props != null && props.isTurretBase();
     }
 
-    public boolean isTurretAllowed(org.bukkit.block.data.BlockData data) {
+    public boolean isTurretBase(BlockData data) {
         if (data == null) return false;
-        final BlockProperties props = getProperties(data.getMaterial(), data);
+        BlockProperties props = getProperties(data.getMaterial(),data);
+        return props != null && props.isTurretBase();
+    }
+
+
+    /**
+     * Check if a material is allowed for turret/subsections.
+     */
+    public boolean isTurretAllowed(BlockData data) {
+        if (data == null) return false;
+        BlockProperties props = getProperties(data.getMaterial(),data);
         if (props.isTurretBase()) return false;
         else return props.isAllowed();
     }
 
 
     /**
-     * Update properties for a specific block (considering block state).
+     * Add and update properties for a specific material, considering block datas.
+     */
+    public BlockProperties addConditionalToBlock(Material material, BlockProperties.ConditionalRule conditional) {
+        BlockProperties oldProps = getProperties(material);
+        oldProps.conditionalRules.add(conditional);
+        return updateProperties(material,oldProps);
+    }
+
+
+    /**
+     * Update properties for a specific block (replacing existing properties).
      */
     public BlockProperties updateProperties(Material material, BlockProperties newProps) {
         BlockProperties oldProps = getProperties(material);
         blockPropertiesCache.put(material,newProps);
-        if (oldProps.isAllowed()) return oldProps;
-        else return getProperties(material);
+        return getProperties(material);
     }
 
     /**

@@ -3,9 +3,9 @@ package com.ccorp2002.smoothsailing.ship;
 import org.bukkit.entity.*;
 import org.bukkit.block.*;
 import org.bukkit.block.data.*;
+import org.bukkit.util.Vector;
 import org.bukkit.util.*;
 import org.bukkit.*;
-import org.joml.Matrix4f;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
 import com.ccorp2002.smoothsailing.event.*;
@@ -144,9 +144,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         }
         @Override
         public Object[] toArray() {
-            List<MobileBlockState> list = new ArrayList<>(size());
-            for (MobileBlockState e : this) list.add(e);
-            return list.toArray();
+            return this.toArray(MobileBlockState[]::new);
         }
         @Override
         public <T> T[] toArray(T[] a) {
@@ -347,9 +345,9 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
 
 
     public static ShipInstance getShipFromLoc(final Location loc) {
-        if (loc == null) return null;
+        if (loc == null || loc.getWorld() == null) return null;
         MobileBlockState TEST = new MobileBlockState(loc,true);
-        for (ShipInstance ship : ShipRegistry.getAllShips()) {
+        for (ShipInstance ship : ShipRegistry.getShipsInWorld(loc.getWorld())) {
             if (TEST.shipRef != null) TEST.shipRef.clear();
             if (doesShipHave(ship,TEST)) {
                 return ship;
@@ -451,7 +449,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         NmsUtils.setBlockFast(floc,this.state);
         if (this.isDead()) {
             if (NmsUtils.HAS_CRAFT_ENGINE) CEUtils.INSTANCE.removeCEBlock(floc,false,true);
-            NmsUtils.setBlockFast(floc,this.occupiedBlock);
+            NmsUtils.setBlockFast(floc,ShipPhysics.VOID);
         }
         if (this.tile != null) {
             this.tile.tilePosition = position;
@@ -497,17 +495,33 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         return (int) (packed ^ (packed >>> 32));
     }
 
-    public static long pack(MobileBlockState state) {
-        if (state.vector == null) return 0l;
-        return pack(state.vector);
+    public static long pack(Object obj) {
+        if (obj instanceof MobileBlockState state) {
+            if (state.vector == null) return 0l;
+            return packVector(state.vector);
+        } else if (obj instanceof Block block) {
+            return packVector(block.getLocation().toVector());
+        } else if (obj instanceof Location loc) {
+            return packVector(loc.toVector());
+        } else if (obj instanceof org.bukkit.util.Vector vec) {
+            return packVector(vec);
+        } else if (obj instanceof Long logn) {
+            return logn;
+        } else if (obj instanceof Integer inte) {
+            return (long)inte;
+        }
+        else return 0l;
     }
 
-    public static long pack(org.bukkit.util.Vector vec) {
-        if (vec == null) return 0;;
+    public static long packVector(org.bukkit.util.Vector vec) {
+        if (vec == null) return 0;
         return (vec.getBlockX() & BITS_26) | ((vec.getBlockZ() & BITS_26) << 26) | (((vec.getBlockY() & (long) BITS_12) << (26 + 26)));
     }
     public static org.bukkit.util.Vector unpack(long l){
         return new org.bukkit.util.Vector((int) (l << 38 >> 38),(int) (l >> 52),(int) (l << 12 >> 38));
+    }
+    public static Location unpackLocation(long l, World world){
+        return new org.bukkit.util.Vector((int) (l << 38 >> 38),(int) (l >> 52),(int) (l << 12 >> 38)).toLocation(world);
     }
     
 
@@ -552,7 +566,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
                 this.getBlock().breakNaturally(true);
                 this.tile = null;
             }
-            NmsUtils.setBlockFast(vector.toLocation(),occupiedBlock);
+            NmsUtils.setBlockFast(vector.toLocation(),ShipPhysics.VOID);
         }
     }
 

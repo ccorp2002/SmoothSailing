@@ -46,10 +46,6 @@ public class ShipWheelData {
     public Set<Location> lastDetectedSeatBlocks;     // Passenger seat blocks (orange particles)
     public Location lastDetectedDriverSeat;          // Driver seat block (red particles)
     public int lastDetectedSeatCount;                // Total seat count
-
-    // Waterline visualization shulker (glowing, shows predicted waterline during detection)
-    public org.bukkit.entity.LivingEntity waterlineShulker;
-
     // Flag to prevent clearing conflicts when menu is about to reopen
     public boolean pendingMenuReopen;
 
@@ -58,7 +54,6 @@ public class ShipWheelData {
     public double lastMaxHealth;      // Max health when assembled
 
     // Buoyancy calculation data (for Ship Info display)
-    public float lastCenterOfVolumeY;  // Y component of center of volume
     public float lastMinY;             // Bottom of ship relative to wheel
     public float lastSurfaceOffset;    // Calculated surface offset
 
@@ -181,26 +176,6 @@ public class ShipWheelData {
         }
         this.particleTask = null;
         this.lastDetectedBlocks = null;
-
-        // Also remove waterline shulker
-        removeWaterlineShulker();
-    }
-
-    public org.bukkit.entity.LivingEntity getWaterlineShulker() {
-        return waterlineShulker;
-    }
-
-    public void setWaterlineShulker(org.bukkit.entity.LivingEntity shulker) {
-        // Remove existing shulker if any
-        removeWaterlineShulker();
-        this.waterlineShulker = shulker;
-    }
-
-    public void removeWaterlineShulker() {
-        if (this.waterlineShulker != null && !this.waterlineShulker.isDead()) {
-            this.waterlineShulker.remove();
-        }
-        this.waterlineShulker = null;
     }
 
     /**

@@ -36,3 +36,5 @@ worldguard:
   enabled: true
 debug:
   enabled: false
+
+fuelTypes: {}

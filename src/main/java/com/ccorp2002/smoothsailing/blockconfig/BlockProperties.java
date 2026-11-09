@@ -4,19 +4,20 @@ import com.ccorp2002.smoothsailing.ShipModel;
 import org.bukkit.block.data.BlockData;
 
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Properties for a block type used in ship construction.
- * Includes weight, collision config, and special behaviors.
+ * Includes weight, hitpoints, and other behaviors.
  */
 public class BlockProperties {
     public boolean allowed;
-    public Double baseHealth = null;  // null means block is excluded from density calculations
+    public Double baseHealth = null;  // null means health is determined by a function of density (weight).
     public Integer weight;  // null means block is excluded from density calculations
     public boolean seat;
     public boolean isTurretBase = false;
-    public List<ConditionalRule> conditionalRules;
     public boolean isEngine = false;
+    public final List<ConditionalRule> conditionalRules = new ArrayList<>();
 
     public BlockProperties(boolean allowed, List<ConditionalRule> conditionalRules) {
         this(allowed, 2, false, null, conditionalRules);
@@ -42,7 +43,8 @@ public class BlockProperties {
         this.weight = weight;
         this.seat = seat;
         this.baseHealth = health;
-        this.conditionalRules = conditionalRules;
+        this.conditionalRules.clear();
+        if (conditionalRules != null) this.conditionalRules.addAll(conditionalRules);
     }
 
     public boolean isAllowed() {

@@ -584,7 +584,7 @@ public class ShipListener implements Listener {
         if (state != null) {
             ship.BLOCK_STATES.remove(state);
             if (state.isDead()) {
-                state.setBlockData(state.occupiedBlock);
+                state.setBlockData(ShipPhysics.VOID);
                 state.teleport(state.getLocation(),true);
                 return;
             }
@@ -593,7 +593,7 @@ public class ShipListener implements Listener {
             if (!state.isDead()) NmsUtils.setBlockFast(block.getLocation(),state.state);
             else {
                 state.tile = null;
-                state.setBlockData(state.occupiedBlock);
+                state.setBlockData(ShipPhysics.VOID);
             }
             state.teleport(state.getLocation(),true);
         }
@@ -662,7 +662,7 @@ public class ShipListener implements Listener {
             if (!state.isDead()) {
                 NmsUtils.setBlockFast(block.getLocation(),state.state);
                 e.setCancelled(true);
-            } else NmsUtils.setBlockFast(block.getLocation(),state.occupiedBlock);
+            } else NmsUtils.setBlockFast(block.getLocation(),ShipPhysics.VOID);
             state.teleport(state.getLocation(),true);
         }
     }
@@ -859,7 +859,7 @@ public class ShipListener implements Listener {
         switch (action) {
             case DETECT:
                 NmsUtils.runTaskInWorld(()->{
-                    manager.detectShip(player, wheelData);
+                    manager.detectShip(player, wheelData, true);
                 }, player.getLocation());
                 // Refresh menu to update ship info lore
                 stateChanged = true;

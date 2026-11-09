@@ -21,7 +21,6 @@ public class ShipModel {
     // Buoyancy system (for custom block ships)
     public int totalWeight;               // Sum of all block weights (excluding null-weight blocks)
     public int blockCount;                // Number of blocks with weight (for density calculation)
-    public Vector3f centerOfVolume;       // Geometric center of all blocks (relative to wheel)
     public float minY;                    // Bottom of ship (relative to origin)
     public float maxY;                    // Top of ship (relative to origin)
     // Assembly rotation (for custom block ships disassembly)

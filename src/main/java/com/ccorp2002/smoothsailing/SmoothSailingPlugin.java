@@ -6,7 +6,9 @@ import com.ccorp2002.smoothsailing.customships.ShipWheelManager;
 import com.ccorp2002.smoothsailing.utils.claims.IClaimInterface;
 import com.ccorp2002.smoothsailing.utils.claims.WorldGuardInterface;
 import com.ccorp2002.smoothsailing.utils.claims.TownyInterface;
+import com.ccorp2002.smoothsailing.utils.InventoryUtil;
 import com.ccorp2002.smoothsailing.utils.CannonsUtils;
+import com.ccorp2002.smoothsailing.utils.FuelType;
 import com.ccorp2002.smoothsailing.nmsutils.ShipSteeringListener;
 import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
 import com.ccorp2002.smoothsailing.nmsutils.CEUtils;
@@ -21,7 +23,11 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Locale;
 import java.util.List;
@@ -113,9 +119,9 @@ public class SmoothSailingPlugin extends JavaPlugin {
             if (CANNONS_FOUND) Bukkit.getPluginManager().registerEvents(new CannonsUtils(), INSTANCE);
         } catch (Throwable thr) {}
 
-        // Initialize ShipWheelManager for custom block ships and load saved wheels
         getLogger().info("SmoothSailing enabled.");
-
+        registerFuelTypes();
+        getLogger().info("Loaded Configured FuelTypes.");
         // First destroy all registered ships (cleans up properly)
         int shipCount = ShipRegistry.getAllShips().size();
         ShipRegistry.destroyAll();
@@ -140,6 +146,60 @@ public class SmoothSailingPlugin extends JavaPlugin {
         }
         getLogger().info("Cleared " + removedCount + " force-loaded chunks");
     }
+    public void registerFuelTypes() {
+
+        int counter = 0;
+        ConfigurationSection fuelConfig = getConfig().getConfigurationSection("fuelTypes");
+        if (fuelConfig == null) {
+            getConfig().set("fuelTypes", new ArrayList<String>());
+            getLogger().info("Loading Default FuelTypes; None defined...");
+            return;
+        }
+        // Parse all block entries from root level
+        for (final String key : fuelConfig.getKeys(false)) {
+            if (key == null) continue;
+            ConfigurationSection fuelType = fuelConfig.getConfigurationSection(key);
+            Integer burnAmount = fuelType.getInt("amount",1);
+            Double burnChance = fuelType.getDouble("chance",0.25d);
+            String base64Item = fuelType.getString("item","");
+            if (base64Item != null && !base64Item.isEmpty()) {
+                ItemStack stack = InventoryUtil.decode(base64Item,getLogger());
+                if (stack != null && !stack.isEmpty()) {
+                    FuelType FUEL_TYPE = new FuelType();
+                    FUEL_TYPE.id = key.toLowerCase(Locale.ENGLISH);
+                    FUEL_TYPE = FUEL_TYPE.addFuelItem(stack);
+                    FUEL_TYPE.burnChance = burnChance;
+                    FUEL_TYPE.burnRate = burnAmount;
+                    if (FUEL_TYPE.getFuelItems().size() > 0) {
+                        getLogger().info("Registered FuelType: "+FUEL_TYPE.id);
+                        FUEL_TYPE.registerOrUpdate();
+                        counter++;
+                    }
+                } else continue;
+            } else {
+                List<String> base64Items = fuelType.getStringList("item");
+                if (base64Items == null || base64Items.isEmpty()) continue;
+                FuelType FUEL_TYPE = new FuelType();
+                FUEL_TYPE.id = key.toLowerCase(Locale.ENGLISH);
+                FUEL_TYPE.burnChance = burnChance;
+                FUEL_TYPE.burnRate = burnAmount;
+                for (String listItem : base64Items) {
+                    if (listItem == null || listItem.isEmpty()) continue;
+                    ItemStack stack = InventoryUtil.decode(listItem,getLogger());
+                    if (stack != null && !stack.isEmpty()) {
+                        FUEL_TYPE = FUEL_TYPE.addFuelItem(stack);
+                    }
+                };
+                if (FUEL_TYPE.getFuelItems().size() > 0) {
+                    getLogger().info("Registered FuelType: "+FUEL_TYPE.id);
+                    FUEL_TYPE.registerOrUpdate();
+                    counter++;
+                }
+            }
+        }
+        getLogger().info("Loaded "+counter+" valid FuelTypes.");
+        
+    }
 
     @Override
     public void onDisable() {
@@ -153,7 +213,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
         }
 
         getLogger().info("Cleared " + removedCount + " force-loaded chunks");
-
+        InventoryUtil.FUEL_TYPES.clear();
         TaskUtils.cancelTasks();
         
         if (this.CLAIM_INTEFACES != null) this.CLAIM_INTEFACES.clear();

@@ -44,4 +44,12 @@ public class FuelType {
     public static boolean isItemFuel(FuelType ft, ItemStack item) {
         return ft.isItemFuel(item);
     }
+    public void unregister() {
+        if (this.id == null || this.id.isEmpty()) return;
+        InventoryUtil.FUEL_TYPES.remove(this.id);
+    }
+    public void registerOrUpdate() {
+        if (this.id == null || this.id.isEmpty()) return;
+        InventoryUtil.FUEL_TYPES.put(this.id,this);
+    }
 }

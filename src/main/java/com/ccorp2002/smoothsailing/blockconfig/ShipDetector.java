@@ -4,6 +4,7 @@ import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 
 import java.util.*;
 
@@ -79,7 +80,8 @@ public class ShipDetector {
                     return shipBlocks;
                 }
                 // Check if the block is allowed
-                Material material = neighbor.getBlock().getType();
+                BlockData blockData = neighbor.getBlock().getBlockData();
+                Material material = blockData.getMaterial();
                 if (material.isAir()) {
                     // Skip air blocks
                     continue;
@@ -93,7 +95,7 @@ public class ShipDetector {
                         
                     }
                 }
-                if (!configManager.isAllowed(material) || (isTurret && configManager.isTurretBase(material)) || !canBreakAt) {
+                if (!configManager.isAllowed(blockData) || (isTurret && configManager.isTurretBase(blockData)) || !canBreakAt) {
                     // Skip forbidden blocks (don't add to ship, but continue scanning)
                     continue;
                 }
@@ -158,7 +160,8 @@ public class ShipDetector {
                 }
 
                 // Check if the block is allowed
-                Material material = neighbor.getBlock().getType();
+                BlockData blockData = neighbor.getBlock().getBlockData();
+                Material material = blockData.getMaterial();
                 if (material.isAir()) {
                     // Skip air blocks
                     continue;
@@ -178,7 +181,7 @@ public class ShipDetector {
                     return new InternalScanResult(shipBlocks, true, true);
                 }
 
-                if (!configManager.isAllowed(material) || !canBreakAt) {
+                if (!configManager.isAllowed(blockData) || !canBreakAt) {
                     // Skip forbidden blocks (don't add to ship, but continue scanning)
                     continue;
                 }

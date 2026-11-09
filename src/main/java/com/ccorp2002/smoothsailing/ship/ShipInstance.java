@@ -2,6 +2,7 @@ package com.ccorp2002.smoothsailing.ship;
 
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.utils.*;
+import com.ccorp2002.smoothsailing.utils.objects.*;
 import com.ccorp2002.smoothsailing.utils.vectors.*;
 import com.ccorp2002.smoothsailing.event.*;
 import com.ccorp2002.smoothsailing.nmsutils.*;
@@ -39,6 +40,7 @@ public class ShipInstance {
     public boolean isSinking = false;
     public static final String HITBOX_KEY = "BLOCK_STATES";
     public MobileBlockState.MobileStateSet BLOCK_STATES = null;
+    public LocationBlockDataSet FLUIDS = null;
 
     public final Map<String, Object> DATA_TAGS = new Object2ObjectOpenHashMap<>(1024,0.75f);
     
@@ -187,7 +189,9 @@ public class ShipInstance {
     }
     public void setGear(int currentGear) {
         this.currentGear = java.lang.Math.max(1, java.lang.Math.min(maxGear, currentGear));
+        if (driver instanceof Player) displayGears();
     }
+
     public void cycleGears() {
         if (engineCount != 0) {
             if (getGear() + 1 > getMaxGear()) {
@@ -196,6 +200,9 @@ public class ShipInstance {
                 setGear(getGear() + 1);
             }
         }
+    }
+
+    public void displayGears() {
         StringBuilder bar = new StringBuilder();
         String color = "§5";
 
@@ -205,6 +212,7 @@ public class ShipInstance {
         // Send to action bar
         final net.kyori.adventure.text.Component BAR = net.kyori.adventure.text.Component.text(bar.toString());
         ENTITY_COMPOSITION.forEach(ent -> {if (ent instanceof Player passenger && passenger.isConnected()) passenger.sendActionBar(BAR);});
+
     }
 
     public float getHealth() {
@@ -231,6 +239,11 @@ public class ShipInstance {
         if (health > 0.255f) this.maxHealth = health;
     }
 
+
+    public LocationBlockDataSet getFluidBlocks() {
+        return this.FLUIDS;
+    }
+
     
     /**
      * public constructor for creating ShipInstance from vehicle-entity and detected blocks.
@@ -252,6 +265,7 @@ public class ShipInstance {
          // 
         this.BLOCK_STATES = new MobileBlockState.MobileStateSet(model.blocks.size()+1250,0.75f); // new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(model.blocks.size()+1250,0.75f,MobileBlockState.HASH_STRAT);
         this.ENTITY_COMPOSITION = new HashSet<>((model.blocks.size()/5)+100,0.75f);
+        this.FLUIDS = new LocationBlockDataSet(model.blocks.size()+2500,0.75f);
         // Create root vehicle ArmorStand (for physics, health, display mounting)
         // Players never ride this directly - they ride seat ArmorStands instead
 
@@ -654,7 +668,7 @@ public class ShipInstance {
                 Float floatOffset = -1f;
                 Number floatOff = DATA.getOrDefault("surface_offset",null);
                 float heightY = maxY() - minY();
-                if (floatOff == null) floatOffset = (float)(-java.lang.Math.round(heightY/3.25f)) + (float)java.lang.Math.round((heightY/3f));
+                if (floatOff == null) floatOffset = (float)(-java.lang.Math.round(heightY/3.75f)) + (float)java.lang.Math.round((heightY/3f));
                 else floatOffset = -1*floatOff.floatValue();
                 setDataTag("cemc:float_offset",floatOffset);
                 setDataTag("cemc:center_of_volume_y",DATA.getOrDefault("center_of_volume_y",null));
@@ -664,6 +678,7 @@ public class ShipInstance {
                 if (ShipInstance.this.physics != null) {
                     ShipInstance.this.physics.handleBuoyancy(ShipInstance.this.getLocation());
                     ShipInstance.this.physics.moving = false;
+                    updateWaterLogging(true);
                 }
                 ShipInstance.this.setProcessing(false);
                 if (ShipInstance.this.engineCount <= 0) {
@@ -671,6 +686,10 @@ public class ShipInstance {
                     if (ShipInstance.this.isAirship && ShipInstance.this.physics != null) ShipInstance.this.physics.PER_MAX_SPEED = 0.25f;
                 } else {
                     ShipInstance.this.initialEngineCount = engineCount;
+                }
+                if (getMaxGear() < physics.getEngineGears()) {
+                    setMaxGear(physics.getEngineGears());
+                    displayGears();
                 }
                 Runnable RUN_ME_2 = new Runnable() {
                     @Override
@@ -834,7 +853,7 @@ public class ShipInstance {
     public void updateWaterLogging(boolean init) {
         if (this.physics == null || this.CHANGE_WORLD) return;
         var floating = ShipInstance.this.getDataTag("cemc:float_offset");
-        Integer floatOffset = 1;
+        Integer floatOffset = 0;
         if (floating != null && floating instanceof Double ddbl) floatOffset = (int)java.lang.Math.floor(ddbl);
         final int checkY = (int)(ShipInstance.this.physics.CURRENT_FLUID_LEVEL+floatOffset);
         final BlockData FLUID_BLOCK = (!isAirship) ? ShipPhysics.getPrimaryMediumBlockAtBelowY(physics.getExterior(0,0), checkY) : ShipPhysics.VOID;
@@ -846,15 +865,26 @@ public class ShipInstance {
         if (init) {
             final int shipHeight = maxY() - minY();
             this.BLOCK_STATES.forEach(st -> {
-                if (st.getBlockY() < ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
-                    if (st.getBlockY() <= (shipHeight / 3.25)+minY()) {
-                        st.occupiedBlock = FLUID_BLOCK;
+                Medium BELOW_MEDIUM = ShipPhysics.getMedium(NmsUtils.toBukkitBlockDataFast(st.getLocation().clone().add(0,-1,0)));
+                if (BELOW_MEDIUM != null && BELOW_MEDIUM.id.equalsIgnoreCase("void")) {
+                    if (st.getBlockData() instanceof org.bukkit.block.data.Waterlogged waterlogged) {
+                        waterlogged.setWaterlogged(false);
+                        st.setBlockData(waterlogged);
+                        st.teleport(st.getLocation());
                     }
-                }
-                if (st.getBlockData() instanceof org.bukkit.block.data.Waterlogged waterlogged) {
-                    waterlogged.setWaterlogged(st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
-                    st.setBlockData(waterlogged);
-                    st.teleport(st.getLocation());
+                    st.occupiedBlock = ShipPhysics.VOID;
+                } else if (st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
+                    if (st.getBlockY() <= (shipHeight / 3.75)+minY()) {
+                        if (st.getBlockData() instanceof org.bukkit.block.data.Waterlogged waterlogged) {
+                            waterlogged.setWaterlogged(st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
+                            st.setBlockData(waterlogged);
+                            st.teleport(st.getLocation());
+                        }
+                    }
+                    st.occupiedBlock = FLUID_BLOCK;
+                    FLUIDS.set(st.getLocation(),FLUID_BLOCK);
+                } else {
+                    st.occupiedBlock = ShipPhysics.VOID;
                 }
                 ShipInstance.this.BLOCK_STATES.set(st);
 
@@ -911,7 +941,7 @@ public class ShipInstance {
                 if (st == null) continue;
                 final Location stloc = st.getLocation();
                 st.tile = NmsUtils.createTileHolder(stloc);
-                NmsUtils.setBlockFast(stloc,st.occupiedBlock);
+                NmsUtils.setBlockFast(stloc,ShipPhysics.VOID);
                 TEMPS[indx] = st;
             }
             this.sendVoids(Arrays.asList(TEMPS));
@@ -931,6 +961,7 @@ public class ShipInstance {
                 st.occupiedBlock = occupiedBlock;
                 st.teleport(updLoc,false);
                 st.setLocation(updLoc);
+                getFluidBlocks().set(updLoc,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
             this.BLOCK_STATES.clear();

@@ -2,10 +2,12 @@ package com.ccorp2002.smoothsailing.utils;
 
 
 
-import com.ccorp2002.smoothsailing.ship.ShipInstance;
-import com.ccorp2002.smoothsailing.utils.objects.Pair;
 import com.ccorp2002.smoothsailing.ship.MobileBlockState;
+import com.ccorp2002.smoothsailing.ship.ShipInstance;
+import com.ccorp2002.smoothsailing.SmoothSailingPlugin;
+import com.ccorp2002.smoothsailing.utils.objects.Pair;
 import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
+import com.ccorp2002.smoothsailing.event.*;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -31,7 +33,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.logging.Logger;
 
-/** Small inventory & itemstack helpers for use in a future fuel & fuel item system. */
+/** Small inventory & itemstack helpers for use in the fuel & fuel item system. */
 public final class InventoryUtil {
 
     private InventoryUtil() {}
@@ -43,8 +45,7 @@ public final class InventoryUtil {
         COAL_POWER.id = COAL_POWER_KEY;
         COAL_POWER = COAL_POWER.addFuelItem(ItemStack.of(Material.COAL));
         COAL_POWER = COAL_POWER.addFuelItem(ItemStack.of(Material.CHARCOAL));
-        FUEL_TYPES.put(COAL_POWER_KEY,COAL_POWER);
-
+        COAL_POWER.registerOrUpdate();
     }
 
     public static MobileBlockState.MobileStateSet getDefaultFuelBlocks(ShipInstance ship) {
@@ -101,6 +102,12 @@ public final class InventoryUtil {
             Inventory source = fuelBurner.getRight();
             ItemStack toBurn = fuel.getRight().asOne();
             FuelType type = fuel.getLeft();
+            ShipBurnFuelEvent burnEvent = new ShipBurnFuelEvent(ship,ship.vehicle,type);
+            burnEvent.callEvent();
+            type = burnEvent.getFuelType();
+            if (burnEvent.isCancelled()) {
+                return type != null;
+            } else if (type == null) return true;
             if (ShipInstance.RANDOM.nextDouble() > type.burnChance || force) {
                 MobileBlockState STATE = MobileBlockState.getStateFromLoc(source.getLocation());
                 boolean burnt = !reduceItemStack(source,toBurn,type.burnRate).isEmpty();
@@ -123,9 +130,17 @@ public final class InventoryUtil {
         for (MobileBlockState state : getDefaultFuelBlocks(ship)) {
             if (state == null || state.isDead()) continue;
             if (state.getBlock().getState(false) instanceof Container holder) {
-                final Inventory inv = holder.getInventory();
+                Inventory inv = holder.getInventory();
                 fuel = getFuelType(inv);
-                if (fuel != null) return new Pair(fuel,inv);
+                if (fuel != null) {
+                    ShipDetectFuelEvent detectEvent = new ShipDetectFuelEvent(ship,ship.vehicle,fuel.getLeft(),state.getBlock());
+                    detectEvent.callEvent();
+                    if (detectEvent.getBlock().getState(false) instanceof Container newHolder) {
+                        inv = newHolder.getInventory();
+                        fuel = getFuelType(inv);
+                    }
+                    if (fuel != null) return new Pair(fuel,inv);
+                }
             }
         }
         return null;
