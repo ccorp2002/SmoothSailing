@@ -264,8 +264,8 @@ public class ShipPhysics {
     }
 
     public float getMaxEngineSpeedFactor() {
-        if (ship == null) return 0f;
-        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 0.125f;
+        if (ship == null) return 0.5f;
+        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 0.5f;
         final double enginePercent = (ship.engineCount / ship.initialEngineCount);
         float speedFactor = this.PER_MAX_SPEED;
         if (ship.engineCount > 0 && enginePercent >= 0.25d) {
