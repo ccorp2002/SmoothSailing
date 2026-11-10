@@ -81,7 +81,7 @@ public final class InventoryUtil {
     public static boolean canBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner) {
         if (ship == null) return false;
         if (ship.engineCount == 0) return false;
-        if (ship.getGear() <= 1) return false;
+        if (!ship.doGearsRequireFuel()) return false;
         if (fuelBurner == null) fuelBurner = checkFuelTypeToBurn(ship);
         if (fuelBurner != null) {
             return true;
@@ -89,13 +89,15 @@ public final class InventoryUtil {
     }
 
     public static boolean doBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner) {
-        return doBurnFuelType(ship,fuelBurner,false);
+        return doBurnFuelType(ship,fuelBurner,false,0);
     }
 
-    public static boolean doBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner, boolean force) {
+    public static boolean doBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner, int extra) {
+        return doBurnFuelType(ship,fuelBurner,false,extra);
+    }
+
+    public static boolean doBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner, boolean force, int extra) {
         if (ship == null) return false;
-        if (ship.engineCount == 0) return false;
-        if (ship.getGear() <= 1) return false;
         if (fuelBurner == null) fuelBurner = checkFuelTypeToBurn(ship);
         if (canBurnFuelType(ship,fuelBurner)) {
             Pair<FuelType,ItemStack> fuel = fuelBurner.getLeft();
@@ -112,7 +114,7 @@ public final class InventoryUtil {
             }
             if (ShipInstance.RANDOM.nextDouble() > newType.burnChance || force) {
                 MobileBlockState STATE = MobileBlockState.getStateFromLoc(source.getLocation());
-                boolean burnt = !reduceItemStack(source,toBurn,newType.burnRate).isEmpty();
+                boolean burnt = !reduceItemStack(source,toBurn,(newType.burnRate+extra)).isEmpty();
                 if (STATE != null) {
                     Location pos = STATE.getLocation();
                     ShipInstance.spawnFuelBurnEffects(pos);

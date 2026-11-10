@@ -61,12 +61,32 @@ reinforced_deepslate:
 bedrock:
   allowed: false
 
-#BASIC ENGINE CONFIG (WORKS, BUT STILL NOT FINISHED)
+# BASIC ENGINE & (BLOCK-DATA) CONFIG
+
+# (ENGINES HELP DETERMINE HOW MANY GEARS A SHIP HAS AT A GIVEN TIME)
 redstone_lamp:
   allowed: true
-  engine: true
   weight: 15
   health: 25
+  engine: false
+  fuel_cost: 0.25 # AMOUNT OF ADDITIONAL FUEL BURNT BY 1 BLOCK OF THIS TYPE
+                  # MAY BE A NEGATIVE VALUE TO REDUCE THE OVERALL FUEL COST
+  block_data:
+    "redstone_lamp[lit=true]": # MUST SPECIFY THE WHOLE BLOCKDATA STRING TO WORK
+      allowed: true
+      engine: true
+
+furnace: # FUEL INPUT FOR ENGINES
+  allowed: true
+  weight: 7
+  health: 5
+  engine: false
+  block_data:
+    "furnace[lit=true]": # (LIT FURNACES COUNT AS ENIGNES TOO)
+      fuel_cost: 0.5 # (FUEL COST DOES NOT GO DOWN WITH BLOCK LOSS/DAMAGE)
+                     # FUEL USAGE IS AMPLIFIED BY A SHIPS CURRENT GEAR.
+      allowed: true
+      engine: true
 
 
 note_block:
@@ -463,11 +483,7 @@ observer:
 lever:
   allowed: true
   weight: 0.5
-  
 
-furnace:
-  allowed: true
-  weight: 5
   
 
 blast_furnace:

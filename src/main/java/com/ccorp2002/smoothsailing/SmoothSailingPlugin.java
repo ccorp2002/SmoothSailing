@@ -283,11 +283,20 @@ public class SmoothSailingPlugin extends JavaPlugin {
                 sender.sendMessage("You don't have permission to use this command.");
                 return true;
             }
-
+            int a = 1;
+            if (args.length > 0) {
+                String upDown = args[0].toLowerCase(Locale.ENGLISH);
+                if (upDown.contains("+") || upDown.contains("up")) a = 1;
+                else if (upDown.contains("-") || upDown.contains("do")) a = -1;
+                else {
+                    sender.sendMessage("Try specifying '+' or '-' to raise or lower gears.");
+                    return true;
+                }
+            }
             // First destroy all registered ships (cleans up properly)
             for (ShipInstance SHIP : ShipRegistry.getAllShips()) {
                 if (player.equals(SHIP.driver)) {
-                    SHIP.cycleGears();
+                    SHIP.cycleGears(a);
                 }
             }
             return true;

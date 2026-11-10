@@ -11,7 +11,7 @@ import com.ccorp2002.smoothsailing.blockconfig.*;
 import com.ccorp2002.smoothsailing.utils.displays.*;
 import org.bukkit.*;
 import org.bukkit.block.*;
-import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.*;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
@@ -154,13 +154,13 @@ public class ShipInstance {
     public boolean hasDriver = false;
     public boolean hasPlayersNearby = false;
 
-    // Input state tracking (set by ShipSteeringListener, read by ShipPhysics)
+    // Input state tracking (set by ShipSteeringListener/ShipListener, read by ShipPhysics)
     public boolean isForwardPressed = false;
     public boolean isBackwardPressed = false;
     public boolean isLeftPressed = false;
     public boolean isRightPressed = false;
 
-    // Vertical input state for airships (set by ShipSteeringListener, read by ShipPhysics)
+    // Vertical input state for airships (set by ShipSteeringListener/ShipListener, read by ShipPhysics)
     public boolean isSpacePressed = false;
     public boolean isSprintPressed = false;
 
@@ -170,36 +170,77 @@ public class ShipInstance {
     // Landcraft mode flag - determined by future mechanics.
     public boolean isLandcraft = false;
 
+    public double fuelCost = 0;
+
+    public void setFuelCost(double fuelCost) {
+        this.fuelCost = fuelCost;
+    }
+
+    public int getFuelCost() {
+        float ROUNDED = (float)ShipPhysics.ROUND_VALUE((this.fuelCost),2);
+        return (int)ShipPhysics.CLAMP_VALUE(ROUNDED,0f,ROUNDED);
+    }
+
 
     public int maxGear = 1;
     public int currentGear = 1;
     public int engineCount = 0;
+    public int hardMaxGear = -1;
     public int initialEngineCount = engineCount;
-    public float maxHealth = 12.5f;
+    public float maxHealth = 5f;
     public float currentHealth = maxHealth;
+    public boolean gearsRequireFuel = true;
+
+    public int getHardMaxGear() {
+        return this.hardMaxGear;
+    }
+
+    public void setHardMaxGear(int hardMaxGear) {
+        if (this.hardMaxGear < hardMaxGear && this.hardMaxGear < 0) {
+            this.hardMaxGear = hardMaxGear;
+        }
+        setMaxGear(this.hardMaxGear);
+    }
+
+    public boolean doGearsRequireFuel() {
+        return this.gearsRequireFuel;
+    }
+
+    public void setGearsRequireFuel(boolean fuel) {
+        this.gearsRequireFuel = fuel;
+    }
 
     public int getMaxGear() {
         return this.maxGear;
     }
     public void setMaxGear(int maxGear) {
+        if (this.hardMaxGear < maxGear && this.hardMaxGear > 0) {
+            maxGear = this.hardMaxGear;
+        }
         this.maxGear = maxGear;
+        if (this.currentGear > this.maxGear) setGear(this.maxGear);
+        this.displayGears();
     }
     public int getGear() {
         return this.currentGear;
     }
     public void setGear(int currentGear) {
         this.currentGear = java.lang.Math.max(1, java.lang.Math.min(maxGear, currentGear));
-        if (driver instanceof Player) displayGears();
     }
 
     public void cycleGears() {
+        cycleGears(1);
+    }
+
+    public void cycleGears(int a) {
         if (engineCount != 0) {
-            if (getGear() + 1 > getMaxGear()) {
+            if (getGear() + a > getMaxGear() || getGear() + a < 1) {
                 setGear(1);
             } else {
-                setGear(getGear() + 1);
+                setGear(getGear() + a);
             }
         }
+        displayGears();
     }
 
     public void displayGears() {
@@ -619,16 +660,26 @@ public class ShipInstance {
             isAirship = false;
         }
         this.physics = new ShipPhysics(this);
+        if (ShipInstance.this.engineCount <= 0) {
+            ShipInstance.this.engineCount = 0;
+            ShipInstance.this.initialEngineCount = 0;
+        } else {
+            ShipInstance.this.initialEngineCount = engineCount;
+        }
+        if (this.hardMaxGear < 0) {
+            this.hardMaxGear = physics.getEngineGears();
+        }
+        displayGears();
+        if (dryFire) {
+            destroy();
+            return;
+        }
         if (vehicle instanceof LivingEntity le) {
             float tempMaxHealth = (float)java.lang.Math.min(SmoothSailingPlugin.MAX_POSSIBLE_HEALTH, java.lang.Math.max(25.0, maxHealth));
             org.bukkit.attribute.AttributeInstance maxHealthAttr = le.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH);
             if (maxHealthAttr != null) maxHealthAttr.setBaseValue(tempMaxHealth);
             le.setHealth(tempMaxHealth);
             setMaxHealth(maxHealth);
-        }
-        if (dryFire) {
-            destroy();
-            return;
         }
         Set<Location> INTERIOR = this.physics.getInteriorLocs();
         boolean TEMP_DEBUG = SmoothSailingPlugin.DEBUG_DUMP;
@@ -643,12 +694,12 @@ public class ShipInstance {
         });
         SmoothSailingPlugin.DEBUG_DUMP = TEMP_DEBUG;
         if (this.vehicle instanceof org.bukkit.entity.LivingEntity s) {
+            s.setInvulnerable(true);
             s.setCollidable(false);
             s.setGravity(false);
             s.setSilent(true);
             s.setAI(false);
             // Force rotation to match spawn location (Bukkit doesn't auto-apply yaw from Location)
-            s.setInvulnerable(false);
         }
         this.currentHealth = this.maxHealth;
         this.ENTITY_COMPOSITION.add(vehicle);
@@ -681,16 +732,6 @@ public class ShipInstance {
                     updateWaterLogging(true);
                 }
                 ShipInstance.this.setProcessing(false);
-                if (ShipInstance.this.engineCount <= 0) {
-                    ShipInstance.this.engineCount = 0;
-                    if (ShipInstance.this.isAirship && ShipInstance.this.physics != null) ShipInstance.this.physics.PER_MAX_SPEED = 0.25f;
-                } else {
-                    ShipInstance.this.initialEngineCount = engineCount;
-                }
-                if (getMaxGear() < physics.getEngineGears()) {
-                    setMaxGear(physics.getEngineGears());
-                    displayGears();
-                }
                 Runnable RUN_ME_2 = new Runnable() {
                     @Override
                     public void run() {
@@ -715,13 +756,6 @@ public class ShipInstance {
         startIdleCheckTask();
     }
     
-    /**
-     * Builds a rotation matrix that combines the vehicle's current orientation with the model's initial rotation.
-     * This matrix should be used for positioning both collision boxes AND display entities.
-     *
-     * Note: Display entities do NOT inherit yaw rotation from their parent vehicle - only position is inherited.
-     * Therefore, we must explicitly apply the vehicle's rotation to display transforms.
-     */
     public void buildRotationMatrix() {}
 
     public static void addBlock(final ShipInstance ship, Block block) {
@@ -729,8 +763,9 @@ public class ShipInstance {
     }
     public static void addBlock(final ShipInstance ship, Block block, boolean piloting) {
         if (ship == null || block == null) return;
-        if (!block.getLocation().getWorld().equals(ship.getWorld())) return;
-        final BlockProperties props = BlockConfigManager.getInstance().getProperties(block.getType(), block.getBlockData());
+        if (!block.getWorld().equals(ship.getWorld())) return;
+        BlockData data = block.getBlockData();
+        final BlockProperties props = BlockConfigManager.getInstance().getProperties(block.getType(), data);
         if (!props.isAllowed()) {
             return;
         }
@@ -777,14 +812,52 @@ public class ShipInstance {
         movingState.state = NmsUtils.getBlockFaster(block.getLocation());
         if (!piloting) {
             movingState.resetHealth((long)(blockHealth/2.5d)+2l);
+            ship.fuelCost += (props.getFuelCost());
             if (ship.physics != null) ship.physics.moving = false;
             ship.setProcessing(false);
         } else {
             movingState.resetHealth((long)(blockHealth));
             ship.currentHealth = ship.maxHealth;
-            if (props.isEngine()) ship.engineCount+=1;
+            if (props.hasEngineState()) {
+                ship.engineCount++;
+            }
+            ship.fuelCost += (props.getFuelCost());
         }
         ship.BLOCK_STATES.set(movingState);
+    }
+
+    public static void updateBlockStateOnShip(final ShipInstance ship, MobileBlockState state) {
+        if (ship == null || state == null) return;
+        if (!state.getWorld().equals(ship.getWorld())) return;
+        BlockData data = state.getBlockData();
+        Material material = data.getMaterial();
+        final BlockProperties props = BlockConfigManager.getInstance().getProperties(material, data);
+        if (ship.physics != null) ship.physics.moving = true;
+        ship.setProcessing(true);
+        if (!props.isAllowed() && material.isSolid()) {
+            ship.BLOCK_STATES.remove(state);
+            if (ship.physics != null) ship.physics.moving = false;
+            ship.setProcessing(false);
+            return;
+        } else {
+            if (props.hasEngineState()) {
+                if (data instanceof Lightable lit) {
+                    if (lit.isLit()) {
+                        ship.engineCount++;
+                        if (ship.engineCount > ship.initialEngineCount) ship.engineCount = ship.initialEngineCount;
+                    } else {
+                        ship.engineCount = java.lang.Math.max(0, ship.engineCount - 1);
+                    }
+                } else {
+                    if (props.isEngine()) ship.engineCount = java.lang.Math.max(ship.initialEngineCount, ship.engineCount + 1);
+                    else ship.engineCount = java.lang.Math.max(0, ship.engineCount - 1);
+                }
+                ship.maxGear = (ship.physics.getEngineGears());
+            }
+            ship.BLOCK_STATES.set(state);
+            if (ship.physics != null) ship.physics.moving = false;
+            ship.setProcessing(false);
+        }
     }
 
     public static void updateDamagedBlock(final ShipInstance ship, MobileBlockState state) {
@@ -802,7 +875,7 @@ public class ShipInstance {
                 else ship.weightCalc -= (props.weight*1.25);
             }
         }
-        if (props.isEngine()) {
+        if (props.hasEngineState()) {
             ship.engineCount -= 1;
             if (ship.engineCount <= 0) {
                 ship.engineCount = 0;
@@ -811,7 +884,7 @@ public class ShipInstance {
             } else {
                 ship.physics.MOVEMENT_COOLDOWN += 2;
             }
-            ship.displayEngineStatus();
+            ship.displayGears();
         }
         ship.model.blockCount -= 1;
         ship.blockCount = ship.model.blockCount;
@@ -872,7 +945,6 @@ public class ShipInstance {
                     st.occupiedBlock = ShipPhysics.VOID;
                 }
                 ShipInstance.this.BLOCK_STATES.set(st);
-
             });
         }
     }

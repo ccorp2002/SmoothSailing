@@ -593,6 +593,10 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         return getLocation(null);
     }
 
+    public World getWorld() {
+        return getLocation().getWorld();
+    }
+
     public void setLocation(Location loc) {
         this.vector = new NmsUtils.WorldBlockVector(loc.toBlockLocation());
     }
@@ -612,11 +616,13 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
     }
 
     public void updateBlockState() {
-        if (getShip() != null && !getShip().CHANGE_WORLD) getShip().BLOCK_STATES.remove(this);
         Location pos = this.getLocation();
         this.state = NmsUtils.getBlockFaster(pos);
         this.tile = NmsUtils.createTileHolder(pos);
-        if (getShip() != null && !getShip().CHANGE_WORLD) getShip().BLOCK_STATES.add(this);
+        ShipInstance ship = this.getShip();
+        if (ship != null && !ship.CHANGE_WORLD) {
+            ShipInstance.updateBlockStateOnShip(ship,this);
+        }
     }
 
     public BlockData getAndUpdateBlockData() {

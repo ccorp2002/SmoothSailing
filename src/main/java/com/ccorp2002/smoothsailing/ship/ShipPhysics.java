@@ -140,14 +140,17 @@ public class ShipPhysics {
         VOID_MEDIUM.dragMultiplier = 0.575d;
         FLUID_MEDIUMS.put("void",VOID_MEDIUM);
     }
+
     public static boolean isDataMedium(MobileBlockState block) {
         BlockData data = block.occupiedBlock;
         return isDataMedium(data);
     }
+
     public static boolean isDataMedium(Block block) {
         BlockData data = block.getBlockData();
         return isDataMedium(data);
     }
+
     public static boolean isDataMedium(BlockData data) {
         if (data == null) return true;
         for (Medium m : FLUID_MEDIUMS.values()) {
@@ -272,24 +275,26 @@ public class ShipPhysics {
         final double enginePercent = (ship.engineCount / ship.initialEngineCount);
         float speedFactor = this.PER_MAX_SPEED;
         if (ship.engineCount > 0 && enginePercent >= 0.25d) {
-            speedFactor += (Math.abs(this.PER_MAX_SPEED) * (enginePercent / 0.75d)+1);
+            speedFactor += (Math.abs(speedFactor) * (ship.engineCount / ship.blockCount)+0.5f);
             if (SmoothSailingPlugin.DEBUG) System.out.println("ENGINE BLOCK PERCENT: "+enginePercent+"; CURRENT ENGINE COUNT: "+ship.engineCount+"; NEW SPEED FACTOR: "+speedFactor);
         }
         if (speedFactor >= 25f) {
-            speedFactor = 25f; //HARD CAP
+            speedFactor = 25f; //TEMPORARY; HARD CAP
         }
         return speedFactor;
     }
 
     public int getEngineGears() {
-        if (ship == null) return 1;
-        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 1;
-        final int enginePercent = (int)Math.ceil((ship.engineCount) / ((ship.initialEngineCount*0.575f))+1.25f);
-        int maxGear = ship.getMaxGear();
-        for (int g = 1; g <= enginePercent; g++) {
-            maxGear++;
-        }
-        return maxGear;
+        final int enginePercent = (int)getEnginePercent();
+        int engineGear = (enginePercent+1);
+        return engineGear;
+    }
+
+    public double getEnginePercent() {
+        if (ship == null) return 1d;
+        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 1d;
+        final double enginePercent = ((ship.engineCount) / ((ship.initialEngineCount*0.675f)));
+        return enginePercent;
     }
 
     public void processFluidMediumDrag() {
@@ -690,7 +695,7 @@ public class ShipPhysics {
                     if (ship.getGear() > 1) currentYVelocity += -0.75;
                     else currentYVelocity += -0.25;
                 }
-                ship.setGear(1);
+                if (ship.doGearsRequireFuel()) ship.setGear(1);
             }
             handleBuoyancy(ship.getLocation());
             if (hasHorizontalMovement) {
@@ -927,7 +932,8 @@ public class ShipPhysics {
             ship.updateRedstone();
             this.currentRotationVelocity = 0.0f;
             if (toBurnFuel) {
-                InventoryUtil.doBurnFuelType(ship,null,ship.getGear() >= ship.getMaxGear()-1);
+                int burnRate = (int)(ship.getFuelCost()+(getEngineGears()/getEnginePercent()));
+                InventoryUtil.doBurnFuelType(ship,null,false,burnRate);
             }
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 processFluidRestore();

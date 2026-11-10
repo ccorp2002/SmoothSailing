@@ -454,13 +454,13 @@ public class ShipListener implements Listener {
             long projDamage = (long)(getProjectileDamage(e.getEntity()) * 0.25d)+2l;
             state.damage(projDamage);
             if (!state.isDead()) NmsUtils.setBlockFast(block.getLocation(),state.state);
-            if (state.isDead()) {
-                state.teleport(state.getLocation(),true);
+            else if (state.isDead()) {
+                state.updateBlockState();
             }
         }
     }
 
-    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPhys(org.bukkit.event.block.BlockPhysicsEvent e) {
         final Block block = e.getBlock();
         if (block == null) return;
@@ -469,20 +469,14 @@ public class ShipListener implements Listener {
         if (state == null) return;
         ShipInstance ship = state.getShip();
         if (ship != null && ship.getWorld().equals(loc.getWorld())) {
-            ship.BLOCK_STATES.remove(state);
             state.updateBlockState();
-            ship.BLOCK_STATES.add(state);
             MobileBlockState stateUP = MobileBlockState.getStateFromLoc(loc.clone().add(0,1,0));
-            if (stateUP != null) {
-                ship.BLOCK_STATES.remove(stateUP);
+            if (stateUP != null && MobileBlockState.doesShipHave(ship,stateUP.getLocation())) {
                 stateUP.updateBlockState();
-                ship.BLOCK_STATES.add(stateUP);
             }
             MobileBlockState stateDOWN = MobileBlockState.getStateFromLoc(loc.clone().add(0,-1,0));
-            if (stateDOWN != null) {
-                ship.BLOCK_STATES.remove(stateDOWN);
+            if (stateDOWN != null && MobileBlockState.doesShipHave(ship,stateDOWN.getLocation())) {
                 stateDOWN.updateBlockState();
-                ship.BLOCK_STATES.add(stateDOWN);
             }
         }
     }
@@ -582,10 +576,9 @@ public class ShipListener implements Listener {
         final ShipInstance ship = state.getShip();
         if (ship == null) return;
         if (state != null) {
-            ship.BLOCK_STATES.remove(state);
             if (state.isDead()) {
                 state.setBlockData(ShipPhysics.VOID);
-                state.teleport(state.getLocation(),true);
+                state.updateBlockState();
                 return;
             }
             long projDamage = state.health;
@@ -595,7 +588,7 @@ public class ShipListener implements Listener {
                 state.tile = null;
                 state.setBlockData(ShipPhysics.VOID);
             }
-            state.teleport(state.getLocation(),true);
+            state.updateBlockState();
         }
     }
 
@@ -627,7 +620,7 @@ public class ShipListener implements Listener {
                 if (!wasInFluid) state.damage(projDamage);
                 e.blockList().remove(block);
                 if (!state.isDead()) NmsUtils.setBlockFast(block.getLocation(),state.state);
-                state.teleport(state.getLocation(),true);
+                state.updateBlockState();
             }
         }
     }
@@ -645,7 +638,7 @@ public class ShipListener implements Listener {
                 else state.damage(1l);
                 e.blockList().remove(block);
                 if (!state.isDead()) NmsUtils.setBlockFast(block.getLocation(),state.state);
-                state.teleport(state.getLocation(),true);
+                state.updateBlockState();
             }
         }
     }
@@ -663,7 +656,7 @@ public class ShipListener implements Listener {
                 NmsUtils.setBlockFast(block.getLocation(),state.state);
                 e.setCancelled(true);
             } else NmsUtils.setBlockFast(block.getLocation(),ShipPhysics.VOID);
-            state.teleport(state.getLocation(),true);
+            state.updateBlockState();
         }
     }
 

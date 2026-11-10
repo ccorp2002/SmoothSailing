@@ -15,6 +15,7 @@ public class BlockProperties {
     public Double baseHealth = null;  // null means health is determined by a function of density (weight).
     public Integer weight;  // null means block is excluded from density calculations
     public boolean seat;
+    public double fuelCost = 0d;
     public boolean isTurretBase = false;
     public boolean isEngine = false;
     public final List<ConditionalRule> conditionalRules = new ArrayList<>();
@@ -51,6 +52,32 @@ public class BlockProperties {
         return allowed;
     }
 
+    public boolean hasTurretBaseState() {
+        boolean turretState = false;
+        if (conditionalRules == null || conditionalRules.isEmpty()) {
+            return isTurretBase();
+        } else {
+            for (ConditionalRule rule : conditionalRules) {
+                turretState = turretState || rule.getProperties().isTurretBase();
+                if (turretState) return turretState;
+            }
+        }
+        return isTurretBase() || turretState;
+    }
+
+    public boolean hasAllowedState() {
+        boolean allowedState = false;
+        if (conditionalRules == null || conditionalRules.isEmpty()) {
+            return isAllowed();
+        } else {
+            for (ConditionalRule rule : conditionalRules) {
+                allowedState = allowedState || rule.getProperties().isAllowed();
+                if (allowedState) return allowedState;
+            }
+        }
+        return isAllowed() || allowedState;
+    }
+
     public boolean isTurretBase() {
         return this.isTurretBase;
     }
@@ -67,12 +94,38 @@ public class BlockProperties {
         return this.baseHealth;
     }
 
+    public void setFuelCost(Double fuelCost) {
+        if (fuelCost == null) this.fuelCost = 0d;
+        else this.fuelCost = fuelCost;
+    }
+
+    public double getFuelCost() {
+        return this.fuelCost;
+    }
+
+    public boolean doesCostFuel() {
+        return allowed && this.fuelCost != 0;
+    }
+
     public void setIsEngine(boolean engine) {
         this.isEngine = engine;
     }
 
     public boolean isEngine() {
         return allowed && this.isEngine;
+    }
+
+    public boolean hasEngineState() {
+        boolean engineState = false;
+        if (conditionalRules == null || conditionalRules.isEmpty()) {
+            return isEngine();
+        } else {
+            for (ConditionalRule rule : conditionalRules) {
+                engineState = engineState || rule.getProperties().isEngine();
+                if (engineState) return engineState;
+            }
+        }
+        return isEngine() || engineState;
     }
 
     /**

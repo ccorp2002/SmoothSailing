@@ -114,7 +114,7 @@ public class BlockConfigManager {
         return baseProps;
     }
 
-    public void parseBlockEntry(String key, ConfigurationSection config) {
+    public void parseBlockEntry(final String key, ConfigurationSection config) {
         // Parse base properties
         boolean allowed = config.getBoolean("allowed", false);
 
@@ -125,6 +125,13 @@ public class BlockConfigManager {
             weight = null;
         } else {
             weight = config.getInt("weight", 0);
+        }
+        Double fuelCost;
+        if (config.contains("fuel_cost") && config.get("fuel_cost") == null) {
+            // Explicit null in YAML
+            fuelCost = null;
+        } else {
+            fuelCost = config.getDouble("fuel_cost", 0d);
         }
         Double baseHealth;
         if (config.contains("health") && config.get("health") == null) {
@@ -138,7 +145,67 @@ public class BlockConfigManager {
         boolean turretBase = config.getBoolean("turret_base", false);
         boolean engine = config.getBoolean("engine", false);
         boolean seat = config.getBoolean("seat", false);
-        BlockProperties props = new BlockProperties(allowed, weight, seat, baseHealth, new ArrayList<BlockProperties.ConditionalRule>());
+
+        List<BlockProperties.ConditionalRule> RULES = new ArrayList<>();
+        ConfigurationSection blockDatas = config.getConfigurationSection("block_data");
+        if (blockDatas != null) {
+            Material material =  Material.AIR;
+            try {
+                material = Material.valueOf(key.toUpperCase()); 
+            } catch (Throwable thr) {
+                logger.warning("Unknown Material for a BlockData-config, the base must be an exact Bukkit Material name, not a Tag or Wildcard: " + key);
+            }
+            if (!material.isAir()) {
+                for (String blockData : blockDatas.getKeys(false)) {
+                    ConfigurationSection dataConfig = blockDatas.getConfigurationSection(blockData);
+                    if (SmoothSailingPlugin.DEBUG) logger.warning("Found Possible BlockData Sub-Properties under: "+blockData);
+                    if (dataConfig == null) continue;
+                    boolean allowedData = dataConfig.getBoolean("allowed", allowed);
+
+                    // Parse weight - null means block is excluded from density calculations
+                    Integer weightData = weight;
+                    if (dataConfig.contains("weight") && dataConfig.get("weight") == null) {
+                        // Explicit null in YAML
+                        weightData = null;
+                    } else {
+                        weightData = dataConfig.getInt("weight", 0);
+                    }
+                    Double baseHealthData;
+                    if (dataConfig.contains("health") && dataConfig.get("health") == null) {
+                        // Explicit null in YAML;
+                        baseHealthData = null;
+                    } else {
+                        baseHealthData = dataConfig.getDouble("health",baseHealth);
+                        if (baseHealthData <= 0d) baseHealthData = null;
+                    }
+
+                    Double fuelCostData;
+                    if (dataConfig.contains("fuel_cost") && dataConfig.get("fuel_cost") == null) {
+                        // Explicit null in YAML
+                        fuelCostData = null;
+                    } else {
+                        fuelCostData = dataConfig.getDouble("fuel_cost", fuelCost);
+                    }
+                    boolean turretBaseData = dataConfig.getBoolean("turret_base", turretBase);
+                    boolean engineData = dataConfig.getBoolean("engine", engine);
+                    boolean seatData = dataConfig.getBoolean("seat", seat);
+                    BlockData blockDataType = WildcardMatcher.getBlockDataFor(material, blockData);
+                    if (blockDataType.getMaterial().isAir()) {
+                        logger.warning("Unknown/Invalid BlockData; this Section's Key must be a valid/parsable BlockData-String (Within Quotes if needed): " + blockData);
+                    } else {
+                        BlockProperties dataProps = new BlockProperties(allowedData, weightData, seatData, baseHealthData, new ArrayList<BlockProperties.ConditionalRule>());
+                        dataProps.setIsEngine(engineData);
+                        dataProps.setIsTurretBase(turretBaseData);
+                        dataProps.setFuelCost(fuelCostData);
+                        RULES.add(new BlockProperties.ConditionalRule(blockDataType, dataProps));
+                        if (SmoothSailingPlugin.DEBUG) logger.info("Added BlockData Sub-Properties of: " + blockData + " for Material: "+key);
+                    }
+                }
+            }
+            logger.info("Current BlockData Sub-Properties counted for: " + key + " x"+RULES.size());
+        }
+        BlockProperties props = new BlockProperties(allowed, weight, seat, baseHealth, RULES);
+        props.setFuelCost(fuelCost);
         props.setIsEngine(engine);
         props.setIsTurretBase(turretBase);
         applyToMaterials(key, props);
