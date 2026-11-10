@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.ccorp2002"
-version = "0.1.6-HOTFIX"
+version = "0.1.7"
 
 java {
     toolchain {
