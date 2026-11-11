@@ -1,6 +1,12 @@
 package com.ccorp2002.smoothsailing.detection;
 import com.ccorp2002.smoothsailing.SmoothSailingPlugin;
-import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
+import com.ccorp2002.smoothsailing.*;
+import com.ccorp2002.smoothsailing.ship.*;
+import com.ccorp2002.smoothsailing.utils.*;
+import com.ccorp2002.smoothsailing.nmsutils.*;
+import com.ccorp2002.smoothsailing.ShipModel;
+import com.ccorp2002.smoothsailing.ShipRegistry;
+import com.ccorp2002.smoothsailing.ShipListener;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -62,6 +68,7 @@ public class ShipDetector {
         frontier.add(startLocation.clone());
         shipBlocks.add(startLocation.getBlock());
         BlockConfigManager configManager = BlockConfigManager.getInstance();
+        ShipInstance parentShip = MobileBlockState.getShipFromLoc(startLocation);
 
         // BFS flood fill
         while (!frontier.isEmpty()) {
@@ -97,7 +104,7 @@ public class ShipDetector {
                 }
                 if (!configManager.isAllowed(blockData) || (isTurret && configManager.isTurretBase(blockData)) || !canBreakAt) {
                     // Skip forbidden blocks (don't add to ship, but continue scanning)
-                    continue;
+                    if (!ShipPhysics.isDataMedium(blockData) || !MobileBlockState.doesShipHave(parentShip,neighbor)) continue;
                 }
 
                 // Valid block, add to ship and frontier

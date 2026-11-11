@@ -130,6 +130,7 @@ chiseled_deepslate:
   seat: true
   weight: -0.25
   health: 1.0625
+
 target:
   allowed: true
   weight: 0.125
@@ -187,6 +188,16 @@ end_rod:
   health: 1
 
 "#wool":
+  allowed: true
+  weight: -2.5
+  health: 2
+
+"#wool_slabs":
+  allowed: true
+  weight: -2.5
+  health: 2
+
+"#wool_stairs":
   allowed: true
   weight: -2.5
   health: 2

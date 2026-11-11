@@ -581,8 +581,21 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
     }
 
     public void setBlockData(BlockData data) {
+        setBlockData(data,false);
+        
+    }
+
+    public void setBlockData(BlockData data, boolean updateShip) {
         if (data == null) return;
-        this.state = ((CraftBlockData) data).getState();
+        if (!ShipPhysics.isDataMedium(data) || updateShip) {
+            this.state = ((CraftBlockData) data).getState();
+        }
+        if (updateShip) {
+            ShipInstance ship = this.getShip();
+            if (ship != null && !ship.CHANGE_WORLD) {
+                ShipInstance.updateBlockStateOnShip(ship,this);
+            }
+        }
     }
 
     public Block getBlock() {
@@ -626,6 +639,9 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         this.state = NmsUtils.getBlockFaster(pos);
         this.tile = NmsUtils.createTileHolder(pos);
         ShipInstance ship = this.getShip();
+        if (this.isDead()) {
+            NmsUtils.setBlockFast(pos,ShipPhysics.VOID);
+        }
         if (ship != null && !ship.CHANGE_WORLD) {
             ShipInstance.updateBlockStateOnShip(ship,this);
         }

@@ -462,11 +462,11 @@ public class ShipListener implements Listener {
 
     @EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPhys(org.bukkit.event.block.BlockPhysicsEvent e) {
-        var blockData = e.getChangedBlockData();
-        if (NmsUtils.isRedstoneComponent(NmsUtils.getBlockState(blockData))) return;
+        if (NmsUtils.isRedstoneComponent(NmsUtils.getBlockState(e.getChangedBlockData()))) return;
         final Block block = e.getBlock();
         if (block == null) return;
         final Location loc = block.getLocation();
+        if (NmsUtils.createTileHolder(loc) == null) return;
         MobileBlockState state = MobileBlockState.getStateFromLoc(loc);
         if (state == null) return;
         ShipInstance ship = state.getShip();
@@ -483,16 +483,12 @@ public class ShipListener implements Listener {
         MobileBlockState state = MobileBlockState.getStateFromLoc(loc);
         if (state == null) return;
         ShipInstance ship = state.getShip();
-        if (state != null) {
-            e.setCancelled(true);
-            return;
-        }
+        if (ship == null) return;
         for (Block b : e.getBlocks()) {
             loc = b.getLocation();
             state = MobileBlockState.getStateFromLoc(loc);
             if (state == null) continue;
-            ship = state.getShip();
-            if (state != null) {
+            if (state != null && !ship.equals(state.getShip())) {
                 e.setCancelled(true);
                 return;
             }
@@ -507,16 +503,12 @@ public class ShipListener implements Listener {
         MobileBlockState state = MobileBlockState.getStateFromLoc(loc);
         if (state == null) return;
         ShipInstance ship = state.getShip();
-        if (state != null && ship != null) {
-            e.setCancelled(true);
-            return;
-        }
+        if (ship == null) return;
         for (Block b : e.getBlocks()) {
             loc = b.getLocation();
             state = MobileBlockState.getStateFromLoc(loc);
             if (state == null) continue;
-            ship = state.getShip();
-            if (state != null && ship != null) {
+            if (state != null && !ship.equals(state.getShip())) {
                 e.setCancelled(true);
                 return;
             }
@@ -531,30 +523,13 @@ public class ShipListener implements Listener {
         MobileBlockState state = MobileBlockState.getStateFromLoc(loc);
         if (state == null) return;
         ShipInstance ship = state.getShip();
-        if (state != null && ship != null) {
-            e.setCancelled(true);
+        if (ship == null) {
             return;
         }
         loc = e.getSource().getLocation();
         state = MobileBlockState.getStateFromLoc(loc);
         if (state == null) return;
-        ship = state.getShip();
-        if (state != null && ship != null) {
-            e.setCancelled(true);
-            return;
-        }
-    }
-
-    
-    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST, ignoreCancelled = true)
-    public void onBlockBreakBlockShip(org.bukkit.event.block.BlockFadeEvent e) {
-        final Block block = e.getBlock();
-        if (block == null) return;
-        final Location loc = block.getLocation();
-        final MobileBlockState state = MobileBlockState.getStateFromLoc(loc);
-        if (state == null) return;
-        final ShipInstance ship = state.getShip();
-        if (state != null && ship != null) {
+        if (state != null && !ship.equals(state.getShip())) {
             e.setCancelled(true);
             return;
         }
@@ -571,7 +546,7 @@ public class ShipListener implements Listener {
         if (ship == null) return;
         if (state != null) {
             if (state.isDead()) {
-                state.setBlockData(ShipPhysics.VOID);
+                NmsUtils.setBlockFast(block.getLocation(),ShipPhysics.VOID);
                 state.updateBlockState();
                 return;
             }
@@ -580,7 +555,7 @@ public class ShipListener implements Listener {
             if (!state.isDead()) NmsUtils.setBlockFast(block.getLocation(),state.state);
             else {
                 state.tile = null;
-                state.setBlockData(ShipPhysics.VOID);
+                NmsUtils.setBlockFast(block.getLocation(),ShipPhysics.VOID);
             }
             state.updateBlockState();
         }
@@ -800,11 +775,11 @@ public class ShipListener implements Listener {
                 if (ship.driver != null && ship.driver instanceof Player driver) {
                     Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(driver,CENTER);
                     FOUND_BLOCKS.add(block);
-                    ship.physics.rotateSegment3Axis(CENTER,LEFT_RIGHT,yawDeg,0d,0d,FOUND_BLOCKS);
+                    ship.physics.rotateSegment2d(CENTER,LEFT_RIGHT,FOUND_BLOCKS);
                 } else {
                     Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(player,CENTER);
                     FOUND_BLOCKS.add(block);
-                    ship.physics.rotateSegment3Axis(CENTER,LEFT_RIGHT,yawDeg,0d,0d,FOUND_BLOCKS);
+                    ship.physics.rotateSegment2d(CENTER,LEFT_RIGHT,FOUND_BLOCKS);
                 }
             }
         }

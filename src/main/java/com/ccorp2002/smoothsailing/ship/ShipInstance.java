@@ -983,7 +983,7 @@ public class ShipInstance {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
                 final Location stloc = st.getLocation();
-                st.state = NmsUtils.getBlockFaster(stloc);
+                st.setBlockData(NmsUtils.toBukkitBlockDataFast(stloc),true);
                 st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
                 st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
                 NmsUtils.setBlockFast(stloc,st.occupiedBlock);
