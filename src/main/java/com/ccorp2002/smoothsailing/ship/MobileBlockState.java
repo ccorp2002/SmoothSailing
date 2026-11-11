@@ -304,6 +304,8 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         return null;
     }
 
+    public volatile NextTickProvider.TickHolder TICK_TO_MOVE = null;
+
     public ShipInstance getShip() {
         if (this.shipRef != null) return this.shipRef.get();
         return null;
@@ -459,6 +461,10 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
             else this.tile = NmsUtils.createTileHolder(floc);
         }
         this.setLocation(floc);
+        if (this.TICK_TO_MOVE != null) {
+            NmsUtils.MOVE_TICK_TO(this.TICK_TO_MOVE,floc);
+            this.TICK_TO_MOVE = null;
+        }
         if (NmsUtils.HAS_CRAFT_ENGINE && this.tile instanceof CEUtils.CraftEngineTileHolder) {
             org.bukkit.inventory.Inventory other = CEUtils.INSTANCE.getCEBlockInv(floc);
             try {

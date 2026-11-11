@@ -609,7 +609,9 @@ public class ShipPhysics {
                     MobileBlockState st = TEMPS[indx];
                     if (st == null) continue;
                     final Location stloc = st.getLocation(ship.getWorld());
-                    st.tile = NmsUtils.createTileHolder(stloc);
+                    st.state = NmsUtils.getBlockFaster(stloc);
+                    st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
+                    st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
                     NmsUtils.setBlockFast(stloc,st.occupiedBlock);
                     TEMPS[indx] = st;
                 }
@@ -629,10 +631,6 @@ public class ShipPhysics {
                     st.setBlockData(TURNED);
                     st.teleport(updLoc,false);
                     st.setLocation(updLoc);
-                    var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelAt(stloc);
-                    if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                        SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, updLoc, ship.facing);
-                    }
                     TEMPS[indx] = st;
                 }
                 ship.BLOCK_STATES.clear();
@@ -680,6 +678,10 @@ public class ShipPhysics {
                 ship.calculateBoundingBox();
                 ship.updateRedstone();
                 this.currentRotationVelocity = 0.0f;
+                var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(ship.id);
+                if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
+                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), ship.facing);
+                }
                 com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                     processFluidRestore();
                     currentYVelocity = yVelocity/3f;
@@ -943,6 +945,8 @@ public class ShipPhysics {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
                 final Location stloc = st.getLocation(ship.getWorld());
+                st.state = NmsUtils.getBlockFaster(stloc);
+                st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
                 st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
                 NmsUtils.setBlockFast(stloc,st.occupiedBlock);
                 TEMPS[indx] = st;
@@ -1087,7 +1091,9 @@ public class ShipPhysics {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
                 final Location stloc = st.getLocation(ship.getWorld());
-                st.tile = NmsUtils.createTileHolder(stloc);
+                st.state = NmsUtils.getBlockFaster(stloc);
+                st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
+                st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
                 NmsUtils.setBlockFast(stloc,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
@@ -1101,10 +1107,6 @@ public class ShipPhysics {
                 updLoc = LocationLib.rotate(updLoc,CENTER_POINT,axis,amount);
                 updLoc = updLoc.toBlockLocation();
                 updLoc.setWorld(newLoc.getWorld());
-                var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelAt(stloc);
-                if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, updLoc, ship.facing);
-                }
                 st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
                 ship.FLUIDS.set(updLoc,st.occupiedBlock);
                 st.teleport(updLoc,false);
@@ -1139,6 +1141,10 @@ public class ShipPhysics {
                     ShipListener.addTag(entity,ShipListener.wheelTag(entity.getLocation()));
                 }
                 //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
+            }
+            var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(ship.id);
+            if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
+                SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), ship.facing);
             }
             ship.sendSolids();
             ship.calculateBoundingBox();
@@ -1243,7 +1249,9 @@ public class ShipPhysics {
             ship.BLOCK_STATES.remove(st);
             if (st == null) continue;
             final Location stloc = st.getLocation(ship.getWorld());
-            st.tile = NmsUtils.createTileHolder(stloc);
+            st.state = NmsUtils.getBlockFaster(stloc);
+            st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
+            st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
             NmsUtils.setBlockFast(stloc,st.occupiedBlock);
             TEMPS[indx] = st;
         }
@@ -1401,6 +1409,8 @@ public class ShipPhysics {
             ship.BLOCK_STATES.remove(st);
             if (st == null) continue;
             final Location stloc = st.getLocation(ship.getWorld());
+            st.state = NmsUtils.getBlockFaster(stloc);
+            st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
             st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
             NmsUtils.setBlockFast(stloc,st.occupiedBlock);
         }

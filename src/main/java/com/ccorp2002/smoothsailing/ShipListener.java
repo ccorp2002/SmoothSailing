@@ -462,22 +462,16 @@ public class ShipListener implements Listener {
 
     @EventHandler(priority = org.bukkit.event.EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPhys(org.bukkit.event.block.BlockPhysicsEvent e) {
+        var blockData = e.getChangedBlockData();
+        if (NmsUtils.isRedstoneComponent(NmsUtils.getBlockState(blockData))) return;
         final Block block = e.getBlock();
         if (block == null) return;
         final Location loc = block.getLocation();
         MobileBlockState state = MobileBlockState.getStateFromLoc(loc);
         if (state == null) return;
         ShipInstance ship = state.getShip();
-        if (ship != null && ship.getWorld().equals(loc.getWorld())) {
+        if (ship != null) {
             state.updateBlockState();
-            MobileBlockState stateUP = MobileBlockState.getStateFromLoc(loc.clone().add(0,1,0));
-            if (stateUP != null && MobileBlockState.doesShipHave(ship,stateUP.getLocation())) {
-                stateUP.updateBlockState();
-            }
-            MobileBlockState stateDOWN = MobileBlockState.getStateFromLoc(loc.clone().add(0,-1,0));
-            if (stateDOWN != null && MobileBlockState.doesShipHave(ship,stateDOWN.getLocation())) {
-                stateDOWN.updateBlockState();
-            }
         }
     }
 

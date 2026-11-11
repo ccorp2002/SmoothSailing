@@ -159,6 +159,7 @@ public final class NmsUtils {
         }
         unsafe = defered;
     }
+    public static final NextTickProvider TICK_PROVIDER = new NextTickProvider();
 
     public static int mask(int bits) {
         return ~(~0 << bits);
@@ -490,6 +491,11 @@ public final class NmsUtils {
       if (state == null) state = AIR;
       return state;
   }
+
+    public static boolean isRedstoneComponent(BlockState state) {
+        return isRedstoneComponent(state.getBlock());
+
+    }
 
     public static boolean isRedstoneComponent(Block block) {
         return block.defaultBlockState().hasAnalogOutputSignal() || block.defaultBlockState().isSignalSource() ||
@@ -1583,6 +1589,36 @@ public final class NmsUtils {
     }
     public static BlockData getBlockData(BlockState state) {
         return BlockDataGetter.get(state);
+    }
+
+    public static NextTickProvider.TickHolder GET_TICK_FROM(Location from) {
+        if (from == null) return null;
+        else if (from.getWorld() == null) return null;
+        BlockPos fromPos = locationToPosition(from);
+        ServerLevel fromLvl = getLevel(getLevel(from));
+        final ScheduledTick TICK = TICK_PROVIDER.getNextTick(fromLvl, fromPos);
+        if (TICK != null) {
+            NextTickProvider.TickHolder MOVING_TICK = new NextTickProvider.TickHolder(TICK, fromPos);
+            return MOVING_TICK;
+        } else {
+            return null;
+        }
+    }
+
+    public static boolean MOVE_TICK_TO(NextTickProvider.TickHolder MOVING_TICK, Location to) {
+        if (to == null) return false;
+        else if (to.getWorld() == null) return false;
+        if (MOVING_TICK != null) {
+            BlockPos toPos = locationToPosition(to);
+            ServerLevel toLvl = getLevel(getLevel(to));
+            ((LevelChunkTicks) ((LevelChunk) toLvl.getChunk(toPos.getX() >> 4, toPos.getZ() >> 4, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, true)).getBlockTicks()).removeIf(
+                    (Predicate<ScheduledTick>) scheduledTick -> scheduledTick.equals(MOVING_TICK.getTick()));
+            final long currentTime = toLvl.getGameTime();
+            toLvl.getBlockTicks().schedule(new ScheduledTick<>((Block) MOVING_TICK.getTick().type(), toPos, MOVING_TICK.getTick().triggerTick() - currentTime, MOVING_TICK.getTick().priority(), MOVING_TICK.getTick().subTickOrder()));
+            return true;
+        } else {
+            return false;
+        }
     }
 
 

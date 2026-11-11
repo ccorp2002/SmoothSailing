@@ -363,7 +363,6 @@ public class ShipWheelManager {
         // Register the ship
         ShipRegistry.register(ship);
         // Link the wheel to the ship
-        wheelData.setAssembledShipUUID(ship.id);
         Entity actor = ship.vehicle;
         if (player != null) {
             actor = player;
@@ -378,6 +377,7 @@ public class ShipWheelManager {
         }
         seat.setCustomNameVisible(true);
         ship.ENTITY_COMPOSITION.add(seat);
+        wheelData.setAssembledShipUUID(ship.id);
         
         if (asevent.getEntity() instanceof Player playr) ship.driver = playr;
 
@@ -449,15 +449,15 @@ public class ShipWheelManager {
         }
 
         // Get the ship's current location and rotation
-        Location shipLoc = ship.vehicle.getLocation();
+        Location shipLoc = ship.getLocation();
         float currentYaw = shipLoc.getYaw();
 
         // Place the blocks back (with rotation)
         final Location shipLocf = shipLoc;
 
         // Update wheel tracking to new location
-        Location newWheelLocation = shipLocf.getBlock().getLocation();
-        updateWheelLocation(wheelData, newWheelLocation, wheelData.getFacing());
+        Location newWheelLocation = shipLocf.toBlockLocation();
+        updateWheelLocation(wheelData, newWheelLocation, ship.facing);
 
 
         // Remove ship from per-world storage (delete file and chunk index)

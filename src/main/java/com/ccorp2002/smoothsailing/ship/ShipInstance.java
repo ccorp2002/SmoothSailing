@@ -983,7 +983,9 @@ public class ShipInstance {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
                 final Location stloc = st.getLocation();
-                st.tile = NmsUtils.createTileHolder(stloc);
+                st.state = NmsUtils.getBlockFaster(stloc);
+                st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
+                st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
                 NmsUtils.setBlockFast(stloc,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
@@ -996,10 +998,6 @@ public class ShipInstance {
                 Location updLoc = stloc.clone();
                 updLoc.setWorld(offsetf.getWorld());
                 updLoc = updLoc.add(offsetf);
-                var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelAt(stloc);
-                if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, updLoc, this.facing);
-                }
                 BlockData occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
                 st.occupiedBlock = occupiedBlock;
                 st.teleport(updLoc,false);
@@ -1016,6 +1014,10 @@ public class ShipInstance {
             NmsUtils.teleportSilentCurrentThread(moveVehicleLoc, this.vehicle);
             NmsUtils.loadChunksIn(center.getWorld(),this.BLOCK_STATES);
             NmsUtils.loadChunksIn(dest.getWorld(),this.BLOCK_STATES);
+            var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(this.id);
+            if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
+                SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, moveVehicleLoc, this.facing);
+            }
             physics.moving = true;
             for (Entity entity : this.ENTITY_COMPOSITION) {
                 if (entity == null) continue;
