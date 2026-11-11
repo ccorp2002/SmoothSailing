@@ -1,5 +1,6 @@
 package com.ccorp2002.smoothsailing.utils.objects;
 
+import org.bukkit.World;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
@@ -121,6 +122,26 @@ public class LocationBlockDataSet extends AbstractMap<Long,BlockData> {
     }
     public boolean trim() {
         return trim(this.initialMaxSize);
+    }
+    
+    public Map<Location,BlockData> toMap(final World world) {
+        if (world == null) return new HashMap<Location,BlockData>(0,0.75f);
+        Map<Location,BlockData> returnMap = new HashMap<>(this.size()+50,0.75f);
+        for (Long key : this.keySet()) {
+            if (key == null) continue;
+            returnMap.put(MobileBlockState.unpackLocation(key,world),this.get(key));
+        }
+        return returnMap;
+    }
+
+    public Set<Location> keySet(final World world) {
+        if (world == null) return new HashSet<Location>();
+        Set<Location> returnSet = new HashSet<>();
+        for (Long key : this.keySet()) {
+            if (key == null) continue;
+            returnSet.add(MobileBlockState.unpackLocation(key,world));
+        }
+        return returnSet;
     }
     
     public Object[] toArray() {

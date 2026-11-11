@@ -7,6 +7,7 @@ import com.ccorp2002.smoothsailing.detection.*;
 import com.ccorp2002.smoothsailing.utils.vectors.*;
 import com.ccorp2002.smoothsailing.utils.rotation.*;
 import com.ccorp2002.smoothsailing.utils.movement.*;
+import com.ccorp2002.smoothsailing.utils.objects.*;
 import com.ccorp2002.smoothsailing.utils.*;
 import com.ccorp2002.smoothsailing.event.*;
 import com.ccorp2002.smoothsailing.nmsutils.*;
@@ -340,14 +341,20 @@ public class ShipPhysics {
     public volatile float currentSpeed = 0.0f;
     public volatile float currentYVelocity = 0.0f;
     public volatile float currentRotationVelocity = 0.0f;
-    public int ROTATION_INCR = 1;
     public volatile boolean moving = false;
     public long MOVEMENT_COOLDOWN = 8l;
     public int GLOBAL_WATER_SURFACE = -127;
     public int CURRENT_FLUID_LEVEL = GLOBAL_WATER_SURFACE;
+    private int ROTATION_INCR = 1;
 
     public BlockData getVOID() {
         return ShipPhysics.VOID;
+    }
+    public void setRotationIncr(int new_incr) {
+        this.ROTATION_INCR = Math.max(-1, Math.min(4, new_incr));
+    }
+    public int getRotationIncr() {
+        return this.ROTATION_INCR;
     }
 
     public ShipPhysics(ShipInstance ship) {
@@ -493,7 +500,6 @@ public class ShipPhysics {
             Location newLoc = vehicleLoc.clone();
             Location CENTER_POINT = ship.vehicle.getLocation().toBlockLocation();
             newLoc.setYaw(DirectionalUtils.blockFaceToYaw(ship.facing));
-            //Runnable runMe = () -> {
             float newYaw = newLoc.getYaw();
             float rotation = 0.0f;
             final String LEFT_RIGHT;
@@ -503,29 +509,59 @@ public class ShipPhysics {
             else {LEFT_RIGHT = "NONE"; TURN_BLOCK_DATA = org.bukkit.block.structure.StructureRotation.NONE;}
             final float initYaw = ship.vehicle.getYaw();
             final float rotationF = rotation;
-            final float rotationFinal = rotationF / ROTATION_INCR;
             Location wheelLoc = null;
             ship.isLeftPressed = false;
             ship.isRightPressed = false;
-            this.moving = true;
-            int collisionCount = 0;
-            boolean canEnterAt = true;
-            final MobileBlockState[] TEMPS = ship.BLOCK_STATES.toArray(MobileBlockState[]::new);
-            for (MobileBlockState st : TEMPS) {
-                if (st == null) continue;
-                Location stloc = st.getLocation(ship.getWorld());
-                Location updLoc = stloc.clone();
-                Location rotatedLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, updLoc.subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
-                if (pilot != null) {
-                    for (final com.ccorp2002.smoothsailing.utils.claims.IClaimInterface ICLAIM : SmoothSailingPlugin.INSTANCE.CLAIM_INTEFACES) {
-                        if (!canEnterAt) break;
-                        if (!ICLAIM.canEnterAt(pilot,rotatedLoc)) canEnterAt = false;
-                        if (!NmsUtils.withinWorldBorder(rotatedLoc)) canEnterAt = false;
-                        
+            final Player pilotF = pilot;
+            final Runnable ROTATE_SHIP = () -> {
+                this.moving = true;
+                int collisionCount = 0;
+                boolean canEnterAt = true;
+                final MobileBlockState[] TEMPS = ship.BLOCK_STATES.toArray(MobileBlockState[]::new);
+                for (MobileBlockState st : TEMPS) {
+                    if (st == null) continue;
+                    Location stloc = st.getLocation(ship.getWorld());
+                    Location updLoc = stloc.clone();
+                    Location rotatedLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, updLoc.subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
+                    if (pilotF != null) {
+                        for (final com.ccorp2002.smoothsailing.utils.claims.IClaimInterface ICLAIM : SmoothSailingPlugin.INSTANCE.CLAIM_INTEFACES) {
+                            if (!canEnterAt) break;
+                            if (!ICLAIM.canEnterAt(pilotF,rotatedLoc)) canEnterAt = false;
+                            if (!NmsUtils.withinWorldBorder(rotatedLoc)) canEnterAt = false;
+                            
+                        }
+                    }
+                    if (!canEnterAt) {
+                        collisionCount++;
+                        if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
+                        ship.isLeftPressed = false;
+                        ship.isRightPressed = false;
+                        ship.isForwardPressed = false;
+                        ship.isBackwardPressed = false;
+                        ship.isSprintPressed = false;
+                        ship.isSpacePressed = false;
+                        ship.setProcessing(false);
+                        this.currentRotationVelocity = 0.0f;
+                        this.currentYVelocity = 0f;
+                        this.currentSpeed = 0f;
+                        this.moving = false;
+                        return;
+                    }
+                    Block block = rotatedLoc.getBlock();
+                    if (DESTRUCTIBLE.contains(block.getType()) && !MobileBlockState.doesShipHave(ship,rotatedLoc) && !FRAGILE_MATERIALS.contains(block.getType())) {
+                        if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("COLLIDED & BROKE?: "+block.getType()+" LOCATION?: "+rotatedLoc.toVector().toString());
+                        block.breakNaturally(true);
+                        continue;
+                    }
+                    if (MobileBlockState.doesShipHave(ship,rotatedLoc)) {
+                        continue;
+                    }
+                    if (block.isSolid() && !isDataMedium(block) && !(LANDCRAFT_PASSTHROUGH.contains(block.getType()) && ship.isLandcraft)) {
+                        if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("COLLIDED?: "+!MobileBlockState.doesShipHave(ship,rotatedLoc)+" LOCATION?: "+rotatedLoc.toVector().toString()+" BLOCKDATA?:\n >"+block.getBlockData().getAsString(true));
+                        collisionCount++;
                     }
                 }
-                if (!canEnterAt) {
-                    collisionCount++;
+                if (collisionCount > 0) {
                     if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
                     ship.isLeftPressed = false;
                     ship.isRightPressed = false;
@@ -540,146 +576,179 @@ public class ShipPhysics {
                     this.moving = false;
                     return;
                 }
-                Block block = rotatedLoc.getBlock();
-                if (DESTRUCTIBLE.contains(block.getType()) && !MobileBlockState.doesShipHave(ship,rotatedLoc) && !FRAGILE_MATERIALS.contains(block.getType())) {
-                    if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("COLLIDED & BROKE?: "+block.getType()+" LOCATION?: "+rotatedLoc.toVector().toString());
-                    block.breakNaturally(true);
-                    continue;
+                newLoc.setPitch(ship.vehicle.getPitch());
+                com.ccorp2002.smoothsailing.event.ShipRotateEvent mevent = new com.ccorp2002.smoothsailing.event.ShipRotateEvent(ship,newLoc,ship.vehicle,TURN_BLOCK_DATA);
+                mevent.callEvent();
+                if (mevent.isCancelled()) {
+                    ship.isLeftPressed = false;
+                    ship.isRightPressed = false;
+                    ship.isForwardPressed = false;
+                    ship.isBackwardPressed = false;
+                    ship.isSprintPressed = false;
+                    ship.isSpacePressed = false;
+                    ship.setProcessing(false);
+                    this.currentRotationVelocity = 0.0f;
+                    this.currentYVelocity = 0f;
+                    this.currentSpeed = 0f;
+                    this.moving = false;
+                    return;
                 }
-                if (MobileBlockState.doesShipHave(ship,rotatedLoc)) {
-                    continue;
-                }
-                if (block.isSolid() && !isDataMedium(block) && !(LANDCRAFT_PASSTHROUGH.contains(block.getType()) && ship.isLandcraft)) {
-                    if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("COLLIDED?: "+!MobileBlockState.doesShipHave(ship,rotatedLoc)+" LOCATION?: "+rotatedLoc.toVector().toString()+" BLOCKDATA?:\n >"+block.getBlockData().getAsString(true));
-                    collisionCount++;
-                }
-            }
-            if (collisionCount > 0) {
-                if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
                 ship.isLeftPressed = false;
                 ship.isRightPressed = false;
-                ship.isForwardPressed = false;
-                ship.isBackwardPressed = false;
-                ship.isSprintPressed = false;
-                ship.isSpacePressed = false;
-                ship.setProcessing(false);
                 this.currentRotationVelocity = 0.0f;
-                this.currentYVelocity = 0f;
+                final float xzVelocity = this.currentSpeed;
+                final float yVelocity = this.currentYVelocity;
+                //NmsUtils.refreshChunksIn(ship.vehicle.getWorld(),TEMPS);
+                ship.setProcessing(true);
+                this.moving = true;
+                detectNearbyEntities();
                 this.currentSpeed = 0f;
-                this.moving = false;
-                return;
-            }
-            newLoc.setPitch(ship.vehicle.getPitch());
-            com.ccorp2002.smoothsailing.event.ShipRotateEvent mevent = new com.ccorp2002.smoothsailing.event.ShipRotateEvent(ship,newLoc,ship.vehicle,TURN_BLOCK_DATA);
-            mevent.callEvent();
-            if (mevent.isCancelled()) {
+                this.currentYVelocity = 0f;
+                //System.out.println("STARTING BLOCK COUNT: "+TEMPS.length);
+                for (int indx = 0; indx < TEMPS.length; indx ++) {
+                    MobileBlockState st = TEMPS[indx];
+                    if (st == null) continue;
+                    final Location stloc = st.getLocation(ship.getWorld());
+                    st.tile = NmsUtils.createTileHolder(stloc);
+                    NmsUtils.setBlockFast(stloc,st.occupiedBlock);
+                    TEMPS[indx] = st;
+                }
+                ship.sendVoids(Arrays.asList(TEMPS));
+                //System.out.println("MID ROTATION BLOCK COUNT: "+TEMPS.length);
+                for (int indx = 0; indx < TEMPS.length; indx ++) {
+                    MobileBlockState st = TEMPS[indx];
+                    if (st == null) continue;
+                    final Location stloc = st.getLocation(ship.getWorld());
+                    Location updLoc = stloc.clone();
+                    updLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, stloc.clone().subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
+                    updLoc.setYaw(0.0f);
+                    st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
+                    BlockData TURNED = st.getBlockData().clone();
+                    TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
+                    ship.FLUIDS.set(updLoc,st.occupiedBlock);
+                    st.setBlockData(TURNED);
+                    st.teleport(updLoc,false);
+                    st.setLocation(updLoc);
+                    var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelAt(stloc);
+                    if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
+                        SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, updLoc, ship.facing);
+                    }
+                    TEMPS[indx] = st;
+                }
+                ship.BLOCK_STATES.clear();
+                ship.BLOCK_STATES.setAll(TEMPS);
+                //System.out.println("POST ROTATION BLOCK COUNT: "+ship.BLOCK_STATES.size());
+                for (Entity entity : FILTERED_ENTS) {
+                    if (entity == null) continue;
+                    if (entity instanceof Player pl && !pl.isConnected()) {
+                        ship.ENTITY_COMPOSITION.remove(entity);
+                        continue;
+                    }
+                    Location entityLoc = entity.getLocation();
+                    Location rotatedLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, entityLoc.subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
+                    rotatedLoc = rotatedLoc.add(0.5,0.0,0.5);
+                    rotatedLoc.setPitch(entity.getPitch());
+                    rotatedLoc.setYaw(entity.getLocation().getYaw()+rotationF);
+                    rotatedLoc.setY(entity.getLocation().getY());
+                    if (entity.getVehicle() == null) NmsUtils.teleportSilentCurrentThread(rotatedLoc, entity);
+                    if (!ship.CHANGE_WORLD && entity instanceof Player player) {
+                        (new org.bukkit.event.player.PlayerMoveEvent(player,rotatedLoc,rotatedLoc)).callEvent();
+                    }
+                    if (ShipListener.isWheel(entity)) {
+                        ShipListener.addTag(entity,ShipListener.wheelTag(entity.getLocation()));
+                    }
+                }
+                ship.model.minY = (ship.BLOCK_STATES.stream().mapToInt(MobileBlockState::by).min().orElse(-129));
+                ship.model.maxY = (ship.BLOCK_STATES.stream().mapToInt(MobileBlockState::by).max().orElse(-129));
+                if (ship.model.minY < CURRENT_FLUID_LEVEL+15 && !ship.isAirship) {
+                    this.currentYVelocity = 0f;
+                }
                 ship.isLeftPressed = false;
                 ship.isRightPressed = false;
-                ship.isForwardPressed = false;
-                ship.isBackwardPressed = false;
-                ship.isSprintPressed = false;
-                ship.isSpacePressed = false;
-                ship.setProcessing(false);
+                ship.vehicle.setRotation(DirectionalUtils.faceToYaw(ship.facing)+rotationF,0f);
+                ship.facing = DirectionalUtils.yawToFace(ship.vehicle.getYaw(),true);
+                Vector newForwards = VectorMath.rotY(ship.forwards.clone(),rotationF).multiply(new Vector(-1,1,-1));
+                newForwards = newForwards.setX(ROUND_VALUE(newForwards.getX(),2));
+                newForwards = newForwards.setZ(ROUND_VALUE(newForwards.getZ(),2));
+                ship.forwards = newForwards;
+                this.currentSpeed = this.currentSpeed - this.currentSpeed/2f;
                 this.currentRotationVelocity = 0.0f;
                 this.currentYVelocity = 0f;
-                this.currentSpeed = 0f;
-                this.moving = false;
-                return;
-            }
-            ship.isLeftPressed = false;
-            ship.isRightPressed = false;
-            this.currentRotationVelocity = 0.0f;
-            final float xzVelocity = this.currentSpeed;
-            final float yVelocity = this.currentYVelocity;
-            //NmsUtils.refreshChunksIn(ship.vehicle.getWorld(),TEMPS);
+                ship.model.minY = ship.minY();
+                ship.model.maxY = ship.maxY();
+                ship.sendSolids();
+                ship.calculateBoundingBox();
+                ship.updateRedstone();
+                this.currentRotationVelocity = 0.0f;
+                com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
+                    processFluidRestore();
+                    currentYVelocity = yVelocity/3f;
+                    currentSpeed = xzVelocity/2f;
+                    moving = false;
+                    ship.setProcessing(false);
+                },(long)(MOVEMENT_COOLDOWN));
+            };
+            moving = true;
             ship.setProcessing(true);
-            this.moving = true;
-            detectNearbyEntities();
-            this.currentSpeed = 0f;
-            this.currentYVelocity = 0f;
-            //System.out.println("STARTING BLOCK COUNT: "+TEMPS.length);
-            for (int indx = 0; indx < TEMPS.length; indx ++) {
-                MobileBlockState st = TEMPS[indx];
-                if (st == null) continue;
-                final Location stloc = st.getLocation(ship.getWorld());
-                st.tile = NmsUtils.createTileHolder(stloc);
-                NmsUtils.setBlockFast(stloc,st.occupiedBlock);
-                TEMPS[indx] = st;
-            }
-            ship.sendVoids(Arrays.asList(TEMPS));
-            //System.out.println("MID ROTATION BLOCK COUNT: "+TEMPS.length);
-            for (int indx = 0; indx < TEMPS.length; indx ++) {
-                MobileBlockState st = TEMPS[indx];
-                if (st == null) continue;
-                final Location stloc = st.getLocation(ship.getWorld());
-                Location updLoc = stloc.clone();
-                updLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, stloc.clone().subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
-                updLoc.setYaw(0.0f);
-                st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
-                BlockData TURNED = st.getBlockData().clone();
-                TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
-                ship.FLUIDS.set(updLoc,st.occupiedBlock);
-                st.setBlockData(TURNED);
-                st.teleport(updLoc,false);
-                st.setLocation(updLoc);
-                var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelAt(stloc);
-                if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, updLoc, ship.facing);
+            if (this.ROTATION_INCR <= 1) {
+                ROTATE_SHIP.run();
+            } else {
+                this.moving = true;
+                final double rotationFinal = rotationF / ROTATION_INCR;
+                final LocationBlockDataSet PACKET_CHANGES = new LocationBlockDataSet((ship.BLOCK_STATES.size()*ROTATION_INCR)+1000,0.75f);
+                for (int incr = 1; incr <= ROTATION_INCR; incr++) {
+                    if (incr == ROTATION_INCR) {
+                        for (Long key : PACKET_CHANGES.keySet()) {
+                            if (key == null) continue;
+                            PACKET_CHANGES.put(key,ShipPhysics.VOID);
+                        }
+                        NmsUtils.sendBlockChanges(ship.getWorld(),PACKET_CHANGES.toMap(ship.getWorld()));
+                        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
+                            PACKET_CHANGES.clear();
+                            ship.sendVoids();
+                            ROTATE_SHIP.run();
+                            ship.sendSolids();
+                        },(long)(MOVEMENT_COOLDOWN+(ROTATION_INCR*ROTATION_INCR)+(17l*ROTATION_INCR)));
+                        break;
+                    } else {
+                        final int rotationIncr = incr;
+                        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
+                            final MobileBlockState[] CLEAN_COPY = ship.BLOCK_STATES.toArray(MobileBlockState[]::new);
+                            int collisionCount = 0;
+                            com.ccorp2002.smoothsailing.event.ShipRotateEvent mevent = new com.ccorp2002.smoothsailing.event.ShipRotateEvent(ship,newLoc,ship.vehicle,TURN_BLOCK_DATA);
+                            mevent.callEvent();
+                            if (mevent.isCancelled()) {
+                                ship.isLeftPressed = false;
+                                ship.isRightPressed = false;
+                                ship.isForwardPressed = false;
+                                ship.isBackwardPressed = false;
+                                ship.isSprintPressed = false;
+                                ship.isSpacePressed = false;
+                                ship.setProcessing(false);
+                                this.currentRotationVelocity = 0.0f;
+                                this.currentYVelocity = 0f;
+                                this.currentSpeed = 0f;
+                                this.moving = false;
+                                return;
+                            }
+                            for (Long key : PACKET_CHANGES.keySet()) {
+                                if (key == null) continue;
+                                PACKET_CHANGES.set(key,ShipPhysics.VOID);
+                            }
+                            NmsUtils.sendBlockChanges(ship.getWorld(),PACKET_CHANGES.toMap(ship.getWorld()));
+                            for (MobileBlockState st : CLEAN_COPY) {
+                                if (st == null) continue;
+                                Location stloc = st.getLocation(ship.getWorld());
+                                Location updLoc = stloc.clone();
+                                Location rotatedLoc = Rotate3D.rotateAroundCenter(updLoc,CENTER_POINT,rotationFinal*rotationIncr,0d,0d).toBlockLocation();
+                                PACKET_CHANGES.set(rotatedLoc,st.getBlockData());
+                            }
+                            NmsUtils.sendBlockChanges(ship.getWorld(),PACKET_CHANGES.toMap(ship.getWorld()));
+                       },(long)(MOVEMENT_COOLDOWN+((incr*ROTATION_INCR)+(15l*incr))));
+
+                    }
                 }
-                TEMPS[indx] = st;
             }
-            ship.BLOCK_STATES.clear();
-            ship.BLOCK_STATES.setAll(TEMPS);
-            //System.out.println("POST ROTATION BLOCK COUNT: "+ship.BLOCK_STATES.size());
-            for (Entity entity : FILTERED_ENTS) {
-                if (entity == null) continue;
-                if (entity instanceof Player pl && !pl.isConnected()) {
-                    ship.ENTITY_COMPOSITION.remove(entity);
-                    continue;
-                }
-                Location entityLoc = entity.getLocation();
-                Location rotatedLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, entityLoc.subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
-                rotatedLoc = rotatedLoc.add(0.5,0.0,0.5);
-                rotatedLoc.setPitch(entity.getPitch());
-                rotatedLoc.setYaw(entity.getLocation().getYaw()+rotationF);
-                rotatedLoc.setY(entity.getLocation().getY());
-                if (entity.getVehicle() == null) NmsUtils.teleportSilentCurrentThread(rotatedLoc, entity);
-                if (!ship.CHANGE_WORLD && entity instanceof Player player) {
-                    (new org.bukkit.event.player.PlayerMoveEvent(player,rotatedLoc,rotatedLoc)).callEvent();
-                }
-                if (ShipListener.isWheel(entity)) {
-                    ShipListener.addTag(entity,ShipListener.wheelTag(entity.getLocation()));
-                }
-            }
-            ship.model.minY = (ship.BLOCK_STATES.stream().mapToInt(MobileBlockState::by).min().orElse(-129));
-            ship.model.maxY = (ship.BLOCK_STATES.stream().mapToInt(MobileBlockState::by).max().orElse(-129));
-            if (ship.model.minY < CURRENT_FLUID_LEVEL+15 && !ship.isAirship) {
-                this.currentYVelocity = 0f;
-            }
-            ship.isLeftPressed = false;
-            ship.isRightPressed = false;
-            ship.vehicle.setRotation(DirectionalUtils.faceToYaw(ship.facing)+rotationF,0f);
-            ship.facing = DirectionalUtils.yawToFace(ship.vehicle.getYaw(),true);
-            Vector newForwards = VectorMath.rotY(ship.forwards.clone(),rotationF).multiply(new Vector(-1,1,-1));
-            newForwards = newForwards.setX(ROUND_VALUE(newForwards.getX(),2));
-            newForwards = newForwards.setZ(ROUND_VALUE(newForwards.getZ(),2));
-            ship.forwards = newForwards;
-            this.currentSpeed = this.currentSpeed - this.currentSpeed/2f;
-            this.currentRotationVelocity = 0.0f;
-            this.currentYVelocity = 0f;
-            ship.model.minY = ship.minY();
-            ship.model.maxY = ship.maxY();
-            ship.sendSolids();
-            ship.calculateBoundingBox();
-            ship.updateRedstone();
-            this.currentRotationVelocity = 0.0f;
-            com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
-                processFluidRestore();
-                currentYVelocity = yVelocity/3f;
-                currentSpeed = xzVelocity/2f;
-                moving = false;
-                ship.setProcessing(false);
-            },(long)(MOVEMENT_COOLDOWN));
             return;
         }
         boolean hasHorizontalMovement = (Math.abs(currentSpeed)) >= 0.375f;
@@ -2127,8 +2196,7 @@ public class ShipPhysics {
                 }
             }
         });
-        ship.FLUIDS.internalMap.keySet().removeIf(key -> !(MobileBlockState.doesShipHave(ship,MobileBlockState.unpackLocation(key,ship.getWorld())))
-        );
+        ship.FLUIDS.internalMap.keySet().removeIf(key -> !(MobileBlockState.doesShipHave(ship,MobileBlockState.unpackLocation(key,ship.getWorld()))));
     }
 
     public void detectNearbyEntities() {
