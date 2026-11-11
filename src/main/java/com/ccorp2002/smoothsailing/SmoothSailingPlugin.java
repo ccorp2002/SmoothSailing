@@ -1,8 +1,8 @@
 package com.ccorp2002.smoothsailing;
 
-import com.ccorp2002.smoothsailing.blockconfig.BlockConfigManager;
-import com.ccorp2002.smoothsailing.customships.ShipWheelData;
-import com.ccorp2002.smoothsailing.customships.ShipWheelManager;
+import com.ccorp2002.smoothsailing.detection.BlockConfigManager;
+import com.ccorp2002.smoothsailing.detection.ShipWheelData;
+import com.ccorp2002.smoothsailing.detection.ShipWheelManager;
 import com.ccorp2002.smoothsailing.utils.claims.IClaimInterface;
 import com.ccorp2002.smoothsailing.utils.claims.WorldGuardInterface;
 import com.ccorp2002.smoothsailing.utils.claims.TownyInterface;

@@ -10,8 +10,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.event.HandlerList;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
-import com.ccorp2002.smoothsailing.customships.*;
-import com.ccorp2002.smoothsailing.blockconfig.*;
+import com.ccorp2002.smoothsailing.detection.*;
+import com.ccorp2002.smoothsailing.detection.*;
 
 public abstract class ShipActionEvent extends Event implements Cancellable {
     private static final HandlerList HANDLERS = new HandlerList();

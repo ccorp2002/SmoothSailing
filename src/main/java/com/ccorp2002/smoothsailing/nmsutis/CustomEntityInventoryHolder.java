@@ -42,7 +42,7 @@ import org.bukkit.inventory.*;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
 import com.ccorp2002.smoothsailing.utils.*;
-import com.ccorp2002.smoothsailing.customships.*;
+import com.ccorp2002.smoothsailing.detection.*;
 
 
 

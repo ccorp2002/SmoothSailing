@@ -45,7 +45,7 @@ public final class ShipRegistry {
 
     public static List<ShipInstance> getShipsInChunk(Chunk chunk) {
         List<ShipInstance> result = new ArrayList<>();
-        for (ShipInstance inst : byId.values()) {
+        for (ShipInstance inst : getShipsInWorld(chunk.getWorld())) {
             if (inst.vehicle == null) {
                 byId.remove(inst.id);
                 continue;

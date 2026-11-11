@@ -6,8 +6,8 @@ import com.ccorp2002.smoothsailing.ship.*;
 import com.ccorp2002.smoothsailing.utils.*;
 import com.ccorp2002.smoothsailing.event.*;
 import com.ccorp2002.smoothsailing.nmsutils.*;
-import com.ccorp2002.smoothsailing.customships.*;
-import com.ccorp2002.smoothsailing.blockconfig.*;
+import com.ccorp2002.smoothsailing.detection.*;
+import com.ccorp2002.smoothsailing.detection.*;
 
 import org.bukkit.*;
 import org.bukkit.block.*;

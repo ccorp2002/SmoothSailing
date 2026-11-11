@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.customships;
+package com.ccorp2002.smoothsailing.detection;
 
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
@@ -7,9 +7,9 @@ import com.ccorp2002.smoothsailing.nmsutils.*;
 import com.ccorp2002.smoothsailing.ShipModel;
 import com.ccorp2002.smoothsailing.ShipRegistry;
 import com.ccorp2002.smoothsailing.ShipListener;
-import com.ccorp2002.smoothsailing.blockconfig.BlockConfigManager;
-import com.ccorp2002.smoothsailing.blockconfig.BlockProperties;
-import com.ccorp2002.smoothsailing.blockconfig.ShipDetector;
+import com.ccorp2002.smoothsailing.detection.BlockConfigManager;
+import com.ccorp2002.smoothsailing.detection.BlockProperties;
+import com.ccorp2002.smoothsailing.detection.ShipDetector;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -146,7 +146,7 @@ public class ShipWheelManager {
         if (wheelData == null) return null;
         if (wheelData.isAssembled()) return null;
         Location wheelLoc = wheelData.getBlockLocation();
-        BlockFace facing = BlockStructureScanner.getBlockDataFace(wheelLoc.getBlock().getBlockData());
+        BlockFace facing = DirectionalUtils.getBlockDataFace(wheelLoc.getBlock().getBlockData());
         if (facing == BlockFace.SELF) facing = wheelData.getFacing();
         wheelData.facing = facing;
         // Scan the structure
@@ -261,7 +261,7 @@ public class ShipWheelManager {
             return false;
         }
         org.bukkit.block.data.BlockData blockdata = wheelLoc.getBlock().getBlockData();
-        BlockFace facing = BlockStructureScanner.getBlockDataFace(blockdata);
+        BlockFace facing = DirectionalUtils.getBlockDataFace(blockdata);
         if (blockdata.getMaterial() == Material.PLAYER_HEAD) facing = facing.getOppositeFace();
         if (facing == BlockFace.SELF) facing = wheelData.getFacing();
         wheelData.facing = facing.getOppositeFace();
@@ -530,7 +530,7 @@ public class ShipWheelManager {
             return false;
         }
         Location wheelLoc = wheelData.getBlockLocation();
-        BlockFace facing = BlockStructureScanner.getBlockDataFace(wheelLoc.getBlock().getBlockData());
+        BlockFace facing = DirectionalUtils.getBlockDataFace(wheelLoc.getBlock().getBlockData());
         if (facing == BlockFace.SELF) facing = wheelData.getFacing();
         wheelData.facing = facing;
 

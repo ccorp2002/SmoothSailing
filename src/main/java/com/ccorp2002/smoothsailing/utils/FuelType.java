@@ -3,7 +3,7 @@ package com.ccorp2002.smoothsailing.utils;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ShipConfig;
 import com.ccorp2002.smoothsailing.ShipListener;
-import com.ccorp2002.smoothsailing.customships.*;
+import com.ccorp2002.smoothsailing.detection.*;
 import com.ccorp2002.smoothsailing.utils.rotation.*;
 import com.ccorp2002.smoothsailing.utils.movement.*;
 import com.ccorp2002.smoothsailing.ship.*;
@@ -59,7 +59,7 @@ public class FuelType implements ConfigurationSerializable {
         if (this.id == null || this.id.isEmpty()) return;
         InventoryUtil.FUEL_TYPES.put(this.id,this);
     }
-
+    @Override
     public Map<String, Object> serialize() {
         Map<String, Object> data = new HashMap<>(4);
         List<String> BASE64_FUEL = new ArrayList<>();
@@ -95,5 +95,11 @@ public class FuelType implements ConfigurationSerializable {
         type.burnChance = (double)args.get("chance");
         type.burnRate = (int) args.get("rate");
         return type;
+    }
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) return false;
+        if (!(obj instanceof FuelType oth)) return false;
+        else return this.id.equalsIgnoreCase(oth.id);
     }
 }

@@ -1,12 +1,12 @@
-package com.ccorp2002.smoothsailing.customships;
+package com.ccorp2002.smoothsailing.detection;
 
 import com.ccorp2002.smoothsailing.SmoothSailingPlugin;
 import com.ccorp2002.smoothsailing.ShipModel;
 import com.ccorp2002.smoothsailing.nmsutils.*;
 import com.ccorp2002.smoothsailing.ship.*;
-import com.ccorp2002.smoothsailing.blockconfig.BlockConfigManager;
-import com.ccorp2002.smoothsailing.blockconfig.BlockProperties;
-import com.ccorp2002.smoothsailing.blockconfig.ShipDetector;
+import com.ccorp2002.smoothsailing.detection.BlockConfigManager;
+import com.ccorp2002.smoothsailing.detection.BlockProperties;
+import com.ccorp2002.smoothsailing.detection.ShipDetector;
 import org.bukkit.entity.*;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -94,176 +94,6 @@ public class BlockStructureScanner {
         if (newYaw < 0) newYaw += 360;
 
         return yawToBlockFace(newYaw);
-    }
-
-    /**
-     * Rotates BlockData properties (stairs, chests, doors, etc.) by a yaw offset.
-     * @param originalData The original block data
-     * @param yawDegrees The rotation angle in degrees (should be multiple of 90)
-     * @return A new rotated BlockData
-     */
-    public static BlockFace getBlockDataFace(BlockData originalData) {
-        BlockData rotated = originalData;
-
-        // Handle Directional blocks (stairs, chests, doors, etc.)
-        if (rotated instanceof org.bukkit.block.data.Directional) {
-            org.bukkit.block.data.Directional directional = (org.bukkit.block.data.Directional) rotated;
-            BlockFace originalFacing = directional.getFacing();
-            return originalFacing;
-        }
-
-        // Handle Rotatable blocks (player heads on floor, banners on floor)
-        if (rotated instanceof org.bukkit.block.data.Rotatable) {
-            org.bukkit.block.data.Rotatable rotatable = (org.bukkit.block.data.Rotatable) rotated;
-            BlockFace currentRot = rotatable.getRotation();
-            return currentRot;
-        }
-
-        return BlockFace.SELF;
-    }
-
-    /**
-     * Rotates BlockData properties (stairs, chests, doors, etc.) by a yaw offset.
-     * @param originalData The original block data
-     * @param yawDegrees The rotation angle in degrees (should be multiple of 90)
-     * @return A new rotated BlockData
-     */
-    public static BlockData rotateBlockData(BlockData originalData, float yawDegrees) {
-        BlockData rotated = originalData.clone();
-
-        // Round to nearest 90 degrees
-        int rotationSteps = Math.round(yawDegrees / 90.0f) % 4;
-        if (rotationSteps < 0) rotationSteps += 4;
-        if (rotationSteps == 0) return rotated;
-
-        // Handle Directional blocks (stairs, chests, doors, etc.)
-        if (rotated instanceof org.bukkit.block.data.Directional) {
-            org.bukkit.block.data.Directional directional = (org.bukkit.block.data.Directional) rotated;
-            BlockFace originalFacing = directional.getFacing();
-            BlockFace newFacing = rotateBlockFace(originalFacing, yawDegrees);
-
-            if (directional.getFaces().contains(newFacing)) {
-                directional.setFacing(newFacing);
-            }
-            return directional;
-        }
-
-        // Handle Orientable blocks (logs, pillars, hay bales, etc.)
-        if (rotated instanceof org.bukkit.block.data.Orientable orientable) {
-            org.bukkit.Axis currentAxis = orientable.getAxis();
-
-            // Y-axis stays Y (vertical), X and Z swap on 90/270 degree rotations
-            if (currentAxis != org.bukkit.Axis.Y && rotationSteps % 2 == 1) {
-                org.bukkit.Axis newAxis = (currentAxis == org.bukkit.Axis.X)
-                    ? org.bukkit.Axis.Z
-                    : org.bukkit.Axis.X;
-                orientable.setAxis(newAxis);
-            }
-            return orientable;
-        }
-
-        // Handle Rotatable blocks (player heads on floor, banners on floor)
-        if (rotated instanceof org.bukkit.block.data.Rotatable) {
-            org.bukkit.block.data.Rotatable rotatable = (org.bukkit.block.data.Rotatable) rotated;
-            BlockFace currentRot = rotatable.getRotation();
-
-            // Rotatable uses 16 directions (each 22.5 degrees)
-            // 90 degrees = 4 steps in the rotation system
-            int currentStep = rotationToStep(currentRot);
-            int newStep = (currentStep + (rotationSteps * 4)) % 16;
-            BlockFace newRot = stepToRotation(newStep);
-
-            rotatable.setRotation(newRot);
-            return rotatable;
-        }
-
-        // Handle MultipleFacing blocks (fences, walls, etc.)
-        if (rotated instanceof org.bukkit.block.data.MultipleFacing) {
-            org.bukkit.block.data.MultipleFacing mf = (org.bukkit.block.data.MultipleFacing) rotated;
-            Set<BlockFace> originalFaces = new HashSet<>(mf.getFaces());
-
-            // Clear all faces first
-            for (BlockFace face : originalFaces) {
-                mf.setFace(face, false);
-            }
-
-            // Set rotated faces
-            for (BlockFace face : originalFaces) {
-                BlockFace newFace = rotateBlockFace(face, yawDegrees);
-                if (mf.getAllowedFaces().contains(newFace)) {
-                    mf.setFace(newFace, true);
-                }
-            }
-            return mf;
-        }
-
-        return rotated;
-    }
-
-    /**
-     * Converts a Rotatable BlockFace to step (0-15).
-     * Step 0 = SOUTH, 4 = WEST, 8 = NORTH, 12 = EAST
-     */
-    public static int rotationToStep(BlockFace face) {
-        switch (face) {
-            case SOUTH: return 0;
-            case SOUTH_SOUTH_WEST: return 1;
-            case SOUTH_WEST: return 2;
-            case WEST_SOUTH_WEST: return 3;
-            case WEST: return 4;
-            case WEST_NORTH_WEST: return 5;
-            case NORTH_WEST: return 6;
-            case NORTH_NORTH_WEST: return 7;
-            case NORTH: return 8;
-            case NORTH_NORTH_EAST: return 9;
-            case NORTH_EAST: return 10;
-            case EAST_NORTH_EAST: return 11;
-            case EAST: return 12;
-            case EAST_SOUTH_EAST: return 13;
-            case SOUTH_EAST: return 14;
-            case SOUTH_SOUTH_EAST: return 15;
-            default: return 0;
-        }
-    }
-
-    /**
-     * Converts a step (0-15) to Rotatable BlockFace.
-     */
-    public static BlockFace stepToRotation(int step) {
-        step = step % 16;
-        if (step < 0) step += 16;
-        switch (step) {
-            case 0: return BlockFace.SOUTH;
-            case 1: return BlockFace.SOUTH_SOUTH_WEST;
-            case 2: return BlockFace.SOUTH_WEST;
-            case 3: return BlockFace.WEST_SOUTH_WEST;
-            case 4: return BlockFace.WEST;
-            case 5: return BlockFace.WEST_NORTH_WEST;
-            case 6: return BlockFace.NORTH_WEST;
-            case 7: return BlockFace.NORTH_NORTH_WEST;
-            case 8: return BlockFace.NORTH;
-            case 9: return BlockFace.NORTH_NORTH_EAST;
-            case 10: return BlockFace.NORTH_EAST;
-            case 11: return BlockFace.EAST_NORTH_EAST;
-            case 12: return BlockFace.EAST;
-            case 13: return BlockFace.EAST_SOUTH_EAST;
-            case 14: return BlockFace.SOUTH_EAST;
-            case 15: return BlockFace.SOUTH_SOUTH_EAST;
-            default: return BlockFace.SOUTH;
-        }
-    }
-
-    /**
-     * Checks if a material is an attachable block (banners, signs, torches, etc.).
-     * These should be removed after their support blocks.
-     */
-    public static boolean isAttachable(Material type) {
-        String name = type.name();
-        return name.contains("BANNER") || name.contains("SIGN") ||
-               name.contains("TORCH") || name.contains("BUTTON") ||
-               name.contains("LEVER") || name.contains("_DOOR") || name.contains("CARPET") ||
-               name.contains("PRESSURE_PLATE") || 
-               name.contains("LANTERN") || FragileBlocks.isFragile(type);
     }
 
     public static ShipModel scanForStructure(org.bukkit.entity.Player pilot, Location wheelLocation, BlockFace facing) {

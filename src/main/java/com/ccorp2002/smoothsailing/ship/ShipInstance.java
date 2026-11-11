@@ -6,8 +6,8 @@ import com.ccorp2002.smoothsailing.utils.objects.*;
 import com.ccorp2002.smoothsailing.utils.vectors.*;
 import com.ccorp2002.smoothsailing.event.*;
 import com.ccorp2002.smoothsailing.nmsutils.*;
-import com.ccorp2002.smoothsailing.customships.*;
-import com.ccorp2002.smoothsailing.blockconfig.*;
+import com.ccorp2002.smoothsailing.detection.*;
+import com.ccorp2002.smoothsailing.detection.*;
 import com.ccorp2002.smoothsailing.utils.displays.*;
 import org.bukkit.*;
 import org.bukkit.block.*;
@@ -83,20 +83,6 @@ public class ShipInstance {
         VOID_MEDIUM.baseDensity = cfg.getDouble("buoyancy.air-density", -0.5d);
         ShipPhysics.FLUID_MEDIUMS.put("void",VOID_MEDIUM);
         airDensity = airDensity();
-    }
-
-    /**
-     * Safely parses a BlockFace from a YAML map, returning a default value on failure.
-     * Handles null values and invalid enum names gracefully.
-     */
-    public static BlockFace safeBlockFace(Map<?, ?> yaml, String key, BlockFace defaultValue) {
-        Object val = yaml.get(key);
-        if (val == null) return defaultValue;
-        try {
-            return BlockFace.valueOf(val.toString().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            return defaultValue;
-        }
     }
 
     public static JavaPlugin plugin;

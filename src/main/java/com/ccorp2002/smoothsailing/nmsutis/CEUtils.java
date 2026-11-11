@@ -94,8 +94,8 @@ import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
 import com.ccorp2002.smoothsailing.utils.*;
 import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
-import com.ccorp2002.smoothsailing.customships.ShipWheelData;
-import com.ccorp2002.smoothsailing.customships.ShipWheelManager;
+import com.ccorp2002.smoothsailing.detection.ShipWheelData;
+import com.ccorp2002.smoothsailing.detection.ShipWheelManager;
 
 import net.momirealms.craftengine.bukkit.item.BukkitItemManager;
 import net.momirealms.craftengine.bukkit.block.BukkitBlockManager;

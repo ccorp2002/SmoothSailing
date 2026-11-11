@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.customships;
+package com.ccorp2002.smoothsailing.utils;
 
 import org.bukkit.Material;
 
@@ -132,5 +132,18 @@ public final class FragileBlocks {
      */
     public static boolean isFragile(Material material) {
         return FRAGILE_BLOCKS.contains(material);
+    }
+
+    /**
+     * Checks if a material is an attachable block (banners, signs, torches, etc.).
+     * These should be removed after their support blocks.
+     */
+    public static boolean isAttachable(Material type) {
+        String name = type.name();
+        return name.contains("BANNER") || name.contains("SIGN") ||
+               name.contains("TORCH") || name.contains("BUTTON") ||
+               name.contains("LEVER") || name.contains("_DOOR") || name.contains("CARPET") ||
+               name.contains("PRESSURE_PLATE") || 
+               name.contains("LANTERN") || FragileBlocks.isFragile(type);
     }
 }

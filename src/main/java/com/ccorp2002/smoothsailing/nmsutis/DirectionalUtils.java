@@ -4,6 +4,7 @@ import java.util.EnumMap;
 
 import org.bukkit.Location;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
 import org.bukkit.util.Vector;
@@ -61,6 +62,129 @@ public class DirectionalUtils {
 	public static final float DEGTORAD = 0.017453293F;
 	public static final float RADTODEG = 57.29577951F;
 	public static final double HALFROOTOFTWO = 0.707106781;
+
+    /**
+     * Converts a Rotatable BlockFace to step (0-15).
+     * Step 0 = SOUTH, 4 = WEST, 8 = NORTH, 12 = EAST
+     */
+    public static int rotationToStep(BlockFace face) {
+        switch (face) {
+            case SOUTH: return 0;
+            case SOUTH_SOUTH_WEST: return 1;
+            case SOUTH_WEST: return 2;
+            case WEST_SOUTH_WEST: return 3;
+            case WEST: return 4;
+            case WEST_NORTH_WEST: return 5;
+            case NORTH_WEST: return 6;
+            case NORTH_NORTH_WEST: return 7;
+            case NORTH: return 8;
+            case NORTH_NORTH_EAST: return 9;
+            case NORTH_EAST: return 10;
+            case EAST_NORTH_EAST: return 11;
+            case EAST: return 12;
+            case EAST_SOUTH_EAST: return 13;
+            case SOUTH_EAST: return 14;
+            case SOUTH_SOUTH_EAST: return 15;
+            default: return 0;
+        }
+    }
+
+    /**
+     * Snaps a yaw angle to the nearest 90-degree increment (0, 90, 180, 270)
+     */
+    public static float snapToNearestCardinal(float yaw) {
+        // Normalize yaw to 0-360 range
+        yaw = yaw % 360;
+        if (yaw < 0) yaw += 360;
+
+        // Round to nearest 90 degrees
+        int cardinal = Math.round(yaw / 90.0f) * 90;
+        return cardinal % 360;
+    }
+
+    /**
+     * Converts a yaw angle to a BlockFace (cardinal directions only)
+     */
+    public static BlockFace yawToBlockFace(float yaw) {
+        yaw = snapToNearestCardinal(yaw);
+
+        if (yaw >= 315 || yaw < 45) {
+            return BlockFace.SOUTH;  // 0 degrees
+        } else if (yaw >= 45 && yaw < 135) {
+            return BlockFace.WEST;   // 90 degrees
+        } else if (yaw >= 135 && yaw < 225) {
+            return BlockFace.NORTH;  // 180 degrees
+        } else {
+            return BlockFace.EAST;   // 270 degrees
+        }
+    }
+
+    /**
+     * Converts a BlockFace to a yaw angle
+     */
+    public static float blockFaceToYaw(BlockFace face) {
+        switch (face) {
+            case SOUTH:
+                return 0.0f;
+            case WEST:
+                return 90.0f;
+            case NORTH:
+                return 180.0f;
+            case EAST:
+                return 270.0f;
+            default:
+                return 0.0f;
+        }
+    }
+
+    /**
+     * Rotates BlockData properties (stairs, chests, doors, etc.) by a yaw offset.
+     * @param originalData The original block data
+     * @param yawDegrees The rotation angle in degrees (should be multiple of 90)
+     * @return A new rotated BlockData
+     */
+    public static BlockFace getBlockDataFace(BlockData originalData) {
+        BlockData rotated = originalData;
+
+        // Handle Directional blocks (stairs, chests, doors, etc.)
+        if (rotated instanceof org.bukkit.block.data.Directional) {
+            org.bukkit.block.data.Directional directional = (org.bukkit.block.data.Directional) rotated;
+            BlockFace originalFacing = directional.getFacing();
+            return originalFacing;
+        } else if (rotated instanceof org.bukkit.block.data.Rotatable) { // Handle Rotatable blocks (player heads on floor, banners on floor)
+            org.bukkit.block.data.Rotatable rotatable = (org.bukkit.block.data.Rotatable) rotated;
+            BlockFace currentRot = rotatable.getRotation();
+            return currentRot;
+        }
+        return BlockFace.SELF;
+    }
+
+    /**
+     * Converts a step (0-15) to Rotatable BlockFace.
+     */
+    public static BlockFace stepToRotation(int step) {
+        step = step % 16;
+        if (step < 0) step += 16;
+        switch (step) {
+            case 0: return BlockFace.SOUTH;
+            case 1: return BlockFace.SOUTH_SOUTH_WEST;
+            case 2: return BlockFace.SOUTH_WEST;
+            case 3: return BlockFace.WEST_SOUTH_WEST;
+            case 4: return BlockFace.WEST;
+            case 5: return BlockFace.WEST_NORTH_WEST;
+            case 6: return BlockFace.NORTH_WEST;
+            case 7: return BlockFace.NORTH_NORTH_WEST;
+            case 8: return BlockFace.NORTH;
+            case 9: return BlockFace.NORTH_NORTH_EAST;
+            case 10: return BlockFace.NORTH_EAST;
+            case 11: return BlockFace.EAST_NORTH_EAST;
+            case 12: return BlockFace.EAST;
+            case 13: return BlockFace.EAST_SOUTH_EAST;
+            case 14: return BlockFace.SOUTH_EAST;
+            case 15: return BlockFace.SOUTH_SOUTH_EAST;
+            default: return BlockFace.SOUTH;
+        }
+    }
 
 	public static final BlockFace[] AXIS = new BlockFace[4];
 	public static final BlockFace[] RADIAL = {BlockFace.WEST, BlockFace.NORTH_WEST, BlockFace.NORTH, BlockFace.NORTH_EAST, BlockFace.EAST, BlockFace.SOUTH_EAST, BlockFace.SOUTH, BlockFace.SOUTH_WEST};

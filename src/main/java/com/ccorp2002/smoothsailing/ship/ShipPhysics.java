@@ -3,7 +3,7 @@ package com.ccorp2002.smoothsailing.ship;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ShipConfig;
 import com.ccorp2002.smoothsailing.ShipListener;
-import com.ccorp2002.smoothsailing.customships.*;
+import com.ccorp2002.smoothsailing.detection.*;
 import com.ccorp2002.smoothsailing.utils.vectors.*;
 import com.ccorp2002.smoothsailing.utils.rotation.*;
 import com.ccorp2002.smoothsailing.utils.movement.*;
@@ -492,7 +492,7 @@ public class ShipPhysics {
             // Apply rotation
             Location newLoc = vehicleLoc.clone();
             Location CENTER_POINT = ship.vehicle.getLocation().toBlockLocation();
-            newLoc.setYaw(ShipWheelData.blockFaceToYaw(ship.facing));
+            newLoc.setYaw(DirectionalUtils.blockFaceToYaw(ship.facing));
             //Runnable runMe = () -> {
             float newYaw = newLoc.getYaw();
             float rotation = 0.0f;

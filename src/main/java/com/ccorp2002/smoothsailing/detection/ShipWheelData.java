@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.customships;
+package com.ccorp2002.smoothsailing.detection;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -191,100 +191,5 @@ public class ShipWheelData {
 
     public void setPendingMenuReopen(boolean pending) {
         this.pendingMenuReopen = pending;
-    }
-
-    /**
-     * Snaps a yaw angle to the nearest 90-degree increment (0, 90, 180, 270)
-     */
-    public static float snapToNearestCardinal(float yaw) {
-        // Normalize yaw to 0-360 range
-        yaw = yaw % 360;
-        if (yaw < 0) yaw += 360;
-
-        // Round to nearest 90 degrees
-        int cardinal = Math.round(yaw / 90.0f) * 90;
-        return cardinal % 360;
-    }
-
-    /**
-     * Converts a yaw angle to a BlockFace (cardinal directions only)
-     */
-    public static BlockFace yawToBlockFace(float yaw) {
-        yaw = snapToNearestCardinal(yaw);
-
-        if (yaw >= 315 || yaw < 45) {
-            return BlockFace.SOUTH;  // 0 degrees
-        } else if (yaw >= 45 && yaw < 135) {
-            return BlockFace.WEST;   // 90 degrees
-        } else if (yaw >= 135 && yaw < 225) {
-            return BlockFace.NORTH;  // 180 degrees
-        } else {
-            return BlockFace.EAST;   // 270 degrees
-        }
-    }
-
-    /**
-     * Converts a BlockFace to a yaw angle
-     */
-    public static float blockFaceToYaw(BlockFace face) {
-        switch (face) {
-            case SOUTH:
-                return 0.0f;
-            case WEST:
-                return 90.0f;
-            case NORTH:
-                return 180.0f;
-            case EAST:
-                return 270.0f;
-            default:
-                return 0.0f;
-        }
-    }
-
-    // ===== Serialization for persistence =====
-
-    /**
-     * Serializes this wheel data to a map for YAML storage.
-     * Only persists essential data (location, facing, ship link).
-     * Transient data (detection preview, particles) is not persisted.
-     */
-    public Map<String, Object> toMap() {
-        Map<String, Object> map = new HashMap<>();
-        map.put("world", blockLocation.getWorld().getName());
-        map.put("x", blockLocation.getBlockX());
-        map.put("y", blockLocation.getBlockY());
-        map.put("z", blockLocation.getBlockZ());
-        map.put("facing", facing.name());
-        if (assembledShipUUID != null) {
-            map.put("ship_uuid", assembledShipUUID.toString());
-        }
-        return map;
-    }
-
-    /**
-     * Deserializes wheel data from a map loaded from YAML.
-     * @param map The serialized data
-     * @return The deserialized ShipWheelData, or null if world doesn't exist
-     */
-    public static ShipWheelData fromMap(Map<String, Object> map) {
-        String worldName = (String) map.get("world");
-        World world = Bukkit.getWorld(worldName);
-        if (world == null) {
-            return null;  // World doesn't exist (deleted/renamed)
-        }
-
-        Location loc = new Location(world,
-            ((Number) map.get("x")).intValue(),
-            ((Number) map.get("y")).intValue(),
-            ((Number) map.get("z")).intValue());
-        BlockFace facing = safeBlockFace(map, "facing", BlockFace.NORTH);
-
-        ShipWheelData data = new ShipWheelData(loc, facing);
-
-        if (map.containsKey("ship_uuid")) {
-            data.setAssembledShipUUID(UUID.fromString((String) map.get("ship_uuid")));
-        }
-
-        return data;
     }
 }

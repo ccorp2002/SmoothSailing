@@ -3,7 +3,7 @@ package com.ccorp2002.smoothsailing.ship;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ShipConfig;
 import com.ccorp2002.smoothsailing.ShipListener;
-import com.ccorp2002.smoothsailing.customships.*;
+import com.ccorp2002.smoothsailing.detection.*;
 import com.ccorp2002.smoothsailing.utils.rotation.*;
 import com.ccorp2002.smoothsailing.utils.movement.*;
 import com.ccorp2002.smoothsailing.utils.*;

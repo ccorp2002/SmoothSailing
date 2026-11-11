@@ -15,8 +15,8 @@ import org.bukkit.event.HandlerList;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
 import com.ccorp2002.smoothsailing.utils.*;
-import com.ccorp2002.smoothsailing.customships.*;
-import com.ccorp2002.smoothsailing.blockconfig.*;
+import com.ccorp2002.smoothsailing.detection.*;
+import com.ccorp2002.smoothsailing.detection.*;
 
 public class ShipDetectFuelEvent extends ShipActionEvent {
     protected Block source;

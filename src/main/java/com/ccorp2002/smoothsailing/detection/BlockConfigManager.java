@@ -1,4 +1,4 @@
-package com.ccorp2002.smoothsailing.blockconfig;
+package com.ccorp2002.smoothsailing.detection;
 
 import com.ccorp2002.smoothsailing.SmoothSailingPlugin;
 import com.ccorp2002.smoothsailing.ShipModel;

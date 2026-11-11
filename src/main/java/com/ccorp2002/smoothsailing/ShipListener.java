@@ -1,8 +1,8 @@
 package com.ccorp2002.smoothsailing;
 
-import com.ccorp2002.smoothsailing.blockconfig.BlockConfigManager;
-import com.ccorp2002.smoothsailing.blockconfig.BlockProperties;
-import com.ccorp2002.smoothsailing.customships.*;
+import com.ccorp2002.smoothsailing.detection.BlockConfigManager;
+import com.ccorp2002.smoothsailing.detection.BlockProperties;
+import com.ccorp2002.smoothsailing.detection.*;
 import com.ccorp2002.smoothsailing.ship.*;
 import com.ccorp2002.smoothsailing.utils.*;
 import com.ccorp2002.smoothsailing.nmsutils.*;
@@ -169,7 +169,7 @@ public class ShipListener implements Listener {
         Entity vehicle = player.getVehicle();
         if (vehicle != null) {
             org.bukkit.Input input = event.getInput();
-            ShipInstance ship = ShipListener.getShipFromEntity(vehicle);
+            ShipInstance ship = MobileBlockState.getShipFromLoc(vehicle.getLocation().toBlockLocation());
             if (ship != null && ship.equals(findShipByPlayer(player))) {
                 if (input.isSneak()) {
                     vehicle.removePassenger(player);
@@ -205,7 +205,7 @@ public class ShipListener implements Listener {
             if (state != null) ship = state.getShip();
             if (ship != null && player.equals(ship.driver)) return ship;
         } else {
-            final MobileBlockState state = MobileBlockState.getStateFromLoc(player.getLocation().add(0,-1,0).toBlockLocation());
+            final MobileBlockState state = MobileBlockState.getStateFromLoc(player.getLocation().clone().add(0,-1,0));
             if (state != null) ship = state.getShip();
             if (ship != null && player.equals(ship.driver)) return ship;
         }
@@ -772,7 +772,7 @@ public class ShipListener implements Listener {
         Player player = event.getPlayer();
         if (isShipWheelBlock(block)) {
             if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.RIGHT_CLICK_AIR) return;
-            BlockFace facing = BlockStructureScanner.getBlockDataFace(block.getBlockData());
+            BlockFace facing = DirectionalUtils.getBlockDataFace(block.getBlockData());
             if (facing == BlockFace.SELF) return;
             // Cancel event to prevent other plugins (like HeadSmith) from also handling this
             if (player.isSneaking() && block.getType() == Material.LECTERN) return;
@@ -804,11 +804,11 @@ public class ShipListener implements Listener {
                 if (ship == null) return;
                 event.setCancelled(true);
                 if (ship.driver != null && ship.driver instanceof Player driver) {
-                    Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.blockconfig.ShipDetector.detectBlocks(driver,CENTER);
+                    Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(driver,CENTER);
                     FOUND_BLOCKS.add(block);
                     ship.physics.rotateSegment3Axis(CENTER,LEFT_RIGHT,yawDeg,0d,0d,FOUND_BLOCKS);
                 } else {
-                    Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.blockconfig.ShipDetector.detectBlocks(player,CENTER);
+                    Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(player,CENTER);
                     FOUND_BLOCKS.add(block);
                     ship.physics.rotateSegment3Axis(CENTER,LEFT_RIGHT,yawDeg,0d,0d,FOUND_BLOCKS);
                 }
