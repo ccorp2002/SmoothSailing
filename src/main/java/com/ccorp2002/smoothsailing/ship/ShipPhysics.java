@@ -613,29 +613,40 @@ public class ShipPhysics {
                 //System.out.println("STARTING BLOCK COUNT: "+TEMPS.length);
                 for (int indx = 0; indx < TEMPS.length; indx ++) {
                     MobileBlockState st = TEMPS[indx];
+                    ship.BLOCK_STATES.remove(st);
                     if (st == null) continue;
                     final Location stloc = st.getLocation(ship.getWorld());
                     st.setBlockData(NmsUtils.toBukkitBlockDataFast(stloc),true);
                     st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
                     st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
-                    NmsUtils.setBlockFast(stloc,st.occupiedBlock);
-                    TEMPS[indx] = st;
+                    NmsUtils.setBlockFast(stloc,VOID);
                 }
                 ship.sendVoids(Arrays.asList(TEMPS));
-                //System.out.println("MID ROTATION BLOCK COUNT: "+TEMPS.length);
+                if (SmoothSailingPlugin.CANNONS_FOUND) {
+                    CannonsUtils.rotateCannons(CENTER_POINT,TURN_BLOCK_DATA,Arrays.asList(TEMPS));
+                }
                 for (int indx = 0; indx < TEMPS.length; indx ++) {
                     MobileBlockState st = TEMPS[indx];
                     if (st == null) continue;
                     final Location stloc = st.getLocation(ship.getWorld());
                     Location updLoc = stloc.clone();
-                    updLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, stloc.clone().subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
+                    updLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, stloc.subtract(CENTER_POINT)).add(CENTER_POINT); 
+                    //Rotate2D.AddRotationBlock((double)rotationF, CENTER_POINT, origLoc);
                     updLoc.setYaw(0.0f);
+                    
                     st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
                     BlockData TURNED = st.getBlockData().clone();
                     TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
-                    ship.FLUIDS.set(updLoc,st.occupiedBlock);
-                    st.setBlockData(TURNED);
+                    st.setBlockData(TURNED,true);
+                    if (SmoothSailingPlugin.DEBUG_DUMP) {
+                        System.out.println(st.getBlockData().getAsString(false)+":  ORIGIN: "+stloc.toVector().toString()+" ");
+                        System.out.println("  ROTATED: "+updLoc.toVector().toString()+" ");
+                        System.out.println("  ROTATION TYPE: "+LEFT_RIGHT);
+                        System.out.println("  NEW BLOCK DATA: "+NmsUtils.BlockDataGetter.get(NmsUtils.getBlockState(TURNED)).getAsString(false));
+                    }
                     st.teleport(updLoc,false);
+                    NmsUtils.setBlockFast(updLoc,TURNED);
+                    ship.FLUIDS.set(updLoc,st.occupiedBlock);
                     st.setLocation(updLoc);
                     TEMPS[indx] = st;
                 }
@@ -1446,7 +1457,7 @@ public class ShipPhysics {
             st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
             BlockData TURNED = st.getBlockData().clone();
             TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
-            st.setBlockData(TURNED);
+            st.setBlockData(TURNED,true);
             if (SmoothSailingPlugin.DEBUG_DUMP) {
                 System.out.println(st.getBlockData().getAsString(false)+":  ORIGIN: "+stloc.toVector().toString()+" ");
                 System.out.println("  SEGMENT-ROTATED: "+updLoc.toVector().toString()+" ");

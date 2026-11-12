@@ -28,7 +28,7 @@ public class ShipCollideEvent extends ShipActionEvent {
         return this.blocks;
     }
     public void setBlocks(Map<Location,Location> blocks) {
-        this.blocks.clear();
+        if (this.blocks != null) this.blocks.clear();
         this.blocks = blocks;
     }
 }

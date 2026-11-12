@@ -734,7 +734,7 @@ public class ShipListener implements Listener {
         }
     }
 
-    @EventHandler(priority = org.bukkit.event.EventPriority.HIGHEST, ignoreCancelled = false)
+    @EventHandler(priority = org.bukkit.event.EventPriority.NORMAL, ignoreCancelled = false)
     public void onUseShipWheel(PlayerInteractEvent event) {
         Block block = event.getClickedBlock();
         if (block == null) return;
@@ -770,8 +770,12 @@ public class ShipListener implements Listener {
                 else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {LEFT_RIGHT = "RIGHT"; yawDeg = 90.0d;}
                 else return;
                 ShipInstance ship = MobileBlockState.getShipFromLoc(CENTER);
-                if (ship == null) return;
+                if (player.isSneaking()) return;
                 event.setCancelled(true);
+                if (ship != null && ship.isNotProcessing()) {
+                    ship.physics.moving = true;
+                    ship.setProcessing(true);
+                }
                 if (ship.driver != null && ship.driver instanceof Player driver) {
                     Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(driver,CENTER);
                     FOUND_BLOCKS.add(block);
