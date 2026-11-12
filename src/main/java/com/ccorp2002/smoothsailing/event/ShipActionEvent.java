@@ -19,6 +19,10 @@ public abstract class ShipActionEvent extends Event implements Cancellable {
     protected Entity entity;
     protected boolean cancel;
 
+    public ShipActionEvent(@NotNull ShipInstance ship) {
+        this(ship,ship.vehicle,false);
+    }
+
     public ShipActionEvent(@NotNull ShipInstance ship, Entity entity) {
         this(ship,entity,false);
     }

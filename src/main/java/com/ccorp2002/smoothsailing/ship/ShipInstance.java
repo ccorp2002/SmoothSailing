@@ -865,7 +865,7 @@ public class ShipInstance {
             ship.engineCount -= 1;
             if (ship.engineCount <= 0) {
                 ship.engineCount = 0;
-                ship.physics.PER_MAX_SPEED = 0.75f;
+                ship.physics.PER_MAX_SPEED = 0.625f;
                 ship.physics.MOVEMENT_COOLDOWN += 12; //1 Second minimum
             } else {
                 ship.physics.MOVEMENT_COOLDOWN += 2;
@@ -934,8 +934,6 @@ public class ShipInstance {
             });
         }
     }
-
-    public static final Set<org.bukkit.block.BlockFace> HORIZONTAL_FACES = Set.of(org.bukkit.block.BlockFace.NORTH,org.bukkit.block.BlockFace.SOUTH,org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST);
 
     public boolean HIDE_ENTITES = true;
     public boolean VOID_BLOCKS = false;

@@ -273,14 +273,14 @@ public class ShipPhysics {
     public float getMaxEngineSpeedFactor() {
         if (ship == null) return 0.75f;
         if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 0.75f;
-        final double enginePercent = (ship.engineCount / ship.initialEngineCount);
+        final double enginePercent = getEnginePercent();
         float speedFactor = this.PER_MAX_SPEED;
-        if (ship.engineCount > 0 && enginePercent >= 0.25d) {
-            speedFactor += (Math.abs(speedFactor) * (ship.engineCount / ship.blockCount)+0.5f);
+        if (ship.engineCount > 0 && enginePercent >= 0.75d) {
+            speedFactor += (Math.abs(speedFactor) * (ship.engineCount / ship.blockCount)+0.45f);
             if (SmoothSailingPlugin.DEBUG) System.out.println("ENGINE BLOCK PERCENT: "+enginePercent+"; CURRENT ENGINE COUNT: "+ship.engineCount+"; NEW SPEED FACTOR: "+speedFactor);
         }
-        if (speedFactor >= 25f) {
-            speedFactor = 25f; //TEMPORARY; HARD CAP
+        if (speedFactor >= 7.5f) {
+            speedFactor = 7.5f; //Hardcoded Temporary Cap
         }
         return speedFactor;
     }
@@ -292,9 +292,9 @@ public class ShipPhysics {
     }
 
     public double getEnginePercent() {
-        if (ship == null) return 1d;
-        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 1d;
-        final double enginePercent = ((ship.engineCount) / ((ship.initialEngineCount*0.675f)));
+        if (ship == null) return 0.5d;
+        if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 0.5d;
+        final double enginePercent = ((ship.engineCount) / (ship.initialEngineCount));
         return enginePercent;
     }
 
@@ -342,7 +342,7 @@ public class ShipPhysics {
     public volatile float currentYVelocity = 0.0f;
     public volatile float currentRotationVelocity = 0.0f;
     public volatile boolean moving = false;
-    public long MOVEMENT_COOLDOWN = 8l;
+    public long MOVEMENT_COOLDOWN = 12l;
     public int GLOBAL_WATER_SURFACE = -127;
     public int CURRENT_FLUID_LEVEL = GLOBAL_WATER_SURFACE;
     private int ROTATION_INCR = 1;
@@ -361,9 +361,7 @@ public class ShipPhysics {
         this.ship = ship;
         this.GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",63);
         this.CURRENT_FLUID_LEVEL = this.GLOBAL_WATER_SURFACE;
-        if (ship.isAirship) PER_MAX_SPEED = 5f;
-        else if (ship.isLandcraft) PER_MAX_SPEED = 2f;
-        else PER_MAX_SPEED = 3f;
+        this.PER_MAX_SPEED = MAX_SPEED;
     }
 
     public static double ROUND_VALUE(double value, int precision) {
@@ -385,7 +383,7 @@ public class ShipPhysics {
             final ShipVelocityTickEvent velocityEvent = new ShipVelocityTickEvent(ship,ship.vehicle);
             velocityEvent.callEvent();
         }
-        if (this.loadTicks <= 25 && this.loadTicks >= 20) {
+        if (this.loadTicks <= 22 && this.loadTicks >= 20) {
             if (ship.vehicle.isValid() && ship.vehicle != null && !ship.isSinking) {
                 ship.displayHealth();
             }
@@ -433,7 +431,7 @@ public class ShipPhysics {
                 }
             }
             if (ship.hasInputState()) {
-                float accel = (float)0.475f+((getMaxEngineSpeedFactor()*0.625f));
+                float accel = ship.getGear() <= 1 ? 0.65f : (float)getMaxEngineSpeedFactor();
                 if (ship.isForwardPressed) {
                     currentSpeed = Math.min(currentSpeed + accel, PER_MAX_SPEED);
                 } else if (ship.isBackwardPressed) {
@@ -495,6 +493,7 @@ public class ShipPhysics {
         List<Entity> FILTERED_ENTS = ship.ENTITY_COMPOSITION.stream().filter(p -> p.isValid()).collect(Collectors.toList());
         final Location ABS_CENTER = new Location(ship.vehicle.getWorld(),0,0,0);
         // Move the vehicle
+        final Map<Location,Location> COLLISION_MAP = new it.unimi.dsi.fastutil.objects.Object2ObjectOpenCustomHashMap<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
         if ((ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving)) {
             // Apply rotation
             Location newLoc = vehicleLoc.clone();
@@ -532,6 +531,7 @@ public class ShipPhysics {
                         }
                     }
                     if (!canEnterAt) {
+                        COLLISION_MAP.put(stloc,updLoc);
                         collisionCount++;
                         if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
                         ship.isLeftPressed = false;
@@ -559,7 +559,13 @@ public class ShipPhysics {
                     if (block.isSolid() && !isDataMedium(block) && !(LANDCRAFT_PASSTHROUGH.contains(block.getType()) && ship.isLandcraft)) {
                         if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("COLLIDED?: "+!MobileBlockState.doesShipHave(ship,rotatedLoc)+" LOCATION?: "+rotatedLoc.toVector().toString()+" BLOCKDATA?:\n >"+block.getBlockData().getAsString(true));
                         collisionCount++;
+                        COLLISION_MAP.put(stloc,updLoc);
                     }
+                }
+                if (collisionCount > 0) {
+                    ShipCollideEvent COLLIDED = new ShipCollideEvent(ship,COLLISION_MAP);
+                    COLLIDED.callEvent();
+                    collisionCount = COLLIDED.isCancelled() ? 0 : collisionCount;
                 }
                 if (collisionCount > 0) {
                     if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
@@ -753,8 +759,8 @@ public class ShipPhysics {
             }
             return;
         }
-        boolean hasHorizontalMovement = (Math.abs(currentSpeed)) >= 0.375f;
-        boolean hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.45f;
+        boolean hasHorizontalMovement = (Math.abs(currentSpeed)) >= 0.25f;
+        boolean hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.25f;
         if ((hasHorizontalMovement || hasVerticalMovement) && !(ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving)) {
             Location newLoc = vehicleLoc.clone();
             double fx = 0d;
@@ -915,6 +921,7 @@ public class ShipPhysics {
                 Block block = updLoc.getBlock();
                 if (DESTRUCTIBLE.contains(block.getType()) && !MobileBlockState.doesShipHave(ship,updLoc) && !FRAGILE_MATERIALS.contains(block.getType())) {
                     block.breakNaturally(true);
+                    continue;
                 }
                 if (MobileBlockState.doesShipHave(ship,updLoc)) {
                     continue;
@@ -922,7 +929,13 @@ public class ShipPhysics {
                 if (block.isSolid() && !isDataMedium(block) && !(LANDCRAFT_PASSTHROUGH.contains(block.getType()) && ship.isLandcraft)) {
                     if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("COLLIDED?: "+!MobileBlockState.doesShipHave(ship,updLoc)+" LOCATION?: "+updLoc.toVector().toString()+"\nBLOCKDATA?: >"+block.getBlockData().getAsString(false));
                     collisionCount++;
+                    COLLISION_MAP.put(stloc,updLoc);
                 }
+            }
+            if (collisionCount > 0) {
+                ShipCollideEvent COLLIDED = new ShipCollideEvent(ship,COLLISION_MAP);
+                COLLIDED.callEvent();
+                collisionCount = COLLIDED.isCancelled() ? 0 : collisionCount;
             }
             if (collisionCount > 0 || ship.CHANGE_WORLD) {
                 if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("MOVEMENT COLLISION COUNT: "+collisionCount);
@@ -960,14 +973,11 @@ public class ShipPhysics {
                 updLoc.setWorld(offsetf.getWorld());
                 updLoc = updLoc.add(offsetf);
                 updLoc = updLoc.toBlockLocation();
-                var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelAt(stloc);
-                if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, updLoc, ship.facing);
-                }
                 st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
                 ship.FLUIDS.set(updLoc,st.occupiedBlock);
                 
                 st.teleport(updLoc,false);
+                NmsUtils.setBlockFast(updLoc,st.state);
                 st.setLocation(updLoc);
                 TEMPS[indx] = st;
             }
@@ -1000,6 +1010,10 @@ public class ShipPhysics {
                 }
                 //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
             }
+            var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(ship.id);
+            if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
+                SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), ship.facing);
+            }
             ship.sendSolids();
             ship.calculateBoundingBox();
             ship.updateRedstone();
@@ -1012,7 +1026,7 @@ public class ShipPhysics {
                 processFluidRestore();
                 moving = false;
                 ship.setProcessing(false);
-            },(long)(MOVEMENT_COOLDOWN));
+            },(long)(MOVEMENT_COOLDOWN+5));
             return;
         }
     }
@@ -1057,6 +1071,7 @@ public class ShipPhysics {
                 if (DESTRUCTIBLE.contains(block.getType()) && !MobileBlockState.doesShipHave(ship,updLoc) && !FRAGILE_MATERIALS.contains(block.getType())) {
                     if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("COLLIDED & BROKE?: "+block.getType()+" LOCATION?: "+updLoc.toVector().toString());
                     block.breakNaturally(true);
+                    continue;
                 }
                 if (MobileBlockState.doesShipHave(ship,updLoc)) {
                     continue;
@@ -1280,6 +1295,7 @@ public class ShipPhysics {
             }
             ship.FLUIDS.set(updLoc,st.occupiedBlock);
             st.teleport(updLoc,false);
+            NmsUtils.setBlockFast(updLoc,TURNED);
             st.setLocation(updLoc);
             TEMPS[indx] = st;
             //ship.BLOCK_STATES.add(st);
@@ -1412,7 +1428,7 @@ public class ShipPhysics {
             st.setBlockData(NmsUtils.toBukkitBlockDataFast(stloc),true);
             st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
             st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
-            NmsUtils.setBlockFast(stloc,st.occupiedBlock);
+            NmsUtils.setBlockFast(stloc,VOID);
         }
         ship.sendVoids(Arrays.asList(TEMPS));
         if (SmoothSailingPlugin.CANNONS_FOUND) {
@@ -1438,11 +1454,12 @@ public class ShipPhysics {
                 System.out.println("  SEGMENT-NEW BLOCK DATA: "+NmsUtils.BlockDataGetter.get(NmsUtils.getBlockState(TURNED)).getAsString(false));
             }
             st.teleport(updLoc,false);
+            NmsUtils.setBlockFast(updLoc,TURNED);
             ship.FLUIDS.set(updLoc,st.occupiedBlock);
             st.setLocation(updLoc);
             TEMPS[indx] = st;
         }
-        ship.BLOCK_STATES.addAll(TEMPS);
+        ship.BLOCK_STATES.setAll(TEMPS);
         ship.sendSolids();
         ship.calculateBoundingBox();
         ship.updateRedstone(Arrays.asList(TEMPS));

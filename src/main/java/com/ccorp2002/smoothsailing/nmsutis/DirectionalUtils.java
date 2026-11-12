@@ -1,6 +1,7 @@
 package com.ccorp2002.smoothsailing.nmsutils;
 
 import java.util.EnumMap;
+import java.util.Set;
 
 import org.bukkit.Location;
 import org.bukkit.block.Block;
@@ -11,6 +12,9 @@ import org.bukkit.util.Vector;
 
 
 public class DirectionalUtils {
+
+
+    public static final Set<org.bukkit.block.BlockFace> HORIZONTAL_FACES = Set.of(org.bukkit.block.BlockFace.NORTH,org.bukkit.block.BlockFace.SOUTH,org.bukkit.block.BlockFace.EAST,org.bukkit.block.BlockFace.WEST);
 
 
 	// TAKEN FROM CRAFTBUKKIT TRIGMATH (Sorry!!!) 
