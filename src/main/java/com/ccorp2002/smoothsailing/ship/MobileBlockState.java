@@ -62,15 +62,21 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
             return internalMap.values().iterator();
         }
 
+        public MobileBlockState get(Long k) {
+            if (k == null) return null;
+            else return this.internalMap.getOrDefault(k,null);
+        }
+
         @Override
         public boolean add(MobileBlockState e) {
             if (e == null) return false;
             else {
                 if (size()+5>=initialMaxSize) internalMap.ensureCapacity(size()+500);
                 MobileBlockState COLLIDED = internalMap.putIfAbsent((long)pack(e),e);
-                return true;
+                return COLLIDED == null;
             }
         }
+
         @Override
         public boolean addAll(Collection<? extends MobileBlockState> c) {
             return addAll(c.toArray(MobileBlockState[]::new));
@@ -587,7 +593,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
 
     public void setBlockData(BlockData data, boolean updateShip) {
         if (data == null) return;
-        if (!ShipPhysics.isDataMedium(data) || updateShip) {
+        if (!(ShipPhysics.isDataMedium(data) && !data.getMaterial().isAir()) || updateShip) {
             this.state = ((CraftBlockData) data).getState();
         }
         if (updateShip) {

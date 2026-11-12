@@ -157,6 +157,8 @@ public class ShipInstance {
     public boolean isLandcraft = false;
 
     public double fuelCost = 0;
+    
+    public ShipInstance parentShip = null;
 
     public void setFuelCost(double fuelCost) {
         this.fuelCost = fuelCost;
@@ -166,7 +168,6 @@ public class ShipInstance {
         float ROUNDED = (float)ShipPhysics.ROUND_VALUE((this.fuelCost),2);
         return (int)ShipPhysics.CLAMP_VALUE(ROUNDED,0f,ROUNDED);
     }
-
 
     public int maxGear = 1;
     public int currentGear = 1;
@@ -657,7 +658,6 @@ public class ShipInstance {
         }
         displayGears();
         if (dryFire) {
-            destroy();
             return;
         }
         if (vehicle instanceof LivingEntity le) {
@@ -697,6 +697,7 @@ public class ShipInstance {
         this.BLOCK_STATES.addAll(INTERIOR_BLOCKS);
         INTERIOR_BLOCKS.clear();
         ShipRegistry.register(this);
+        if (ShipInstance.this.parentShip != null) ShipInstance.this.setProcessing(false);
         Runnable RUN_ME = new Runnable() {
             @Override
             public void run() {
@@ -947,6 +948,7 @@ public class ShipInstance {
 
 	public void setProcessing(boolean processing) {
 		this.processing.set(processing);
+        if (this.physics != null) this.physics.moving = processing;
 	}
 
     public void teleport(final Location dest) {
@@ -1159,6 +1161,7 @@ public class ShipInstance {
         Location currentVehicleLoc = vehicle.getLocation();
         float yaw = vehicle.getYaw();
         float pitch = vehicle.getPitch();
+        if (this.parentShip != null) return;
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(currentVehicleLoc).runTask(physics::update);    // Apply physics (movement, rotation, buoyancy)
     }
 
@@ -1566,7 +1569,13 @@ public class ShipInstance {
     public void spawnSinkDestructionExplosions(World world, Collection<Location> locations) {
         for (Location loc : locations) {
             loc.setWorld(world);
-            world.createExplosion(loc, 2.125f, true, true);
+            ShipInstance.addEntity(loc.toCenterLocation(), org.bukkit.entity.TNTPrimed.class, s -> {
+                if (s instanceof org.bukkit.entity.TNTPrimed tnt) {
+                    tnt.setFuseTicks(5);
+                    tnt.setYield(2.75f);
+                    tnt.setIsIncendiary(true);
+                }
+            });
         }
     }
 
@@ -1577,32 +1586,15 @@ public class ShipInstance {
     public void spawnDestructionExplosions(World world, Collection<Location> locations) {
         for (Location loc : locations) {
             loc.setWorld(world);
-            world.createExplosion(loc, 1.5f, false, false);
+            ShipInstance.addEntity(loc.toCenterLocation(), org.bukkit.entity.TNTPrimed.class, s -> {
+                if (s instanceof org.bukkit.entity.TNTPrimed tnt) {
+                    tnt.setFuseTicks(5);
+                    tnt.setYield(1.125f);
+                    tnt.setIsIncendiary(true);
+                }
+            });
         }
     }
-
-    /**
-     * Suspends ship for chunk unload - cancels tasks but keeps entities.
-     * Entity references become stale but will be recovered on chunk load.
-     */
-    public void suspendForChunkUnload() {}
-
-    /**
-     * Returns true if this ship needs its entities respawned.
-     * This happens after chunk unload removes non-root entities.
-     * @deprecated Use needsEntityRecovery() instead
-     */
-    @Deprecated
-    public boolean needsEntityRespawn() {
-        return parent == null || !parent.isValid();
-    }
-
-    /**
-     * Removes all ship entities except the root vehicle ArmorStand.
-     * Called on chunk unload to prevent stale entities from persisting.
-     * The ship will respawn these entities when the chunk loads again.
-     */
-    public void removeNonRootEntities() {}
 
     public void destroy() {
         SmoothSailingPlugin.getInstance().getLogger().info("Unpiloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.BLOCK_STATES.size());

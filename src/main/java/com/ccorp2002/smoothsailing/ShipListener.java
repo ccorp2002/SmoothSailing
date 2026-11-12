@@ -561,7 +561,7 @@ public class ShipListener implements Listener {
         }
     }
 
-    @EventHandler(priority = org.bukkit.event.EventPriority.HIGH, ignoreCancelled = false)
+    @EventHandler(priority = org.bukkit.event.EventPriority.NORMAL, ignoreCancelled = false)
     public void onEntityBlast(org.bukkit.event.entity.EntityExplodeEvent e) {
         Set<Block> blockSet = Set.<Block>copyOf(e.blockList());
         Entity ent = e.getEntity();
@@ -573,41 +573,58 @@ public class ShipListener implements Listener {
         }
         Location CENTER = ent.getLocation();
         boolean wasInFluid = false;
+        ShipInstance parentShip = MobileBlockState.getShipFromLoc(ent.getOrigin());
         if (ShipPhysics.getMedium("water").isDataMedium(CENTER.getBlock().getBlockData())) {
             wasInFluid = true;
         } else if (ShipPhysics.getMedium("lava").isDataMedium(CENTER.getBlock().getBlockData())) {
             wasInFluid = true;
         }
         for (Block block : blockSet) {
-            final MobileBlockState state = MobileBlockState.getStateFromLoc(block.getLocation());
-            if (state == null) continue;
-            final ShipInstance ship = state.getShip();
-            if (ship != null) {
-                if (state.isDead()) continue;
-                int DISTANCE = (int)Math.round(block.getLocation().distance(ent.getLocation()));
-                long projDamage = (long)(Math.abs(BLAST_YIELD+2 - (DISTANCE-1l)));
-                if (!wasInFluid) state.damage(projDamage);
+            final MobileBlockState stateOther = MobileBlockState.getStateFromLoc(block.getLocation());
+            if (stateOther == null) continue;
+            final ShipInstance shipOther = stateOther.getShip();
+
+            if (shipOther != null) {
+                if (shipOther.equals(parentShip)) {
+                    e.blockList().remove(block);
+                    continue;
+                }
+                if (stateOther.isDead()) continue;
+                int DISTANCE = (int)Math.round(block.getLocation().distance(CENTER));
+                long projDamage = (long)(Math.abs((BLAST_YIELD/2)+2 - (DISTANCE-1l)));
+                if (!wasInFluid) stateOther.damage(projDamage);
+                if (!stateOther.isDead()) NmsUtils.setBlockFast(block.getLocation(),stateOther.state);
+                else NmsUtils.setBlockFast(block.getLocation(),ShipPhysics.VOID);
                 e.blockList().remove(block);
-                if (!state.isDead()) NmsUtils.setBlockFast(block.getLocation(),state.state);
-                state.updateBlockState();
+                stateOther.updateBlockState();
             }
         }
     }
 
-    @EventHandler(priority = org.bukkit.event.EventPriority.HIGH, ignoreCancelled = false)
+    @EventHandler(priority = org.bukkit.event.EventPriority.NORMAL, ignoreCancelled = false)
     public void onBlockBlast(org.bukkit.event.block.BlockExplodeEvent e) {
         Set<Block> blockSet = Set.<Block>copyOf(e.blockList());
+        float BLAST_YIELD = e.getYield();
+        Location CENTER = e.getBlock().getLocation();
+        ShipInstance parentShip = MobileBlockState.getShipFromLoc(CENTER);
         for (Block block : blockSet) {
-            final MobileBlockState state = MobileBlockState.getStateFromLoc(block.getLocation());
-            if (state == null) continue;
-            final ShipInstance ship = state.getShip();
-            if (ship != null) {
-                if (state.isDead()) continue;
-                if (ShipInstance.RANDOM.nextDouble() < 0.625) state.damage(3l);
-                else state.damage(1l);
+            final MobileBlockState stateOther = MobileBlockState.getStateFromLoc(block.getLocation());
+            if (stateOther == null) continue;
+            final ShipInstance shipOther = stateOther.getShip();
+
+            if (shipOther != null) {
+                if (shipOther.equals(parentShip)) {
+                    e.blockList().remove(block);
+                    continue;
+                }
+                if (stateOther.isDead()) continue;
+                int DISTANCE = (int)Math.round(block.getLocation().distance(CENTER));
+                long projDamage = (long)(Math.abs((BLAST_YIELD/2)+2 - (DISTANCE-1l)));
+                stateOther.damage(projDamage);
+                if (!stateOther.isDead()) NmsUtils.setBlockFast(block.getLocation(),stateOther.state);
+                else NmsUtils.setBlockFast(block.getLocation(),ShipPhysics.VOID);
                 e.blockList().remove(block);
-                if (!state.isDead()) NmsUtils.setBlockFast(block.getLocation(),state.state);
-                state.updateBlockState();
+                stateOther.updateBlockState();
             }
         }
     }
@@ -770,20 +787,17 @@ public class ShipListener implements Listener {
                 else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {LEFT_RIGHT = "RIGHT"; yawDeg = 90.0d;}
                 else return;
                 ShipInstance ship = MobileBlockState.getShipFromLoc(CENTER);
-                if (player.isSneaking()) return;
+                if (player.isSneaking() || ship == null) return;
                 event.setCancelled(true);
-                if (ship != null && ship.isNotProcessing()) {
-                    ship.physics.moving = true;
-                    ship.setProcessing(true);
-                }
+                if (ship.physics.moving || !ship.isNotProcessing()) return;
                 if (ship.driver != null && ship.driver instanceof Player driver) {
                     Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(driver,CENTER);
                     FOUND_BLOCKS.add(block);
-                    ship.physics.rotateSegment2d(CENTER,LEFT_RIGHT,FOUND_BLOCKS);
+                    ShipPhysics.rotateSubship2d(ship,CENTER,LEFT_RIGHT,FOUND_BLOCKS);
                 } else {
                     Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(player,CENTER);
                     FOUND_BLOCKS.add(block);
-                    ship.physics.rotateSegment2d(CENTER,LEFT_RIGHT,FOUND_BLOCKS);
+                    ShipPhysics.rotateSubship2d(ship,CENTER,LEFT_RIGHT,FOUND_BLOCKS);
                 }
             }
         }

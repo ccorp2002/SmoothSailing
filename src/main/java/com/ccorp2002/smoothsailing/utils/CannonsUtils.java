@@ -31,6 +31,7 @@ import at.pavlov.cannons.API.CannonsAPI;
 import at.pavlov.cannons.Enum.BreakCause;
 import at.pavlov.cannons.cannon.CannonDesign;
 import at.pavlov.cannons.cannon.CannonManager;
+import at.pavlov.cannons.cannon.data.CannonPosition;
 
 
 import java.util.*;
@@ -38,7 +39,8 @@ import java.util.*;
 public class CannonsUtils implements Listener {
     private final Cannons PLUGIN;
     private final CannonsAPI API;
-    public static CannonsUtils INTERFACE;
+    private final static Vector NO_VELOCITY = new Vector(0,0,0);
+    public static CannonsUtils INTERFACE = null;
 
     public CannonsUtils() {
         SmoothSailingPlugin.INSTANCE.getLogger().info("==================================================");
@@ -58,16 +60,22 @@ public class CannonsUtils implements Listener {
         ShipInstance ship = e.getShip();
         moveCannons(ship,e.getLocation().toBlockLocation().toVector());
     }
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void sinkListener(ShipSinkEvent e) {
+        ShipInstance ship = e.getShip();
+        sinkCannons(ship);
+    }
 
     public static void sinkCannons(ShipInstance ship) {
+        if (INTERFACE == null) return;
         if (ship == null) return;
         Set<Cannon> cannons = getCannons(ship);
         if (cannons.isEmpty()) return;
         cannons.forEach(cannon -> CannonManager.getInstance().removeCannon(cannon.getUID(), false, true, BreakCause.Explosion));
     }
 
-
     public static void moveCannons(ShipInstance ship, Vector MOVEMENT) {
+        if (INTERFACE == null) return;
         if (ship == null) return;
         if (MOVEMENT == null) return;
         Set<Cannon> cannons = getCannons(ship);
@@ -77,7 +85,20 @@ public class CannonsUtils implements Listener {
         }
     }
 
+
+    public static void teleportCannon(Location from, Location to) {
+        if (INTERFACE == null) return;
+        if (from == null) return;
+        else if (to == null) return;
+        Cannon c = getCannon(from);
+        if (c == null) return;
+        CannonPosition oldPos = c.getCannonPosition();
+        CannonPosition newPos = new CannonPosition(oldPos.getCannonDirection(), to.toVector(), to.getWorld().getUID(), false, NO_VELOCITY.clone());
+        c.setCannonPosition(newPos);
+    }
+
     public static void rotateCannons(ShipInstance ship, StructureRotation ROTATION) {
+        if (INTERFACE == null) return;
         if (ship == null) return;
         if (ROTATION == null) return;
         Vector v = ship.vehicle.getLocation().toBlockLocation().toVector();
@@ -91,8 +112,18 @@ public class CannonsUtils implements Listener {
         }
     }
 
+    public static boolean hasCannon(Location position) {
+        if (INTERFACE == null) return false;
+        return getCannon(position) != null;
+    }
+
+    public static Cannon getCannon(Location position) {
+        if (INTERFACE == null) return null;
+        return INTERFACE.API.getCannon(position, null);
+    }
+
     public static Set<Cannon> getCannons(ShipInstance ship) {
-        if (ship == null) return new HashSet<Cannon>(0);
+        if (INTERFACE == null || ship == null) return new HashSet<Cannon>(0);
         List<Location> shipLocations = new ArrayList<>(ship.BLOCK_STATES.size());
         for (MobileBlockState loc : ship.BLOCK_STATES) {
             shipLocations.add(loc.getLocation());
@@ -101,7 +132,7 @@ public class CannonsUtils implements Listener {
     }
 
     public static Set<Cannon> getCannons(Collection<MobileBlockState> STATES) {
-        if (STATES == null || STATES.isEmpty()) return new HashSet<Cannon>(0);
+        if (INTERFACE == null || STATES == null || STATES.isEmpty()) return new HashSet<Cannon>(0);
         List<Location> shipLocations = new ArrayList<>(STATES.size());
         for (MobileBlockState loc : STATES) {
             shipLocations.add(loc.getLocation());
@@ -110,6 +141,7 @@ public class CannonsUtils implements Listener {
     }
 
     public static void rotateCannons(Location center, StructureRotation ROTATION, Collection<MobileBlockState> STATES) {
+        if (INTERFACE == null) return;
         if (center == null) return;
         if (center.getWorld() == null) return;
         if (ROTATION == null) return;

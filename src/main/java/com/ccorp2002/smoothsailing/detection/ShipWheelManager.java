@@ -225,7 +225,93 @@ public class ShipWheelManager {
 
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
             ship.destroy();
-        }, 60L);
+        },270L);
+        return ship;
+    }
+
+    public ShipInstance assembleFromBlocks(Player pilot, Location CENTER_POINT, Collection<Block> BLOCKS) {
+        Location wheelLoc = CENTER_POINT.toCenterLocation();
+        BlockFace facing = DirectionalUtils.getBlockDataFace(NmsUtils.toBukkitBlockDataFast(CENTER_POINT));
+        if (facing == BlockFace.SELF) facing = DirectionalUtils.yawToBlockFace(CENTER_POINT.getYaw());
+        List<Location> POSITS = new ArrayList<>(BLOCKS.size());
+        BLOCKS.forEach(b ->{ 
+            POSITS.add(b.getLocation());
+        });
+        // Scan the structure
+        ShipModel model = new ShipModel(
+            POSITS,
+            0f,
+            1,
+            CENTER_POINT.getBlockY() - 2,
+            CENTER_POINT.getBlockY() + 2
+        );
+        if (model == null || model.blocks.isEmpty()) {;
+            return null;
+        }
+
+        // Set spawn location yaw to match wheel facing direction
+        // This ensures the vehicle spawns facing the correct direction
+        float assemblyYaw = BlockStructureScanner.blockFaceToYaw(facing);
+        wheelLoc.setYaw(assemblyYaw);
+        org.bukkit.entity.Entity vehicle = null;
+        if (vehicle == null) {
+
+            vehicle = ShipInstance.addEntity(wheelLoc, org.bukkit.entity.Slime.class, s -> {
+                s.setAI(false);
+                s.setSilent(true);
+                if (s instanceof Mob m) m.setAware(false);
+                s.setGravity(false);
+                s.setInvisible(true);
+                s.setPersistent(true);
+                s.setCollidable(false);
+                s.setInvulnerable(true);
+                s.setCustomNameVisible(true);
+                s.setCustomName("[Command Seat]");
+                PDCUtils.setPDC(s,"destroyable","false");
+                //s.setPeek(0);  // Prevent shulker from peeking/moving up
+                if (s instanceof ArmorStand as) {
+                    as.setInvulnerable(true);
+                    as.setMarker(true);
+                    as.setSmall(true);
+                }
+                PDCUtils.setPDC(s,"is_seat","true");
+                // Apply scale attribute to change collision box size
+                if (s instanceof LivingEntity le) {
+                    le.setRemoveWhenFarAway(false);
+                    org.bukkit.attribute.AttributeInstance scaleAttr = le.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                    if (scaleAttr != null) scaleAttr.setBaseValue(1);
+                }
+                if (s instanceof org.bukkit.entity.Slime slime) {
+                    var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                    if (scaleAttr != null) scaleAttr.setBaseValue(1);
+                    slime.setNoPhysics(true);
+                    slime.setWander(false);
+                    slime.setGlowing(true);  // Glow if debug mode enabled
+                    slime.setSize(1);
+                }
+                if (s instanceof org.bukkit.entity.MagmaCube slime) {
+                    var scaleAttr = slime.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                    if (scaleAttr != null) scaleAttr.setBaseValue(1);
+                    slime.setNoPhysics(true);
+                    slime.setWander(false);
+                    slime.setGlowing(true);  // Glow if debug mode enabled
+                    slime.setSize(1);
+                }
+                if (s instanceof org.bukkit.entity.HappyGhast happy) {
+                    var scaleAttr = happy.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+                    if (scaleAttr != null) scaleAttr.setBaseValue(0.25);
+                    happy.setNoPhysics(true);
+                }
+                ShipListener.addTag(s,ShipListener.seatTag(0));
+                s.setVisibleByDefault(true);
+                s.setInvisible(true);
+            });
+        }
+        ShipInstance ship = new ShipInstance(plugin, vehicle, model, vehicle.getUniqueId(), false);
+
+        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
+            ship.destroy();
+        },30*120L);
         return ship;
     }
 
