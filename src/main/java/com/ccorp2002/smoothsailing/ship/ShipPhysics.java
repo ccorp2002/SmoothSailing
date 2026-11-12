@@ -872,6 +872,10 @@ public class ShipPhysics {
         },(long)(MOVEMENT_COOLDOWN)+120L);
     }
 
+    public void rotate(final Player pilotF, Boolean leftRight) {
+        this.rotate(pilotF,ship.ENTITY_COMPOSITION,leftRight);
+    }
+
     public void rotate(Boolean leftRight) {
         this.rotate(null,ship.ENTITY_COMPOSITION,leftRight);
     }

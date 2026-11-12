@@ -38,7 +38,7 @@ public final class InventoryUtil {
 
     private InventoryUtil() {}
     public static final Map<String,FuelType> FUEL_TYPES = new HashMap<>();
-    public static final String COAL_POWER_KEY = "__coal__"; // default fuel type
+    public static final String COAL_POWER_KEY = "char_and_coal"; // default fuel type
     public static final String FUEL_KEY = "__fuel__";
     static {
         FuelType COAL_POWER = new FuelType();

@@ -45,6 +45,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
     public static boolean NMS_TELEPORT = false;
     public static SmoothSailingPlugin INSTANCE = null;
     public List<IClaimInterface> CLAIM_INTEFACES;
+    public SignFunctions signFunctions;
     public ShipListener shipListener;
     public ShipSteeringListener steeringListener = null;
     public ShipWheelManager shipWheelManager;
@@ -112,11 +113,10 @@ public class SmoothSailingPlugin extends JavaPlugin {
             } 
         } else {
             if (PROTOCOL) steeringListener = new ShipSteeringListener(INSTANCE);
-            // Initialize steering listener (ProtocolLib WASD detection)
+            // Initialize steering listener (ProtocolLib WASD detection for older MC versions)
         }
-
-        // Initialize and register ShipListener
         shipListener = new ShipListener(INSTANCE);
+        signFunctions = new SignFunctions();
         Bukkit.getPluginManager().registerEvents(shipListener, INSTANCE);
         try {
             CANNONS_FOUND = Bukkit.getPluginManager().getPlugin("Cannons") != null;
@@ -125,6 +125,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
 
         getLogger().info("SmoothSailing enabled.");
         registerFuelTypes();
+        loadSignHeaders();
         // First destroy all registered ships (cleans up properly)
         int shipCount = ShipRegistry.getAllShips().size();
         ShipRegistry.destroyAll();
@@ -149,8 +150,30 @@ public class SmoothSailingPlugin extends JavaPlugin {
         }
         getLogger().info("Cleared " + removedCount + " force-loaded chunks");
     }
-    public void registerFuelTypes() {
 
+    public void loadSignHeaders() {
+        if (signFunctions == null) {
+            getLogger().warning("Failed to load Default SignHeaders...");
+            return;
+        }
+        ConfigurationSection signs = getConfig().getConfigurationSection("signs");
+        String helmKey = "signs.helm";
+        String turretKey = "signs.turret";
+        String thrustKey = "signs.thrust";
+        if (signs == null) {
+            getLogger().warning("Saving Default SignHeaders...");
+            getConfig().set(helmKey, "[helm]");
+            getConfig().set(turretKey, "[turret]");
+            getConfig().set(thrustKey, "[thrust]");
+            this.saveConfig();
+        }
+        signFunctions.HELM_HEADER = ChatColor.stripColor(getConfig().getString(helmKey,"")).trim();
+        signFunctions.TURRET_HEADER = ChatColor.stripColor(getConfig().getString(turretKey,"")).trim();
+        signFunctions.THRUST_HEADER = ChatColor.stripColor(getConfig().getString(thrustKey,"")).trim();
+        getLogger().info("Loaded SignHeaders.");
+    }
+
+    public void registerFuelTypes() {
         int counter = 0;
         ConfigurationSection fuel = getConfig().getConfigurationSection("fuel-types");
         if (fuel == null) {
@@ -159,12 +182,10 @@ public class SmoothSailingPlugin extends JavaPlugin {
                 getLogger().warning("Failed to load Default FuelTypes...");
                 return;
             } else {
-                getLogger().warning("Loading Default FuelTypes...");
+                getLogger().warning("Saving Default FuelTypes...");
                 String defualtKey = "fuel-types."+COAL_POWER.id;
                 getConfig().set(defualtKey, COAL_POWER.serialize());
                 this.saveConfig();
-                counter++;
-                return;
             }
         }
         for (final String key : fuel.getKeys(false)) {
@@ -214,6 +235,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
         }
         steeringListener = null;
         shipWheelManager = null;
+        signFunctions = null;
         shipListener = null;
         getLogger().info("SmoothSailing disabled.");
         com.ccorp2002.smoothsailing.nmsutils.NmsUtils.SENT_BLOCKS.clear();

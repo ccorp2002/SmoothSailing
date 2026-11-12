@@ -777,29 +777,6 @@ public class ShipListener implements Listener {
                 }
                 event.setCancelled(true);
             }
-        } else if (block.getState(false) instanceof org.bukkit.block.Sign signState) {
-            if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
-            if (signState.getLine(0).equalsIgnoreCase("[turret]")) {
-                Location CENTER = block.getLocation().toBlockLocation();
-                String LEFT_RIGHT = "NONE";
-                double yawDeg = 0.0d;
-                if (event.getAction() == Action.LEFT_CLICK_BLOCK) {LEFT_RIGHT = "LEFT"; yawDeg = -90.0d;}
-                else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {LEFT_RIGHT = "RIGHT"; yawDeg = 90.0d;}
-                else return;
-                ShipInstance ship = MobileBlockState.getShipFromLoc(CENTER);
-                if (player.isSneaking() || ship == null) return;
-                event.setCancelled(true);
-                if (ship.physics.moving || !ship.isNotProcessing()) return;
-                if (ship.driver != null && ship.driver instanceof Player driver) {
-                    Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(driver,CENTER);
-                    FOUND_BLOCKS.add(block);
-                    ShipPhysics.rotateSubship2d(ship,CENTER,LEFT_RIGHT,FOUND_BLOCKS);
-                } else {
-                    Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(player,CENTER);
-                    FOUND_BLOCKS.add(block);
-                    ShipPhysics.rotateSubship2d(ship,CENTER,LEFT_RIGHT,FOUND_BLOCKS);
-                }
-            }
         }
     }
     /**

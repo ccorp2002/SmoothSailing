@@ -16,7 +16,10 @@ buoyancy:
   # Reference density of water (ships lighter than this become sailing ships, and ships heavier may become submarines, where the water-level becomes their max height)
   water-density: 10.0
 # See `blocks.yml` to further understand block configurations, and how they impact a ships function.
-
+signs:
+  helm: "[helm]"
+  turret: "[turret]"
+  thrust: "[thrust]"
 
 # Compatibility Options
 towny:
@@ -37,10 +40,10 @@ worldguard:
 debug:
   enabled: false
 fuel-types:
-  __coal__: # 1 Coal and 1 Charcoal serialized into a base64 String.
+  char_and_coal: # 1 Coal and 1 Charcoal serialized into a list of Base64 Strings.
     item:
     - H4sIAAAAAAAA/+NiYGBm4HZJLEkMSy0qzszPY2AQns/BwJSZwsCXm5mXmlyUmFZilZyfmMPMwJqcX5pXwsDAwMgAAFgAyJg3AAAA
     - H4sIAAAAAAAA/+NiYGBm4HZJLEkMSy0qzszPY2AQns/BwJSZwiCUm5mXmlyUmFZilZyRWJScn5jDzMCanF+aV8LAwMDIAACXaq+xOwAAAA==
-    id: __coal__
+    id: char_and_coal
     chance: 0.75
     rate: 1
