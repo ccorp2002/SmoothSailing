@@ -36,6 +36,8 @@ public class ShipWheelMenu {
         public final float surfaceOffset;
         public final float airDensity;
         public final float waterDensity;
+        public Integer currentGear;
+        public Integer maxGear;
 
         public ShipInfo(int blockCount, int totalWeight, float density, int maxHealth,
                         Integer currentHealth, float surfaceOffset, float airDensity, float waterDensity) {
@@ -199,14 +201,12 @@ public class ShipWheelMenu {
 
         int blockCount = wheelData.getLastDetectedBlockCount();
         int totalWeight = wheelData.getLastDetectedWeight();
-        float density = blockCount > 0 ? (float) totalWeight / blockCount : 0;
 
         // Get config values for float status thresholds
-        SmoothSailingPlugin plugin = (SmoothSailingPlugin) Bukkit.getPluginManager().getPlugin("SmoothSailing");
         Float airDensity = (float)ShipInstance.airDensity();
         Float waterDensity = (float)ShipInstance.waterDensity();
-        if (airDensity == null) airDensity = 0f;
-        if (waterDensity == null) waterDensity = 2.5f;
+        if (airDensity == null) airDensity = -2.5f;
+        if (waterDensity == null) waterDensity = 10f;
 
         // Use stored surface offset (calculated during detection)
         float surfaceOffset = wheelData.lastSurfaceOffset;
@@ -222,9 +222,30 @@ public class ShipWheelMenu {
             currentHealth = (int) wheelData.getLastMaxHealth();
             maxHealth = Math.max(1, currentHealth);
         }
+        Integer currentGear = 1;
+        Integer maxGear = 1;
+        if (wheelData.isAssembled()) {
+            ShipInstance ship = ShipRegistry.byId(wheelData.getAssembledShipUUID());
+            if (ship != null) {
+                currentHealth = (int)ship.getHealth();
+                maxHealth = (int)ship.getMaxHealth();
+                totalWeight = (int)ship.weightCalc;
+                var floating = ship.getDataTag("cemc:float_offset");
+                Integer floatOffset = 0;
+                if (floating != null && floating instanceof Double ddbl) floatOffset = (int)java.lang.Math.floor(ddbl);
+                surfaceOffset = (float)floatOffset;
+                currentGear = ship.getGear();
+                maxGear = ship.getMaxGear();
+            }
+        }
+        float density = blockCount > 0 ? (float) totalWeight / blockCount : 0;
 
-        return new ShipInfo(blockCount, totalWeight, density, maxHealth, currentHealth,
+        ShipInfo info = new ShipInfo(blockCount, totalWeight, density, maxHealth, currentHealth,
                             surfaceOffset, airDensity, waterDensity);
+
+        info.currentGear = currentGear;
+        info.maxGear = maxGear;
+        return info;
     }
 
     /**
@@ -244,6 +265,7 @@ public class ShipWheelMenu {
             if (info != null) {
                 lore.add(ChatColor.GRAY + "Blocks: " + ChatColor.WHITE + info.blockCount);
                 lore.add(ChatColor.GRAY + "Total Weight: " + ChatColor.WHITE + info.totalWeight);
+                lore.add(ChatColor.GRAY + "Gears: " + ChatColor.YELLOW + info.currentGear + ChatColor.GOLD + "/" + ChatColor.RED + info.maxGear);
 
                 if (info.currentHealth != null) {
                     lore.add(ChatColor.GRAY + "Health: " + ChatColor.RED + "❤ " + info.currentHealth + " / " + info.maxHealth);
@@ -259,7 +281,7 @@ public class ShipWheelMenu {
                     lore.add(ChatColor.BLUE + "Airship");
                 } else if (info.density < info.waterDensity) {
                     lore.add(ChatColor.GREEN + "Floats well");
-                } else if (info.density < info.waterDensity + 0.5f) {
+                } else if (info.density < info.waterDensity + 2.5f) {
                     lore.add(ChatColor.YELLOW + "Sits low in water");
                 } else {
                     lore.add(ChatColor.RED + "Sits very low");

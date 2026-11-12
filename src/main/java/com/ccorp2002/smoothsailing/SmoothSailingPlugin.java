@@ -16,6 +16,7 @@ import com.ccorp2002.smoothsailing.region.TaskUtils;
 import com.ccorp2002.smoothsailing.ship.MobileBlockState;
 import com.ccorp2002.smoothsailing.ship.ShipInstance;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.command.Command;

@@ -14,7 +14,7 @@ buoyancy:
   # Reference density of air (ships lighter than this become airships)
   air-density: -2.5
   # Reference density of water (ships lighter than this become sailing ships, and ships heavier may become submarines, where the water-level becomes their max height)
-  water-density: 10.0
+  water-density: 5.0
 # See `blocks.yml` to further understand block configurations, and how they impact a ships function.
 signs:
   helm: "[helm]"

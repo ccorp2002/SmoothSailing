@@ -69,8 +69,31 @@ public class SignFunctions implements Listener {
                 RUN_TURRET_AT(event);
             } else if ((!HELM_HEADER.isEmpty() && HELM_HEADER != null) && HEADER.equalsIgnoreCase(HELM_HEADER)) {
                 RUN_HELM_AT(event);
+            } else if ((!THRUST_HEADER.isEmpty() && THRUST_HEADER != null) && HEADER.equalsIgnoreCase(THRUST_HEADER)) {
+                CHANGE_GEAR_AT(event, signState);
             }
         }
+    }
+
+    public static void CHANGE_GEAR_AT(final PlayerInteractEvent event, org.bukkit.block.Sign signState) {
+        Block block = event.getClickedBlock();
+        final Player player = event.getPlayer();
+        ShipInstance ship = MobileBlockState.getShipFromLoc(block.getLocation());
+        if (ship == null) {
+            if (signState != null) signState.setLine(1,"");
+            return;
+        }
+        event.setCancelled(true);
+        int UP_DOWN = 0;
+        if (event.getAction() == Action.LEFT_CLICK_BLOCK || player.isSneaking()) UP_DOWN = -1;
+        else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) UP_DOWN = 1;
+        else return;
+        ship.cycleGears(UP_DOWN);
+        if (signState != null) {
+            String line = ChatColor.BLACK+"["+ChatColor.RESET+ ChatColor.BOLD + ChatColor.YELLOW + ship.getGear() + ChatColor.GOLD + "/" + ChatColor.RED + ship.getMaxGear() + ChatColor.RESET+ChatColor.BLACK+"]";
+            signState.setLine(1,line);
+        }
+
     }
 
     public static void RUN_HELM_AT(final PlayerInteractEvent event) {

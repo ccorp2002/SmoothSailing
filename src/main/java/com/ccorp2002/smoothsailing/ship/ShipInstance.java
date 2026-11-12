@@ -26,6 +26,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.lang.Math;
 import java.util.*;
 
 public class ShipInstance {
@@ -912,9 +913,12 @@ public class ShipInstance {
 
     public void updateWaterLogging(boolean init) {
         if (this.physics == null || this.CHANGE_WORLD) return;
-        var floating = ShipInstance.this.getDataTag("cemc:float_offset");
-        Integer floatOffset = 0;
-        if (floating != null && floating instanceof Double ddbl) floatOffset = (int)java.lang.Math.floor(ddbl);
+        float heightY = maxY() - minY();
+        Float floatOffset = -1f;
+        Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(this.getLocation(), this.BLOCK_STATES, this.model.totalWeight);
+        Number floatOff = DATA.getOrDefault("surface_offset",null);
+        if (floatOff == null) floatOffset = (float)(-Math.round(heightY/3.75f)) + (float)Math.round((heightY/3f));
+        else floatOffset = -1*(floatOff.floatValue());
         final int checkY = (int)(ShipInstance.this.physics.CURRENT_FLUID_LEVEL+floatOffset);
         final BlockData FLUID_BLOCK = (!isAirship) ? ShipPhysics.getPrimaryMediumBlockAtBelowY(physics.getExterior(0,0), checkY) : ShipPhysics.VOID;
         if (SmoothSailingPlugin.DEBUG) {
