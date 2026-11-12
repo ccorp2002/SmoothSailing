@@ -308,10 +308,6 @@ public class ShipWheelManager {
             });
         }
         ShipInstance ship = new ShipInstance(plugin, vehicle, model, vehicle.getUniqueId(), false);
-
-        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
-            ship.destroy();
-        },30*120L);
         return ship;
     }
 

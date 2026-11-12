@@ -112,7 +112,7 @@ public final class InventoryUtil {
             } else if (newType == null) {
                 newType = type;
             }
-            if (ShipInstance.RANDOM.nextDouble() > newType.burnChance || force) {
+            if (ShipInstance.RANDOM.nextDouble() < newType.burnChance || force) {
                 MobileBlockState STATE = MobileBlockState.getStateFromLoc(source.getLocation());
                 boolean burnt = !reduceItemStack(source,toBurn,(newType.burnRate+extra)).isEmpty();
                 if (STATE != null) {
