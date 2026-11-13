@@ -52,6 +52,7 @@ public class ShipPhysics {
 
     public static final EnumSet<Material> FRAGILE_MATERIALS = EnumSet.noneOf(Material.class);
     public static final Map<String,Medium> FLUID_MEDIUMS = new HashMap<>();
+    public static final Map<Material,Medium> MEDIUM_MATERIALS = new HashMap<>();
     public static final BlockData LAVA = Material.LAVA.createBlockData();
     public static final BlockData WATER = Material.WATER.createBlockData();
     public static final BlockData SOLID = Material.BARRIER.createBlockData();
@@ -117,28 +118,32 @@ public class ShipPhysics {
         LAVA_MEDIUM.baseDensity = 25d;
         LAVA_MEDIUM.id = "lava";
         LAVA_MEDIUM.dragMultiplier = 0.275d;
+        MEDIUM_MATERIALS.put(Material.LAVA,LAVA_MEDIUM);
+        MEDIUM_MATERIALS.put(Material.MAGMA_BLOCK,LAVA_MEDIUM);
         FLUID_MEDIUMS.put("lava",LAVA_MEDIUM);
         //WATER SHIPS
         Medium WATER_MEDIUM = new Medium();
         WATER_MEDIUM.BLOCKS.add(0,WATER);
-        for (Material FLUID_MAT : FLUID) {
-            BlockType WATER_TYPE = FLUID_MAT.asBlockType();
-            WATER_MEDIUM.BLOCKS.addAll(WATER_TYPE.createBlockDataStates());
-        }
         WATER_MEDIUM.baseDensity = SmoothSailingPlugin.getPlugin().getConfig().getDouble("buoyancy.water-density", 10d);
         WATER_MEDIUM.id = "water";
         WATER_MEDIUM.dragMultiplier = 0.325d;
+        for (Material FLUID_MAT : FLUID) {
+            BlockType WATER_TYPE = FLUID_MAT.asBlockType();
+            WATER_MEDIUM.BLOCKS.addAll(WATER_TYPE.createBlockDataStates());
+            MEDIUM_MATERIALS.put(FLUID_MAT,WATER_MEDIUM);
+        }
         FLUID_MEDIUMS.put("water",WATER_MEDIUM);
         //AIR SHIPS
         Medium VOID_MEDIUM = new Medium();
         VOID_MEDIUM.BLOCKS.add(0,VOID);
-        for (Material VOID_MAT : EnumSet.of(Material.END_GATEWAY, Material.NETHER_PORTAL, Material.AIR, Material.CAVE_AIR)) {
-            BlockType VOID_TYPE = VOID_MAT.asBlockType();
-            VOID_MEDIUM.BLOCKS.addAll(VOID_TYPE.createBlockDataStates());
-        }
         VOID_MEDIUM.baseDensity = SmoothSailingPlugin.getPlugin().getConfig().getDouble("buoyancy.air-density", -0.25d);
         VOID_MEDIUM.id = "void";
         VOID_MEDIUM.dragMultiplier = 0.575d;
+        for (Material VOID_MAT : EnumSet.of(Material.END_GATEWAY, Material.NETHER_PORTAL, Material.AIR, Material.CAVE_AIR)) {
+            BlockType VOID_TYPE = VOID_MAT.asBlockType();
+            VOID_MEDIUM.BLOCKS.addAll(VOID_TYPE.createBlockDataStates());
+            MEDIUM_MATERIALS.put(VOID_MAT,VOID_MEDIUM);
+        }
         FLUID_MEDIUMS.put("void",VOID_MEDIUM);
     }
 
@@ -148,12 +153,14 @@ public class ShipPhysics {
     }
 
     public static boolean isDataMedium(Block block) {
+        if (MEDIUM_MATERIALS.containsKey(block.getType())) return true;
         BlockData data = block.getBlockData();
         return isDataMedium(data);
     }
 
     public static boolean isDataMedium(BlockData data) {
         if (data == null) return true;
+        if (MEDIUM_MATERIALS.containsKey(data.getMaterial())) return true;
         for (Medium m : FLUID_MEDIUMS.values()) {
             if (Medium.isDataMedium(m, data)) return true;
         }
@@ -174,14 +181,17 @@ public class ShipPhysics {
     }
     public static Medium getMedium(BlockData data) {
         if (data == null) return null;
-        for (Medium m : FLUID_MEDIUMS.values()) {
-            if (Medium.isDataMedium(m, data)) return m;
-        }
+        Medium med = MEDIUM_MATERIALS.get(data.getMaterial());
+        if (med == null) {
+            for (Medium m : FLUID_MEDIUMS.values()) {
+                if (Medium.isDataMedium(m, data)) return m;
+            }
+        } else return med;
         return null;
     }
     public static BlockData getPrimaryMediumAtBelowY(final Collection<MobileBlockState> BLOCK_STATES, int y) {
         BLOCK_STATES.removeIf(s -> s.getBlockY() >= y);
-        Map.Entry<String, Integer> maxEntry = getPrimaryMedium(BLOCK_STATES);
+        Map.Entry<String, Integer> maxEntry = getPrimaryMedium(BLOCK_STATES, y);
         if (maxEntry == null) return VOID;
         Medium medium = getMedium(maxEntry.getKey());
         if (medium == null) return VOID;
@@ -197,12 +207,18 @@ public class ShipPhysics {
     }
 
     public static Map.Entry<String, Integer> getPrimaryMedium(Collection<MobileBlockState> BLOCK_STATES) {
+        return getPrimaryMedium(BLOCK_STATES,null);
+
+    }
+
+    public static Map.Entry<String, Integer> getPrimaryMedium(Collection<MobileBlockState> BLOCK_STATES, Integer y) {
         final Map<String,Integer> FLUID_COUNTER = new HashMap<>();
         for (MobileBlockState STATE : BLOCK_STATES) {
+            if (y != null && STATE.getBlockY() > y) continue;
             Medium m = getMedium(STATE);
             if (m == null) continue;
             Integer mi = FLUID_COUNTER.getOrDefault(m.id,0);
-            if (m.id.equalsIgnoreCase("void")) continue;
+            if (m.id.equalsIgnoreCase("void") && y == null) continue;
             mi += 1;
             FLUID_COUNTER.put(m.id,mi);
         }
@@ -218,7 +234,7 @@ public class ShipPhysics {
     }
     public static BlockData getPrimaryMediumBlockAtBelowY(Collection<Block> BLOCKS, int y) {
         BLOCKS.removeIf(s -> s.getY() > y);
-        Map.Entry<String, Integer> maxEntry = getPrimaryMediumBlock(BLOCKS);
+        Map.Entry<String, Integer> maxEntry = getPrimaryMediumBlock(BLOCKS, y);
         if (maxEntry == null) return VOID;
         Medium medium = getMedium(maxEntry.getKey());
         if (medium == null) return VOID;
@@ -234,12 +250,18 @@ public class ShipPhysics {
     }
 
     public static Map.Entry<String, Integer> getPrimaryMediumBlock(Collection<Block> BLOCKS) {
+        return getPrimaryMediumBlock(BLOCKS,null);
+
+    }
+
+    public static Map.Entry<String, Integer> getPrimaryMediumBlock(Collection<Block> BLOCKS, Integer y) {
         final Map<String,Integer> FLUID_COUNTER = new HashMap<>();
         for (Block STATE : BLOCKS) {
+            if (y != null && STATE.getY() > y) continue;
             Medium m = getMedium(STATE.getBlockData());
             if (m == null) continue;
             Integer mi = FLUID_COUNTER.getOrDefault(m.id,0);
-            if (m.id.equalsIgnoreCase("void")) continue;
+            if (m.id.equalsIgnoreCase("void") && y == null) continue;
             mi += 1;
             FLUID_COUNTER.put(m.id,mi);
         }
@@ -343,8 +365,8 @@ public class ShipPhysics {
     public volatile float currentYVelocity = 0.0f;
     public volatile float currentRotationVelocity = 0.0f;
     public volatile boolean moving = false;
-    public long MOVEMENT_COOLDOWN = 12l;
-    public int GLOBAL_WATER_SURFACE = -127;
+    public long MOVEMENT_COOLDOWN = 15l;
+    public int GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);;
     public int CURRENT_FLUID_LEVEL = GLOBAL_WATER_SURFACE;
     private int ROTATION_INCR = 1;
 
@@ -360,7 +382,7 @@ public class ShipPhysics {
 
     public ShipPhysics(ShipInstance ship) {
         this.ship = ship;
-        this.GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",63);
+        this.GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);
         this.CURRENT_FLUID_LEVEL = this.GLOBAL_WATER_SURFACE;
         this.PER_MAX_SPEED = MAX_SPEED;
     }
@@ -504,25 +526,11 @@ public class ShipPhysics {
             double fx = 0d;
             double fy = 0d;
             double fz = 0d;
-            //boolean toBurnFuel = InventoryUtil.canBurnFuelType(ship,null);
-            Object burnFuel = ship.getDataTag("has_fuel");
-            boolean toBurnFuel = false;
-            if (burnFuel instanceof Boolean bool && !bool) {
-                if (ship.isAirship) {
-                    if (ship.getGear() > 1) currentYVelocity += -0.75;
-                    else currentYVelocity += -0.25;
-                }
-                if (ship.doGearsRequireFuel()) ship.setGear(1);
-            } else toBurnFuel = true;
+            handleBuoyancy(ship.getLocation());
             if (hasHorizontalMovement) {
-                handleBuoyancy(ship.getLocation());
                 fx = (forwardX * (currentSpeed));
                 fz = (forwardZ * (currentSpeed));
                 if (ship.getGear() > 1) {
-                    if (toBurnFuel) {
-                        fx *= ship.getGear();
-                        fz *= ship.getGear();
-                    }
                     fx = (double)CLAMP_VALUE((float)fx, (float)-((PER_MAX_SPEED/1.25)+ship.getGear()+2), (float)((PER_MAX_SPEED/1.25)+ship.getGear()+2));
                     fz = (double)CLAMP_VALUE((float)fz, (float)-((PER_MAX_SPEED/1.25)+ship.getGear()+2), (float)((PER_MAX_SPEED/1.25)+ship.getGear()+2));
                 } else {
@@ -538,32 +546,9 @@ public class ShipPhysics {
             }
             if (ship.isSinking) {
                 fy = -2d;
-            } else if (!ship.isLandcraft && !ship.isAirship) {
-                double floatOffset = getTargetFloat();
-                boolean isInAir = (getMedium(ShipPhysics.getPrimaryMediumBlockAtBelowY(getExterior(0,0,(int)Math.abs(this.CURRENT_FLUID_LEVEL)), (int)floatOffset)).id.equalsIgnoreCase("void"));
-                if (fy < 0d) {
-                    if (ship.model.minY >= floatOffset) {
-                        fy = -1;
-                    } else if (ship.model.minY < floatOffset) {
-                        fy = 1;
-                    } else {
-                        if (isInAir) fy = -1;
-                        else fy = 0;
-                    }
-                } else if (fy > 0d) {
-                    if (ship.model.minY > floatOffset) {
-                        if (isInAir) fy = -1;
-                        else fy = 0;
-                    } else if (ship.model.minY < floatOffset) {
-                        fy = 1;
-                    } else {
-                        if (isInAir) fy = -1;
-                        else fy = 0;
-                    }
-                }
-            }
+            } 
             Location offset = new Location(ship.getWorld(),fx,fy,fz);
-            this.move(pilot,offset,FILTERED_ENTS,toBurnFuel);
+            this.move(pilot,offset,FILTERED_ENTS,true);
             return;
         }
     }
@@ -1370,7 +1355,10 @@ public class ShipPhysics {
         this.currentRotationVelocity = 0.0f;
         if (toBurnFuel) {
             int burnRate = (int)(ship.getFuelCost()+(getEngineGears()/getEnginePercent()));
-            InventoryUtil.doBurnFuelType(ship,null,false,burnRate);
+            toBurnFuel = InventoryUtil.doBurnFuelType(ship,null,false,burnRate);
+            ship.setDataTag("has_fuel",toBurnFuel);
+        } else {
+            ship.setDataTag("has_fuel",true);
         }
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.getLocation()).runTaskLater(()->{
             processFluidRestore();
@@ -1471,20 +1459,21 @@ public class ShipPhysics {
         World world = ship.getWorld();
         int fluidY = this.GLOBAL_WATER_SURFACE;
         if (world == null) return fluidY;
-        Set<Block> outsideBlocks = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
-        Set<Block> outerHull = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
-        Set<Block> innerShip = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Location> outsideBlocks = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Location> outerHull = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
+        Set<Location> innerShip = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(ship.BLOCK_STATES.size(),0.75f,MobileBlockState.HASH_STRAT);
         fluidY = Math.max(world.getMinHeight(), (int)(ship.model.minY - 2f));
-        if (m.id.equalsIgnoreCase("void")) return fluidY;
-        scanHull(outsideBlocks, outerHull, innerShip, 0, 0, 3);
-        for (Block b : outsideBlocks) {
+        //if (m.id.equalsIgnoreCase("void")) return fluidY;
+        scanHullLocations(outsideBlocks, outerHull, innerShip, 0, 0, 2);
+        for (Location b : outsideBlocks) {
             if (MobileBlockState.doesShipHave(ship,b)) continue;
-            else if (b.getType() == Material.WATER || b.getType() == Material.LAVA || FLUID.contains(b.getType())) {
-                fluidY = Math.max(b.getY(), fluidY);
-            } else if (m.isDataMedium(b.getBlockData())) {
-                fluidY = Math.max(b.getY(), fluidY);
+            else if (FLUID.contains(NmsUtils.toBukkitBlockFast(b))) {
+                fluidY = Math.max(b.getBlockY(), fluidY);
+            } else if (ShipPhysics.MEDIUM_MATERIALS.containsKey(NmsUtils.toBukkitBlockFast(b))) {
+                fluidY = Math.max(b.getBlockY(), fluidY);
             }
         }
+        if (SmoothSailingPlugin.DEBUG) System.out.println(m.id+"'s FLUID LEVEL: "+fluidY);
         return fluidY;
     }
 
@@ -2075,18 +2064,22 @@ public class ShipPhysics {
         float heightY = MAX_BY - MIN_BY;
         Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(ship.getLocation(), ship.BLOCK_STATES, ship.model.totalWeight);
         double waterSurfaceY = (double)this.CURRENT_FLUID_LEVEL;
-        Float floatOffset = -1f;
-        Number floatOff = DATA.getOrDefault("surface_offset",null);
+        Float floatOffset = 0f;
+        Number floatOff = DATA.getOrDefault("surface_offset",-1F);
         if (floatOff == null) floatOffset = (float)(-Math.round(heightY/3.75f)) + (float)Math.round((heightY/3f));
-        else floatOffset = -1*(floatOff.floatValue());
+        else floatOffset = -floatOff.floatValue();
         // Target Y position: water surface + float offset
         double targetY = waterSurfaceY + floatOffset;
         return targetY;
     }
 
     public void handleBuoyancy(Location vehicleLoc) {
+        handleBuoyancy(vehicleLoc,false);
+    }
+
+    public void handleBuoyancy(Location vehicleLoc, boolean check) {
         if (ship.parentShip != null) return;
-        if (ship.isAirship || ship.CHANGE_WORLD) return;
+        else if (ship.isAirship || ship.CHANGE_WORLD) return;
         int MIN_BY = ship.minY();
         if (MIN_BY < ship.getWorld().getMinHeight()) return;
         ship.model.minY = MIN_BY;
@@ -2099,15 +2092,16 @@ public class ShipPhysics {
         EXT.removeIf(b -> b.getY() > (heightY / 2.5)+MIN_BY);
         BlockData MEDIUM = getPrimaryMediumBlockData(EXT);
         Medium MEDIUM_TYPE = getMedium(MEDIUM);
-        int FLUID_LEVEL = this.getFluidLevel(MEDIUM);
+        int FLUID_LEVEL = this.getFluidLevel(MEDIUM_TYPE);
 
-        int airPockets = 0;
-        int airPocketY = MIN_BY + ((int)heightY + 1);
+        long airPockets = 0;
+        int airPocketY = MIN_BY + 2;
+        final int checkY = (int)(heightY / 3f)+2;
         for (Block block : EXT) {
             int checkDist = 0;
             boolean foundAir = false;
             Block checked = block.getRelative(BlockFace.DOWN);
-            for (checkDist = 0; checkDist < 10; checkDist++) {
+            for (checkDist = 0; checkDist < checkY; checkDist++) {
                 if (MobileBlockState.doesShipHave(ship,checked)) continue;
                 else if (!NmsUtils.withinWorldBorder(checked.getLocation())) {
                     foundAir = false;
@@ -2116,7 +2110,9 @@ public class ShipPhysics {
                     foundAir = false;
                     break;
                 } else if (checked.getType().isAir() && !foundAir) {
+                    airPockets++;
                     foundAir = true;
+                    checked = checked.getRelative(BlockFace.DOWN);
                 } else if (!foundAir) checked = checked.getRelative(BlockFace.DOWN);
             }
             if (foundAir) {
@@ -2128,10 +2124,10 @@ public class ShipPhysics {
         else this.CURRENT_FLUID_LEVEL = FLUID_LEVEL;
         Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(vehicleLoc, ship.BLOCK_STATES, ship.model.totalWeight);
         double waterSurfaceY = (double)this.CURRENT_FLUID_LEVEL;
-        Float floatOffset = -1f;
-        Number floatOff = DATA.getOrDefault("surface_offset",null);
+        Float floatOffset = 0f;
+        Number floatOff = DATA.getOrDefault("surface_offset",-1F);
         if (floatOff == null) floatOffset = (float)(-Math.round(heightY/3.75f)) + (float)Math.round((heightY/3f));
-        else floatOffset = -1*(floatOff.floatValue());
+        else floatOffset = -floatOff.floatValue();
         // Target Y position: water surface + float offset
         
         double currentY = (double)MIN_BY;
@@ -2141,17 +2137,17 @@ public class ShipPhysics {
             System.out.println("SHIP HEIGHT: "+heightY);
             System.out.println("AIR POCKET Y: "+airPocketY);
             System.out.println("AIR POCKET SIZE: "+airPockets);
-            System.out.println("WATER SURFACE Y: "+waterSurfaceY);
             System.out.println("EXPOSED EXTERIOR SIZE: "+EXT.size());
-
             System.out.println("WATER LEVEL DIFFERENCE: "+yDifference);
 
             System.out.println("FLOAT OFFSET: "+(double)floatOffset);
             System.out.println("TARGET FLOAT Y: "+targetY);
+            System.out.println("WATER SURFACE Y: "+waterSurfaceY);
             System.out.println("CURRENT MIN Y: "+currentY);
         }
-        if (yDifference >= 2d) {
-            if (MIN_BY > targetY) {
+        if (check) return;
+        if (yDifference >= 3d || MEDIUM_TYPE.id.equalsIgnoreCase("void")) {
+            if (MIN_BY > targetY || MEDIUM_TYPE.id.equalsIgnoreCase("void")) {
                 currentYVelocity = -1f; // Gravity
             } else if (MIN_BY <= currentY) {
                 if (!ship.isLandcraft) {
@@ -2179,7 +2175,7 @@ public class ShipPhysics {
             if (data != null && !data.getMaterial().isAir()) {
                 NmsUtils.setBlockFast(loc,data);
                 NmsUtils.renderBlockChanges(loc);
-                if (SmoothSailingPlugin.DEBUG) {
+                if (SmoothSailingPlugin.DEBUG_DUMP) {
                     System.out.println("LOCATION KEY: "+key);
                     System.out.println("ATTEMPTING TO RESTORE FLUID @ " + LocationLib.readLocationToString(loc) + " W/BLOCK DATA:" + data);
                 }

@@ -118,7 +118,6 @@ public final class InventoryUtil {
                 if (STATE != null) {
                     Location pos = STATE.getLocation();
                     ShipInstance.spawnFuelBurnEffects(pos);
-                    STATE.updateBlockState();
                 }
                 return burnt;
             } else {

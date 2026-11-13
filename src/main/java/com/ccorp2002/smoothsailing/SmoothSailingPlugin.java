@@ -35,6 +35,7 @@ import java.io.File;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Arrays;
 import java.util.List;
 
 public class SmoothSailingPlugin extends JavaPlugin {
@@ -147,8 +148,8 @@ public class SmoothSailingPlugin extends JavaPlugin {
 
         int removedCount = 0;
         for (World world : Bukkit.getWorlds()) {
-            removedCount+=world.getForceLoadedChunks().size();
-            NmsUtils.removeChunksToLoad(world,world.getForceLoadedChunks());
+            removedCount+=world.getLoadedChunks().length;
+            NmsUtils.removeChunksToLoad(world,Arrays.asList(world.getLoadedChunks()));
         }
         getLogger().info("Cleared " + removedCount + " force-loaded chunks");
     }
@@ -214,8 +215,8 @@ public class SmoothSailingPlugin extends JavaPlugin {
         int removedCount = 0;
 
         for (World world : Bukkit.getWorlds()) {
-            removedCount+=world.getForceLoadedChunks().size();
-            NmsUtils.removeChunksToLoad(world,world.getForceLoadedChunks());
+            removedCount+=world.getLoadedChunks().length;
+            NmsUtils.removeChunksToLoad(world,Arrays.asList(world.getLoadedChunks()));
         }
 
         getLogger().info("Cleared " + removedCount + " force-loaded chunks");
@@ -239,9 +240,8 @@ public class SmoothSailingPlugin extends JavaPlugin {
         shipWheelManager = null;
         signFunctions = null;
         shipListener = null;
-        getLogger().info("SmoothSailing disabled.");
         com.ccorp2002.smoothsailing.nmsutils.NmsUtils.SENT_BLOCKS.clear();
-        INSTANCE = null;
+        getLogger().info("SmoothSailing disabled.");
     }
 
     public static SmoothSailingPlugin getInstance() {

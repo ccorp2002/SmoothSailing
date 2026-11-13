@@ -66,12 +66,14 @@ public class Medium {
         return BLOCKS;
     }
     public boolean isDataMedium(BlockData data) {
-        if (data.matches(BLOCKS.getFirst())) return true; //quick check for common fluid types (index 0)
-        return BLOCKS.contains(data);
+        if (this.equals(ShipPhysics.MEDIUM_MATERIALS.get(data.getMaterial()))) return true;
+        else if (data.matches(BLOCKS.getFirst())) return true; //quick check for common fluid types (index 0)
+        else return BLOCKS.contains(data);
     }
     public static boolean isDataMedium(Medium m, BlockData data) {
         return m.isDataMedium(data);
     }
+
     @Override
     public boolean equals(Object obj) {
         if (obj == null) return false;

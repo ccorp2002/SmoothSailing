@@ -237,7 +237,7 @@ public class ShipListener implements Listener {
         if (ShipListener.isSeat(entity) && !player.isSneaking()) {
             entity.addPassenger(player);
             return;
-        } else if (player.isSneaking()) {
+        } else if (player.isSneaking() && ship != null) {
             ShipWheelManager manager = ((SmoothSailingPlugin) plugin).getShipWheelManager();
             ShipWheelData wheelData = manager.getWheelByShipUUID(ship.id);
             if (wheelData != null) {

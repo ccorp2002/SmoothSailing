@@ -97,7 +97,6 @@ public class ShipInstance {
     public List<Entity> HIDDEN_ENTITIES = new ArrayList<>();
     public org.bukkit.entity.Entity driver = null;// Seat shulkers in order (index 0 = driver)
     public com.ccorp2002.smoothsailing.region.scheduler.task.Task<?> task;
-    public BukkitRunnable idleCheckTask;
     public BlockFace facing = null;
     public org.bukkit.util.Vector forwards = new org.bukkit.util.Vector();
 
@@ -716,7 +715,7 @@ public class ShipInstance {
                 PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
                 DATA.clear();
                 if (ShipInstance.this.physics != null) {
-                    ShipInstance.this.physics.handleBuoyancy(ShipInstance.this.getLocation());
+                    ShipInstance.this.physics.handleBuoyancy(ShipInstance.this.getLocation(),true);
                     ShipInstance.this.physics.moving = false;
                     updateWaterLogging(true);
                 }
@@ -738,11 +737,10 @@ public class ShipInstance {
                         tick();
                     }
                 };
-                task = com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTaskTimer(RUN_ME_2, 1L, 1L);
+                task = com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTaskTimer(RUN_ME_2, 4L, 3L);
             }
         };
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTaskLater(RUN_ME, 7L);
-        startIdleCheckTask();
     }
     
     public void buildRotationMatrix() {}
@@ -907,7 +905,6 @@ public class ShipInstance {
             }
         });
     }
-
     public void updateWaterLogging() {
         updateWaterLogging(false);
     }
@@ -928,7 +925,7 @@ public class ShipInstance {
             System.out.println("PRIMARY FLUID BLOCK: "+FLUID_BLOCK.getAsString(false));
         }
         if (init) {
-            final int shipHeight = maxY() - minY();
+            //final int shipHeight = (int)heightY;
             this.BLOCK_STATES.forEach(st -> {
                 if (st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
                     st.occupiedBlock = FLUID_BLOCK;
@@ -939,7 +936,7 @@ public class ShipInstance {
                 ShipInstance.this.BLOCK_STATES.set(st);
             });
         }
-    }
+    };
 
     public boolean HIDE_ENTITES = true;
     public boolean VOID_BLOCKS = false;
@@ -1439,40 +1436,6 @@ public class ShipInstance {
             default: return 0.0f;
         }
     }
-
-    // Start a slower-polling task to check for movement when ship is idle
-    public void startIdleCheckTask() {
-        if (idleCheckTask != null) {
-            idleCheckTask.cancel();
-        }
-
-        idleCheckTask = new BukkitRunnable() {
-            @Override
-            public void run() {
-                // Check if chunk is loaded - if not, skip check but don't destroy
-                Location loc = vehicle.getLocation();
-                if (!loc.isChunkLoaded()) {
-                    destroy();
-                    cancel();
-                    return; // Chunk unloaded, suspend ship but don't destroy
-                }
-                if (vehicle.isDead() || !vehicle.isValid()) {
-                    destroy();
-                    cancel();
-                    return;
-                }
-                if (physics.customMoveTicks >= 256) {
-                    physics.customMoveTicks = 0;
-                    if (!physics.moving) {
-                        physics.detectNearbyEntities();
-                    }
-                }
-                physics.customMoveTicks++;
-            }
-        };
-        // Check periodically for movement based on config
-        idleCheckTask.runTaskTimer(plugin, (long) IDLE_CHECK_INTERVAL*2, (long) IDLE_CHECK_INTERVAL*2);
-    }
     
     public void sinkAndExplode() {
         this.isSinking = true;
@@ -1607,10 +1570,6 @@ public class ShipInstance {
             task.cancel();
             task = null;
         }
-        if (idleCheckTask != null) {
-            idleCheckTask.cancel();
-            idleCheckTask = null;
-        }
         // Remove all collision shulkers and their carriers
         // Note: Seats are now the shulkers themselves (no separate seat ArmorStands)
         for (Entity entity : ENTITY_COMPOSITION) {
@@ -1662,19 +1621,19 @@ public class ShipInstance {
         world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.5f);
     }
 
-    public void setDataTag(String key, Object data) {
-        if (key == null) return;
-        if (data == null) return;
+    public <V> V setDataTag(String key, Object data) {
+        if (key == null) return null;
+        if (data == null) return removeDataTag(key);
         key = key.toLowerCase(Locale.ENGLISH);
-        this.DATA_TAGS.put(key, data);
+        return (V) this.DATA_TAGS.put(key, data);
     }
 
-    public Object removeDataTag(String key) {
+    public <V> V removeDataTag(String key) {
         if (key == null) return null;
         key = key.toLowerCase(Locale.ENGLISH);
         Object tag = this.DATA_TAGS.getOrDefault(key, null);
         this.DATA_TAGS.remove(key);
-        return tag;
+        return (V) tag;
     }
 
     public <V> V getDataTag(String key) {
