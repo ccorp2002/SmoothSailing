@@ -1479,7 +1479,7 @@ public class ShipPhysics {
         scanHull(outsideBlocks, outerHull, innerShip, 0, 0, 3);
         for (Block b : outsideBlocks) {
             if (MobileBlockState.doesShipHave(ship,b)) continue;
-            else if (b.getType() == Material.WATER || b.getType() == Material.LAVA) {
+            else if (b.getType() == Material.WATER || b.getType() == Material.LAVA || FLUID.contains(b.getType())) {
                 fluidY = Math.max(b.getY(), fluidY);
             } else if (m.isDataMedium(b.getBlockData())) {
                 fluidY = Math.max(b.getY(), fluidY);
