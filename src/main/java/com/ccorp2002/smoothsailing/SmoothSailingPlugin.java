@@ -119,6 +119,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
         shipListener = new ShipListener(INSTANCE);
         signFunctions = new SignFunctions();
         Bukkit.getPluginManager().registerEvents(shipListener, INSTANCE);
+        Bukkit.getPluginManager().registerEvents(signFunctions, INSTANCE);
         try {
             CANNONS_FOUND = Bukkit.getPluginManager().getPlugin("Cannons") != null;
             if (CANNONS_FOUND) Bukkit.getPluginManager().registerEvents(new CannonsUtils(), INSTANCE);
