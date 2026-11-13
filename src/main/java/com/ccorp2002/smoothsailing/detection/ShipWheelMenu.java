@@ -230,7 +230,7 @@ public class ShipWheelMenu {
                 currentHealth = (int)ship.getHealth();
                 maxHealth = (int)ship.getMaxHealth();
                 totalWeight = (int)ship.weightCalc;
-                var floating = ship.getDataTag("cemc:float_offset");
+                var floating = ship.getDataTag("float_offset");
                 Integer floatOffset = 0;
                 if (floating != null && floating instanceof Double ddbl) floatOffset = (int)java.lang.Math.floor(ddbl);
                 surfaceOffset = (float)floatOffset;

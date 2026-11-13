@@ -175,7 +175,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
             } else if (l instanceof Location loc) {
                 return MobileBlockState.hashCode(loc);
             } else if (l instanceof Block blok) {
-                return MobileBlockState.hashCode(blok.getLocation());
+                return MobileBlockState.hashCode(blok);
             } else if (l instanceof org.bukkit.util.Vector vec) {
                 return MobileBlockState.hashCode(vec);
             } else {
@@ -195,7 +195,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
             } else if (a instanceof Location amb && b instanceof Location bmb) {
                 return hashCode(bmb) == hashCode(amb);
             } else if (a instanceof Block amb && b instanceof Block bmb) {
-                return hashCode(bmb.getLocation()) == hashCode(amb.getLocation());
+                return hashCode(bmb) == hashCode(amb);
             } else if (a instanceof Block amb) {
                 return this.equals(amb.getLocation(),b);
             } else if (b instanceof Block bmb) {
@@ -507,12 +507,17 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         return (int) (packed ^ (packed >>> 32));
     }
 
+    public static int hashCode(Block block) {
+        long packed = packBlock(block);
+        return (int) (packed ^ (packed >>> 32));
+    }
+
     public static long pack(Object obj) {
         if (obj instanceof MobileBlockState state) {
             if (state.vector == null) return 0l;
             return packVector(state.vector);
         } else if (obj instanceof Block block) {
-            return packVector(block.getLocation().toVector());
+            return packBlock(block);
         } else if (obj instanceof Location loc) {
             return packVector(loc.toVector());
         } else if (obj instanceof org.bukkit.util.Vector vec) {
@@ -523,6 +528,11 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
             return (long)inte;
         }
         else return 0l;
+    }
+
+    public static long packBlock(Block block) {
+        if (block == null) return 0;
+        return (block.getX() & BITS_26) | ((block.getZ() & BITS_26) << 26) | (((block.getY() & (long) BITS_12) << (26 + 26)));
     }
 
     public static long packVector(org.bukkit.util.Vector vec) {
@@ -593,7 +603,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
 
     public void setBlockData(BlockData data, boolean updateShip) {
         if (data == null) return;
-        if (!(ShipPhysics.isDataMedium(data) && !data.getMaterial().isAir()) || updateShip) {
+        if (!data.getMaterial().isAir() || updateShip) {
             this.state = ((CraftBlockData) data).getState();
         }
         if (updateShip) {

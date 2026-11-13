@@ -699,6 +699,7 @@ public class ShipInstance {
         INTERIOR_BLOCKS.clear();
         ShipRegistry.register(this);
         if (ShipInstance.this.parentShip != null) ShipInstance.this.setProcessing(false);
+        setDataTag("has_fuel",InventoryUtil.canBurnFuelType(this,null));
         Runnable RUN_ME = new Runnable() {
             @Override
             public void run() {
@@ -709,10 +710,10 @@ public class ShipInstance {
                 float heightY = maxY() - minY();
                 if (floatOff == null) floatOffset = (float)(-java.lang.Math.round(heightY/3.75f)) + (float)java.lang.Math.round((heightY/3f));
                 else floatOffset = -1*floatOff.floatValue();
-                setDataTag("cemc:float_offset",floatOffset);
-                setDataTag("cemc:center_of_volume_y",DATA.getOrDefault("center_of_volume_y",null));
-                PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"cemc:float_offset",""+floatOffset);
-                PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"cemc:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
+                setDataTag("float_offset",floatOffset);
+                setDataTag("center_of_volume_y",DATA.getOrDefault("center_of_volume_y",null));
+                PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:float_offset",""+floatOffset);
+                PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
                 DATA.clear();
                 if (ShipInstance.this.physics != null) {
                     ShipInstance.this.physics.handleBuoyancy(ShipInstance.this.getLocation());
