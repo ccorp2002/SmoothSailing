@@ -472,10 +472,6 @@ public class ShipPhysics {
             currentRotationVelocity = 0f;
         }
         if (ship.isSinking) currentYVelocity = -1.5f;
-        if (physicsInterval >= 30) {
-            handleBuoyancy(ship.getLocation());
-            physicsInterval = 0;
-        } else physicsInterval++;
         if (SmoothSailingPlugin.INSTANCE == null) {
             ship.setProcessing(false);
             ship.isLeftPressed = false;
@@ -519,6 +515,7 @@ public class ShipPhysics {
                 if (ship.doGearsRequireFuel()) ship.setGear(1);
             } else toBurnFuel = true;
             if (hasHorizontalMovement) {
+                handleBuoyancy(ship.getLocation());
                 fx = (forwardX * (currentSpeed));
                 fz = (forwardZ * (currentSpeed));
                 if (ship.getGear() > 1) {
@@ -1481,8 +1478,10 @@ public class ShipPhysics {
         if (m.id.equalsIgnoreCase("void")) return fluidY;
         scanHull(outsideBlocks, outerHull, innerShip, 0, 0, 3);
         for (Block b : outsideBlocks) {
-            if (MobileBlockState.getShipFromLoc(b.getLocation()) != null) continue;
-            else if (m.isDataMedium(b.getBlockData())) {
+            if (MobileBlockState.doesShipHave(ship,b)) continue;
+            else if (b.getType() == Material.WATER || b.getType() == Material.LAVA) {
+                fluidY = Math.max(b.getY(), fluidY);
+            } else if (m.isDataMedium(b.getBlockData())) {
                 fluidY = Math.max(b.getY(), fluidY);
             }
         }
