@@ -220,27 +220,23 @@ public final class NmsUtils {
         if (world == null) return false;
         if (location == null) return false;
         org.bukkit.WorldBorder border = world.getWorldBorder();
-        int radius = (int) (border.getSize() / 2.0);
+        int radius = (int) Math.floor(border.getSize() / 2.0);
         //The visible border will always end at 29,999,984 blocks, despite being larger
-        int minX = border.getCenter().getBlockX() - radius;
-        int maxX = border.getCenter().getBlockX() + radius;
-        int minZ = border.getCenter().getBlockZ() - radius;
-        int maxZ = border.getCenter().getBlockZ() + radius;
-        if (location.getBlockY() >= world.getMaxHeight() - 4) return false;
-        if (location.getBlockY() <= world.getMinHeight() + 4) return false;
-        return Math.abs(location.getX()) < 29999984 &&
-                Math.abs(location.getZ()) < 29999984 &&
-                location.getX() >= minX &&
-                location.getX() <= maxX &&
-                location.getZ() >= minZ &&
-                location.getZ() <= maxZ;
+        Location center = border.getCenter();
+        int minX = center.getBlockX() - radius;
+        int maxX = center.getBlockX() + radius;
+        int minZ = center.getBlockZ() - radius;
+        int maxZ = center.getBlockZ() + radius;
+        if (location.getY() >= world.getMaxHeight() - 3) return false;
+        else if (location.getY() <= world.getMinHeight() + 3) return false;
+        else return border.isInside(location);
     }
 
     public static void moveBlocks(@NotNull Pair<Location,Location> locationPair, @NotNull final org.bukkit.World world) {
         runTaskInWorld(()->{
             final ServerLevel oldNativeWorld = ((CraftWorld) world).getHandle();
-            Location movecraftLocation = locationPair.getKey();
-            final BlockPos position = locationToPosition(movecraftLocation);
+            Location location = locationPair.getKey();
+            final BlockPos position = locationToPosition(location);
             final BlockPos newPosition = locationToPosition(locationPair.getValue());
             final BlockState oldState = getBlockFastest(oldNativeWorld, position);
             final Pair<Long,BlockState> newBlock = new Pair(newPosition.asLong(), oldState);
@@ -261,9 +257,9 @@ public final class NmsUtils {
             final ServerLevel oldNativeWorld = ((CraftWorld) world).getHandle();
             final Long2ObjectMap<Pair<Long,BlockState>> blockData = new Long2ObjectOpenHashMap<>(locationMap.size());
             final it.unimi.dsi.fastutil.objects.ObjectOpenHashSet<TileHolder> tiles = new it.unimi.dsi.fastutil.objects.ObjectOpenHashSet<>((int)locationMap.size()/2);
-            for (Location movecraftLocation : locationMap.keySet()) {
-                final BlockPos position = locationToPosition(movecraftLocation);
-                final BlockPos newPosition = locationToPosition(locationMap.get(movecraftLocation));
+            for (Location location : locationMap.keySet()) {
+                final BlockPos position = locationToPosition(location);
+                final BlockPos newPosition = locationToPosition(locationMap.get(location));
                 final BlockState oldState = getBlockFastest(oldNativeWorld, position);
                 final Pair<Long,BlockState> newBlock = new Pair(newPosition.asLong(), oldState);
                 blockData.put(position.asLong(),newBlock);
@@ -369,6 +365,12 @@ public final class NmsUtils {
     }
 
     @Nullable
+    public static TileHolder createTileHolder(@NotNull BlockEntity be){
+        return createTileHolder(be.getLevel(),be.getBlockPos());
+    }
+
+
+    @Nullable
     public static TileHolder createTileHolder(@NotNull Location pos){
         return createTileHolder((ServerLevel)((CraftWorld) pos.getWorld()).getHandle(),locationToPosition(pos));
     }
@@ -397,6 +399,12 @@ public final class NmsUtils {
         */
         return holder;
     }
+
+    @Nullable
+    public static TileHolder removeAndCreateTileHolder(@NotNull BlockEntity be){
+        return removeAndCreateTileHolder(be.getLevel(),be.getBlockPos());
+    }
+
 
     @Nullable
     public static TileHolder removeAndCreateTileHolder(@NotNull Location pos){
@@ -655,7 +663,7 @@ public final class NmsUtils {
             final Set<net.minecraft.world.level.ChunkPos> chunks = new HashSet<>((int)(states.size()/2)+25);
             for (MobileBlockState loc : states) {
                 if (loc == null) continue;
-                chunks.add(getChunkPos(loc.vector.toLocation(world)));
+                chunks.add(getChunkPos(loc.toLocation(world)));
             }
             chunks.addAll(addSurroundingChunks(chunks,2));
             for (ChunkPos pos : chunks) {
@@ -672,7 +680,7 @@ public final class NmsUtils {
             final Set<net.minecraft.world.level.ChunkPos> chunks = new HashSet<>((int)(states.size()/2)+25);
             for (MobileBlockState loc : states) {
                 if (loc == null) continue;
-                chunks.add(getChunkPos(loc.vector.toLocation(world)));
+                chunks.add(getChunkPos(loc.toLocation(world)));
             }
             chunks.addAll(addSurroundingChunks(chunks,2));
             for (ChunkPos pos : chunks) {
@@ -1240,6 +1248,7 @@ public final class NmsUtils {
       super(loc.toVector());
       this.setWorld(loc.getWorld());
     }
+    
     public boolean setWorld(World w) {
       if (w == null) return false;
       this.worldRef = new java.lang.ref.WeakReference<>(w);

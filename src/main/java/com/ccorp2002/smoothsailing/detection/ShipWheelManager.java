@@ -225,7 +225,7 @@ public class ShipWheelManager {
 
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
             ship.destroy();
-        },270L);
+        },60L);
         return ship;
     }
 

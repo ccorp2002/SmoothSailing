@@ -59,58 +59,7 @@ public class ShipCollision {
                 newOffset.setZ(0);
                 return newOffset;
             }
-            for (MobileBlockState bs : ship.BLOCK_STATES) {
-                // 1. Check terrain collisions
-                Location newLoc = bs.getLocation().clone().add(offset.toVector()).toBlockLocation();
-                if (!newLoc.isChunkLoaded()) {
-                    canEnterAt = false;
-                    newOffset.setX(0);
-                    newOffset.setY(0);
-                    newOffset.setZ(0);
-                    return newOffset;
-                }
-                if (pilot != null) {
-                    for (final com.ccorp2002.smoothsailing.utils.claims.IClaimInterface ICLAIM : SmoothSailingPlugin.INSTANCE.CLAIM_INTEFACES) {
-                        if (!canEnterAt) break;
-                        if (!ICLAIM.canEnterAt(pilot,newLoc)) canEnterAt = false;
-                        if (!NmsUtils.withinWorldBorder(newLoc)) canEnterAt = false;
-                        
-                    }
-                }
-                if (!canEnterAt) {
-                    newOffset.setX(0);
-                    newOffset.setY(0);
-                    newOffset.setZ(0);
-                    ship.physics.currentSpeed = 0f; 
-                    ship.physics.currentYVelocity = 0f;
-                    return newOffset; 
-                }
-                Block block = NmsUtils.getBukkitBlockFast(newLoc);
-                if (MobileBlockState.doesShipHave(ship,newLoc)) {
-                    continue;
-                }
-                if ((block.isSolid() && (!ShipPhysics.isDataMedium(block))) && !(ShipPhysics.LANDCRAFT_PASSTHROUGH.contains(block.getType()) && ship.isLandcraft)) {
-                    if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("SHIP DOES NOT HAVE? (XYZ): "+block.getX()+","+block.getY()+","+block.getZ()+" ("+block.getType()+")");
-                    newOffset = newOffset.multiply(0d);
-                    newOffset.setX((double)ShipPhysics.CLAMP_VALUE((float)newOffset.getX(),-1,1));
-                    newOffset.setY((double)ShipPhysics.CLAMP_VALUE((float)newOffset.getY(),-1,1));
-                    newOffset.setZ((double)ShipPhysics.CLAMP_VALUE((float)newOffset.getZ(),-1,1));
-                    ship.physics.currentYVelocity = 0f;
-                    ship.physics.currentSpeed = 0f;
-                    xzCollisionCount++;
-                    collisionCount++;
-                    break;
-                }
-            }
-            if (collisionCount > 0 || xzCollisionCount > 0) {
-                newOffset = newOffset.multiply(0d);
-                newOffset.setX((double)ShipPhysics.CLAMP_VALUE((float)newOffset.getX(),-1,1));
-                newOffset.setY((double)ShipPhysics.CLAMP_VALUE((float)newOffset.getY(),-1,1));
-                newOffset.setZ((double)ShipPhysics.CLAMP_VALUE((float)newOffset.getZ(),-1,1));
-                ship.physics.currentYVelocity = 0f;
-                ship.physics.currentSpeed = 0f; 
-                return newOffset;
-            }
+            return newOffset;
         } else if (checkForLand && ship.isLandcraft) {
             int obx = offset.getBlockX();
             int obz = offset.getBlockZ();

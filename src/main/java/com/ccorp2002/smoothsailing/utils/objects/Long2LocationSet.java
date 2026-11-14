@@ -29,11 +29,16 @@ public class Long2LocationSet extends AbstractLongSet {
     }
     public Long2LocationSet(int maxSize, float growthFactor) {
         this.initialMaxSize = maxSize;
-        this.internalMap = new LongOpenHashSet(this.initialMaxSize,growthFactor);
+        this.internalMap = new LongOpenHashSet(this.initialMaxSize,growthFactor); //growthFactor
     }
     
     public LongIterator iterator() {
         return internalMap.iterator();
+    }
+
+
+    public boolean add(Location value) {
+        return add(MobileBlockState.pack(value));
     }
     
     @Override
@@ -51,6 +56,10 @@ public class Long2LocationSet extends AbstractLongSet {
         } else if (needle instanceof Integer inte) {
             return internalMap.contains((long)inte);
         } else return false;
+    }
+
+    public boolean remove(Location k) {
+        return remove(MobileBlockState.pack(k));
     }
     @Override
     public boolean remove(long k) {
@@ -80,7 +89,8 @@ public class Long2LocationSet extends AbstractLongSet {
         return this.internalMap.size();
     }
     public boolean trim(int amount) {
-        return this.internalMap.trim(amount);
+        this.internalMap.trim(amount);
+        return true;
     }
     public boolean trim() {
         return trim(this.initialMaxSize);
@@ -88,16 +98,26 @@ public class Long2LocationSet extends AbstractLongSet {
     
     public Set<Location> toSet(final World world) {
         if (world == null) return new HashSet<Location>(0,0.75f);
-        ObjectOpenCustomHashSet<Location> returnMap = new ObjectOpenCustomHashSet<>(this.size()+50,0.75f,MobileBlockState.HASH_STRAT);
+        ObjectOpenCustomHashSet<Location> returnSet = new ObjectOpenCustomHashSet<>(this.size()+50,0.75f,MobileBlockState.HASH_STRAT);
         for (long key : this.internalMap) {
-            returnMap.add(MobileBlockState.unpackLocation(key, world));
+            returnSet.add(MobileBlockState.unpackLocation(key, world));
         }
-        return returnMap;
+        return returnSet;
     }
+
 
     @Override
     public void clear() {
         internalMap.clear();
         trim();
+    }
+    
+    public static Long2LocationSet from(final Collection<Location> positions) {
+        if (positions == null || positions.isEmpty()) return new Long2LocationSet(0,0.25f);
+        Long2LocationSet returnSet = new Long2LocationSet(positions.size()+50,0.75f);
+        for (Location pos : positions) {
+            returnSet.add(MobileBlockState.pack(pos));
+        }
+        return returnSet;
     }
 }

@@ -557,7 +557,6 @@ public class ShipListener implements Listener {
                 state.tile = null;
                 NmsUtils.setBlockFast(block.getLocation(),ShipPhysics.VOID);
             }
-            state.updateBlockState();
         }
     }
 

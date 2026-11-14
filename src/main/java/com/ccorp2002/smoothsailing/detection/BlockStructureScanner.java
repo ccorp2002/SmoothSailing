@@ -196,6 +196,7 @@ public class BlockStructureScanner {
         float heightY = maxY - minY;
         Float waterFloatOffset = -1f*(float)((ShipWheelManager.getBuoyancyData(wheelLocation, shipBlocks, totalWeight)).getOrDefault("surface_offset",null));
         if (waterFloatOffset == null) waterFloatOffset = (float)(-Math.round(heightY/3.75f)) + (float)Math.round((heightY/3f));
+        if (Math.abs(waterFloatOffset) >= 10) Math.ceil(waterFloatOffset *= 0.5f);
         ShipModel model = new ShipModel(
             new ArrayList<Location>(shipBlocks),
             waterFloatOffset,

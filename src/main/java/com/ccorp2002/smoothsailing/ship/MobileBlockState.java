@@ -41,7 +41,7 @@ import java.util.concurrent.*;
 import java.util.function.Supplier;
 import java.util.function.Predicate;
 import java.util.*;
-public class MobileBlockState implements Comparable<MobileBlockState> {
+public class MobileBlockState extends BlockVector implements Comparable<MobileBlockState> {
     
     public static class MobileStateSet extends AbstractSet<MobileBlockState> {
         public final Long2ObjectOpenHashMap<MobileBlockState> internalMap;
@@ -170,8 +170,10 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
     public static class MobileBlockState$HashStrategy implements Hash.Strategy<Object> {
         @Override
         public int hashCode(Object l) {
-            if (l instanceof MobileBlockState mbs) {
-                return MobileBlockState.hashCode(mbs.vector);
+            if (l instanceof TrackedLocation rbs) {
+                return rbs.hashCode();
+            } else if (l instanceof MobileBlockState mbs) {
+                return mbs.hashCode();
             } else if (l instanceof Location loc) {
                 return MobileBlockState.hashCode(loc);
             } else if (l instanceof Block blok) {
@@ -203,22 +205,20 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
             if (this.hashCode() == state.hashCode()) {
                 if (fuzzyCheck) return true;
                 if (state.state == null || this.state == null) return true;
-                else if (state.vector.worldName == null || this.vector.worldName == null) return true;
-                else if (state.vector.worldName.equalsIgnoreCase(this.vector.worldName)) return true;
                 else if (this.getBlockData().matches(state.getBlockData())) return true;
                 else if ((state.getBlockData()).matches(this.getBlockData())) return true;
                 else return false;
             }
         } else if (oth instanceof Location loc) {
-            if (hashCode(loc) == hashCode(this.vector)) {
+            if (hashCode(loc) == hashCode(this)) {
                 return true;
             }
         } else if (oth instanceof Block block) {
-            if (hashCode(block) == hashCode(this.vector)) {
+            if (hashCode(block) == hashCode(this)) {
                 return true;
             }
         } else if (oth instanceof org.bukkit.util.Vector vector) {
-            if (hashCode(vector) == hashCode(this.vector)) {
+            if (hashCode(vector.toBlockVector()) == hashCode(this)) {
                 return true;
             }
         }
@@ -239,31 +239,22 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         return 0;
     }
     public double x() {
-      return this.vector.getX();
+      return getX();
     }
     public double y() {
-      return this.vector.getY();
+      return getY();
     }
     public double z() {
-      return this.vector.getZ();
+      return getZ();
     }
     public int bx() {
-      return (int)this.vector.getBlockX();
+      return getBlockX();
     }
     public int by() {
-      return (int)this.vector.getBlockY();
+      return getBlockY();
     }
     public int bz() {
-      return (int)this.vector.getBlockZ();
-    }
-    public int getBlockX() {
-      return (int)this.vector.getBlockX();
-    }
-    public int getBlockY() {
-      return (int)this.vector.getBlockY();
-    }
-    public int getBlockZ() {
-      return (int)this.vector.getBlockZ();
+      return getBlockZ();
     }
     public WeakReference<ShipInstance> shipRef = null;
 
@@ -326,9 +317,14 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         return doesShipHave(ship,new MobileBlockState(TEST.getLocation(),true));
     }
 
+    public static boolean doesShipHave(final ShipInstance ship, final Long TEST) {
+        if (ship == null) return false;
+        if (TEST == null) return false;
+        boolean retVal = ship.BLOCK_STATES.contains(TEST);
+        return retVal;
+    }
 
-
-    public static boolean doesShipHave(final ShipInstance ship, final MobileBlockState TEST) {
+    public static boolean doesShipHave(final ShipInstance ship, final Vector TEST) {
         if (ship == null) return false;
         if (TEST == null) return false;
         boolean retVal = ship.BLOCK_STATES.contains(TEST);
@@ -347,6 +343,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         }
         return null;
     }
+
     public boolean isSameShip(final MobileBlockState state) {
         if (state == null || (state.shipRef == null || this.shipRef == null)) return false;
         return state.getShip().id.equals(this.getShip().id);
@@ -367,14 +364,13 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
     public long maxHealth = 15l;
     public long health = 15l;
 
-    public NmsUtils.WorldBlockVector vector;
 
     public BlockState state = NmsUtils.AIR;
 
     public NmsUtils.TileHolder tile = null;
 
     public MobileBlockState(Location location, boolean check) {
-        this.vector = new NmsUtils.WorldBlockVector(location);
+        super(location.getX(),location.getY(),location.getZ());
         if (!check) {
             this.state = NmsUtils.getBlockFaster(location);
             this.tile = NmsUtils.createTileHolder(location);
@@ -392,35 +388,43 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         this(location,false);
     }
 
-    public MobileBlockState(NmsUtils.WorldBlockVector vector, BlockState state) {
-        this.vector = vector;
+    public MobileBlockState(Vector vector) {
+        this(vector,null,null);
+    }
+
+    public MobileBlockState(Vector vector, BlockState state) {
+        this(vector,state,null);
+    }
+
+    public MobileBlockState(Vector vector, BlockState state, BlockEntity tile) {
+        super(vector.getX(),vector.getY(),vector.getZ());
         this.state = state;
-        this.tile = NmsUtils.createTileHolder(vector.toLocation().toBlockLocation());
+        this.tile = NmsUtils.createTileHolder(tile);
     }
 
-    public MobileBlockState(NmsUtils.WorldBlockVector vector, BlockState state, BlockEntity tile) {
-        this.vector = vector;
-        this.state = state;
-        this.tile = NmsUtils.createTileHolder(vector.toLocation().toBlockLocation());
+    public MobileBlockState teleport(Location loc, BlockData data) {
+        if (data == null) return this;
+        if (loc == null) return this;
+        this.state = NmsUtils.getBlockState(data);
+        return this.teleport(loc,false);
     }
 
-    public void teleport(Location loc) {
-        this.teleport(loc,false);
+    public MobileBlockState teleport(Location loc) {
+        return this.teleport(loc,false);
     }
 
-    public void teleport(Location loc, boolean reAdd) {
-        if (loc == null) return;
-        if (loc.getWorld() == null) return;
-        loc = loc.toBlockLocation();
+    public MobileBlockState teleport(Location loc, boolean reAdd) {
+        if (loc == null) return this;
+        if (loc.getWorld() == null) return this;
         final Location floc = loc;
-        final Location origin = vector.toLocation().toBlockLocation();
         final ShipInstance ship = this.getShip();
         if (ship != null) {
             if (!NmsUtils.withinWorldBorder(floc) && ship.isSinking) {
                 this.damage(this.health);
-                return;
+                return this;
             }
         }
+        final Location origin = toLocation(ship.getWorld());
         final ServerLevel oldLevel = (ServerLevel)NmsUtils.getLevel(origin);
         final ServerLevel newLevel = (ServerLevel)NmsUtils.getLevel(loc);
         BlockPos position = NmsUtils.locationToPosition(origin);
@@ -431,13 +435,15 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         } else {
             inv = null;
         }
+        /*
         if (NmsUtils.HAS_CRAFT_ENGINE && ship != null) {
-            NmsUtils.runOnMain(()->{
+            TaskUtils.runTask(()->{
                 final org.bukkit.persistence.PersistentDataContainer pdcC = CEUtils.getCEBlockPDC(origin);
                 ShipMovePDCEvent pdcEvent = new ShipMovePDCEvent(ship,ship.vehicle,pdcC,origin.getBlock(),floc.getBlock());
                 pdcEvent.callEvent();
             });
         }
+        */
         NmsUtils.setBlockFast(floc,this.state);
         if (this.isDead()) {
             if (NmsUtils.HAS_CRAFT_ENGINE) CEUtils.INSTANCE.removeCEBlock(floc,false,true);
@@ -450,36 +456,33 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
             if (mutated != null) this.tile = mutated;
             else this.tile = NmsUtils.createTileHolder(floc);
         }
-        this.setLocation(floc);
         if (this.TICK_TO_MOVE != null) {
             NmsUtils.MOVE_TICK_TO(this.TICK_TO_MOVE,floc);
             this.TICK_TO_MOVE = null;
         }
-        if (NmsUtils.HAS_CRAFT_ENGINE && this.tile instanceof CEUtils.CraftEngineTileHolder) {
+        if (NmsUtils.HAS_CRAFT_ENGINE && inv != null && this.tile instanceof CEUtils.CraftEngineTileHolder) {
             org.bukkit.inventory.Inventory other = CEUtils.INSTANCE.getCEBlockInv(floc);
             try {
                 if (inv != null && other != null) other.setContents(inv.getContents());
             } catch (Throwable thr) {}
         }
+        this.x = (floc.getX());
+        this.y = (floc.getY());
+        this.z = (floc.getZ());
         if (ship != null && reAdd) {
             ship.BLOCK_STATES.set(this);
-            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("RE-ADDING: ("+this.vector.toString()+") TO SHIP? "+ship);
+            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("RE-ADDING: ("+super.toString()+") TO SHIP? "+ship);
         }
-    }
-
-    public void teleport(Location loc, BlockData data) {
-        if (data == null) return;
-        if (loc == null) return;
-        this.state = NmsUtils.getBlockState(data);
-        this.teleport(loc,false);
+        return this;
     }
 
     @Override
     public int hashCode() {
-        return hashCode(this.vector);
+        return hashCode(this);
     }
 
     public static int hashCode(Location loc) {
+        if (loc == null) return 0;
         int result = hashCode(loc.toVector());
         return result;
     }
@@ -498,8 +501,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
 
     public static long pack(Object obj) {
         if (obj instanceof MobileBlockState state) {
-            if (state.vector == null) return 0l;
-            return packVector(state.vector);
+            return packVector(state);
         } else if (obj instanceof Block block) {
             return packBlock(block);
         } else if (obj instanceof Location loc) {
@@ -519,10 +521,15 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         return (block.getX() & BITS_26) | ((block.getZ() & BITS_26) << 26) | (((block.getY() & (long) BITS_12) << (26 + 26)));
     }
 
+    public static long pack(int x, int y, int z) {
+        return ((int)x & BITS_26) | (((int)z & BITS_26) << 26) | ((((int)y & (long) BITS_12) << (26 + 26)));
+    }
+
     public static long packVector(org.bukkit.util.Vector vec) {
         if (vec == null) return 0;
         return ((int)vec.getX() & BITS_26) | (((int)vec.getZ() & BITS_26) << 26) | ((((int)vec.getY() & (long) BITS_12) << (26 + 26)));
     }
+
     public static org.bukkit.util.Vector unpack(long l){
         return new org.bukkit.util.Vector((int) (l << 38 >> 38),(int) (l >> 52),(int) (l << 12 >> 38));
     }
@@ -550,29 +557,27 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
 
     public void setHealth(long hp) {
         if (hp <= -1) hp = 0;
+        ShipInstance ship = getShip();
+        if (ship == null) return;
         if (isDead() && hp >= 1) {
-            NmsUtils.setBlockFast(vector.toLocation(),this.state);
-            if (getShip() != null) {
-                getShip().model.blockCount += 1;
-                getShip().blockCount = getShip().model.blockCount;
-            }
+            NmsUtils.setBlockFast(this.toLocation(),this.state);
         } else if (!isDead() && hp > 0) {
-            NmsUtils.setBlockFast(vector.toLocation(),this.state);
+            NmsUtils.setBlockFast(this.toLocation(),this.state);
         }
         this.health = hp;
         if (isDead()) {
-            if (SmoothSailingPlugin.shipListener().isShipWheelBlock(this.getBlock()) && getShip() != null) {
+            if (SmoothSailingPlugin.shipListener().isShipWheelBlock(this.getBlock()) && ship != null) {
                 getShip().destroy();
                 return;
             }
-            if (getShip() != null && getShip() instanceof ShipInstance ship) {
+            if (ship != null) {
                 ShipInstance.updateDamagedBlock(ship,this);
             }
             if (this.tile != null) {
                 this.getBlock().breakNaturally(true);
                 this.tile = null;
             }
-            NmsUtils.setBlockFast(vector.toLocation(),ShipPhysics.VOID);
+            NmsUtils.setBlockFast(this.toLocation(),ShipPhysics.VOID);
         }
     }
 
@@ -602,22 +607,28 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         return getLocation().getBlock();
     }
 
-    public Location getLocation(World world) {
-        if (world != null) {
-            return vector.toLocation(world); 
-        } else return vector.toLocation();
+    @Override
+    public Location toLocation(World world) {
+        if (world != null) return new Location(world,this.getX(),this.getY(),this.getZ()); 
+        else if (getShip() == null) return null;
+        else return this.toLocation(getShip().getWorld());
+    }
+
+    public Location toLocation() {
+        return getLocation(null);
     }
 
     public Location getLocation() {
         return getLocation(null);
     }
 
-    public World getWorld() {
-        return getLocation().getWorld();
+    public Location getLocation(World world) {
+        return toLocation(world);
     }
 
-    public void setLocation(Location loc) {
-        this.vector = new NmsUtils.WorldBlockVector(loc.toBlockLocation());
+    public World getWorld() {
+        if (getShip() != null) return getShip().getWorld();
+        else return null;
     }
 
     public BlockData getVOID() {
@@ -635,14 +646,16 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
     }
 
     public void updateBlockState() {
-        Location pos = this.getLocation();
-        this.state = NmsUtils.getBlockFaster(pos);
-        this.tile = NmsUtils.createTileHolder(pos);
         ShipInstance ship = this.getShip();
-        if (this.isDead()) {
+        if (ship == null) return;
+        Location pos = this.getLocation();
+        if (this.isDead() && pos != null) {
             NmsUtils.setBlockFast(pos,ShipPhysics.VOID);
+            return;
         }
-        if (ship != null && !ship.CHANGE_WORLD) {
+        if (ship != null && !ship.CHANGE_WORLD && pos != null) {
+            this.state = NmsUtils.getBlockFaster(pos);
+            this.tile = NmsUtils.createTileHolder(pos);
             ShipInstance.updateBlockStateOnShip(ship,this);
         }
     }
@@ -657,5 +670,9 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         BlockState otherState = NmsUtils.getBlockFaster(this.getLocation());
         if (otherState.equals(this.state)) return NmsUtils.BlockDataGetter.get(state);
         else return NmsUtils.BlockDataGetter.get(otherState);
+    }
+
+    public TrackedLocation toRelativeState() {
+        return new TrackedLocation(this.getShip(), this);
     }
 }

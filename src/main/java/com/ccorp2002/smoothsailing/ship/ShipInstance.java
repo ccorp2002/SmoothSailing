@@ -39,13 +39,14 @@ public class ShipInstance {
     public static float PLAYER_PROXIMITY_RADIUS = 8.0f;
     public static float PLAYER_PROXIMITY_RADIUS_SQ = 64.0f;  // Squared for fast distance checks
     public boolean isSinking = false;
-    public static final String HITBOX_KEY = "BLOCK_STATES";
+    public static final String EXTERIOR_KEY = "__ext__";
     public MobileBlockState.MobileStateSet BLOCK_STATES = null;
     public LocationBlockDataSet FLUIDS = null;
 
     public final Map<String, Object> DATA_TAGS = new Object2ObjectOpenHashMap<>(1024,0.75f);
     
-    //public final Map<Object, MobileBlockState.MobileStateSet> TRACKED_STATE_MAP = new Object2ObjectOpenHashMap<>(1024,0.75f);
+    public final Map<String, Collection<TrackedLocation>> TRACKED_STATE_MAP = new Object2ObjectOpenHashMap<>(2048,0.75f);
+
     public static float waterDensity() {
         return (float) ShipPhysics.getMedium("water").baseDensity;
     }
@@ -698,46 +699,38 @@ public class ShipInstance {
         INTERIOR_BLOCKS.clear();
         ShipRegistry.register(this);
         if (ShipInstance.this.parentShip != null) ShipInstance.this.setProcessing(false);
+        else ShipInstance.this.setProcessing(true);
         setDataTag("has_fuel",InventoryUtil.canBurnFuelType(this,null));
-        Runnable RUN_ME = new Runnable() {
-            @Override
-            public void run() {
-                Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(getLocation(),ShipInstance.this.BLOCK_STATES,ShipInstance.this.model.totalWeight);
-                Float floatOffset = -1f;
-                Number floatOff = DATA.getOrDefault("surface_offset",null);
-                float heightY = maxY() - minY();
-                if (floatOff == null) floatOffset = (float)(-java.lang.Math.round(heightY/3.75f)) + (float)java.lang.Math.round((heightY/3f));
-                else floatOffset = -1*floatOff.floatValue();
-                setDataTag("float_offset",floatOffset);
-                setDataTag("center_of_volume_y",DATA.getOrDefault("center_of_volume_y",null));
-                PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:float_offset",""+floatOffset);
-                PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
-                DATA.clear();
-                if (ShipInstance.this.physics != null) {
-                    ShipInstance.this.physics.handleBuoyancy(ShipInstance.this.getLocation(),true,0d);
-                    ShipInstance.this.physics.moving = false;
-                    updateWaterLogging(true);
-                }
-                ShipInstance.this.setProcessing(false);
-                Runnable RUN_ME_2 = new Runnable() {
-                    @Override
-                    public void run() {
-                        // Check if chunk is loaded - if not, skip tick but don't destroy
-                        if (vehicle.isDead() || !vehicle.isValid()) {
-                            destroy();
-                            return;
-                        } else {
-                            Location loc = vehicle.getLocation();
-                            if (!loc.isChunkLoaded()) {
-                                destroy();
-                                return; // Chunk unloaded, suspend ship but don't destroy
-                            }
-                        }
-                        tick();
-                    }
-                };
-                task = com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTaskTimer(RUN_ME_2, 4L, 3L);
+        Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(getLocation(),ShipInstance.this.BLOCK_STATES,ShipInstance.this.model.totalWeight);
+        float floatOffset = model.waterFloatOffset;
+        setDataTag("float_offset",floatOffset);
+        setDataTag("center_of_volume_y",DATA.getOrDefault("center_of_volume_y",minY()));
+        PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:float_offset",""+floatOffset);
+        PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
+        DATA.clear();
+        this.updateWaterLogging(true);
+        Runnable RUN_ME = () -> {  
+            if (ShipInstance.this.physics != null) {
+                ShipInstance.this.setProcessing(true);
             }
+            Runnable RUN_ME_2 = new Runnable() {
+                @Override
+                public void run() {
+                    // Check if chunk is loaded - if not, skip tick but don't destroy
+                    if (vehicle.isDead() || !vehicle.isValid()) {
+                        destroy();
+                        return;
+                    } else {
+                        Location loc = vehicle.getLocation();
+                        if (!loc.isChunkLoaded()) {
+                            destroy();
+                            return; // Chunk unloaded, suspend ship but don't destroy
+                        }
+                    }
+                    tick();
+                }
+            };
+            task = com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTaskTimer(RUN_ME_2, 5L, 5L);
         };
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTaskLater(RUN_ME, 7L);
     }
@@ -812,7 +805,6 @@ public class ShipInstance {
 
     public static void updateBlockStateOnShip(final ShipInstance ship, MobileBlockState state) {
         if (ship == null || state == null) return;
-        if (!state.getWorld().equals(ship.getWorld())) return;
         BlockData data = state.getBlockData();
         Material material = data.getMaterial();
         final BlockProperties props = BlockConfigManager.getInstance().getProperties(material, data);
@@ -898,19 +890,18 @@ public class ShipInstance {
 
     public void updateWaterLogging(boolean init) {
         if (this.physics == null || this.CHANGE_WORLD) return;
-        float heightY = maxY() - minY();
-        Float floatOffset = this.model.waterFloatOffset;
-        final int checkY = (int)(ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
-        final BlockData FLUID_BLOCK = (!isAirship) ? ShipPhysics.getPrimaryMediumBlockAtBelowY(physics.getExterior(0,0), checkY) : ShipPhysics.VOID;
+        this.physics.handleBuoyancy(this.getLocation(),true,1d);
+        this.physics.currentYVelocity += 1f;
+        float floatOffset = Math.abs(this.model.waterFloatOffset);
+        final BlockData FLUID_BLOCK = ShipPhysics.getLocationPrimaryMediumAtBelowY(this.physics.getExteriorLocations(0,0,(int)floatOffset), this.physics.CURRENT_FLUID_LEVEL);
         if (SmoothSailingPlugin.DEBUG) {
-            System.out.println("CURRENT FLUID LEVEL: "+ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
-            System.out.println("CHECKING FLUID LEVEL: "+checkY);
+            System.out.println("CURRENT FLUID LEVEL: "+this.physics.CURRENT_FLUID_LEVEL);
             System.out.println("PRIMARY FLUID BLOCK: "+FLUID_BLOCK.getAsString(false));
         }
         if (init) {
-            //final int shipHeight = (int)heightY;
             this.BLOCK_STATES.forEach(st -> {
-                if (st.getBlockY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
+                if (st.getY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
+                    System.out.println("FOUND FLUID LEVEL: "+st.getY()+" FOR: "+FLUID_BLOCK);
                     st.occupiedBlock = FLUID_BLOCK;
                     FLUIDS.set(st.getLocation(),FLUID_BLOCK);
                 } else {
@@ -985,8 +976,8 @@ public class ShipInstance {
                 updLoc = updLoc.add(offsetf);
                 BlockData occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
                 st.occupiedBlock = occupiedBlock;
-                st.teleport(updLoc,false);
-                st.setLocation(updLoc);
+                st = st.teleport(updLoc,false);
+                
                 getFluidBlocks().set(updLoc,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
@@ -1009,10 +1000,8 @@ public class ShipInstance {
                 if (entity.getUniqueId().equals(vehicle.getUniqueId())) continue;
                 if (entity instanceof Player pl && !pl.isConnected()) continue;
                 Location entLoc = entity.getLocation().clone();
-                //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y0: "+entLoc.getY());
                 entLoc.setWorld(offsetf.getWorld());
                 entLoc = entLoc.add(offsetf);
-                //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y1: "+entLoc.getY());
                 if (entity instanceof Player player) {
                     entLoc.setYaw(player.getEyeLocation().getYaw());
                     entLoc.setPitch(player.getEyeLocation().getPitch());
@@ -1021,7 +1010,6 @@ public class ShipInstance {
                     entLoc.setPitch(entity.getPitch());
                 }
                 if (entity.getVehicle() == null) NmsUtils.teleportSilentCurrentThread(entLoc, entity);
-                //if (SmoothSailingPlugin.DEBUG_DUMP && entity.isEmpty()) System.out.println("DEBUG ENTITY Y2: "+entity.getLocation().getY());
             }
             setProcessing(true);
             physics.currentRotationVelocity = 0.0f;
@@ -1037,6 +1025,18 @@ public class ShipInstance {
             NmsUtils.loadChunksIn(dest.getWorld(),this.BLOCK_STATES);
             this.model.minY = minY();
             this.model.maxY = maxY();
+            for (String KEY : this.TRACKED_STATE_MAP.keySet()) {
+                if (KEY == null) continue;
+                Collection<TrackedLocation> VALUE = this.TRACKED_STATE_MAP.getOrDefault(KEY,new ArrayList<TrackedLocation>(1));
+                final TrackedLocation[] _COPY = VALUE.toArray(TrackedLocation[]::new);
+                for (int indx = 0; indx < _COPY.length; indx ++) {
+                    TrackedLocation st = _COPY[indx];
+                    st = st.setOrigin(this.getLocation());
+                    st = st.setWorld(this.getWorld());
+                    _COPY[indx] = st;
+                }
+                this.setTrackedLocation(KEY,Arrays.asList(_COPY));
+            }
             Runnable RUN_ME = ()->{
                 if (CHANGE_WORLD) CHANGE_WORLD = false;
                 ShipInstance.this.calculateBoundingBox();
@@ -1045,7 +1045,7 @@ public class ShipInstance {
                 updateRedstone();
                 sendSolids();
             };
-            com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(offsetf).runTaskLater(RUN_ME, 3L);
+            com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(offsetf).runTaskLater(RUN_ME, 15L);
         });
     }
 
@@ -1110,13 +1110,12 @@ public class ShipInstance {
     public Set<Entity> ENTITY_COMPOSITION = new HashSet<>(27550);
     public void tick() {
         if (vehicle != null && vehicle.isValid() && !vehicle.isDead()) {
-            com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTask(()->{
-                ShipInstance.this.doTick();
-            });
+            com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTask(this::doTick);
         }
     }
     public void doTick() {
         if (firstTick) {
+            ShipInstance.this.setProcessing(false);
             physics.detectNearbyEntities();
             firstTick = false;
         }
@@ -1141,13 +1140,10 @@ public class ShipInstance {
         if (!CHANGE_WORLD && driver != null && driver instanceof Player player) (new org.bukkit.event.player.PlayerMoveEvent(player,player.getLocation(),player.getLocation())).callEvent();
         final ShipTickEvent ticking = new ShipTickEvent(this,this.vehicle);
         ticking.callEvent();
-        handleSteeringInput();
         if (ticking.isCancelled()) return;
-        Location currentVehicleLoc = vehicle.getLocation();
-        float yaw = vehicle.getYaw();
-        float pitch = vehicle.getPitch();
         if (this.parentShip != null) return;
-        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(currentVehicleLoc).runTask(physics::update);    // Apply physics (movement, rotation, buoyancy)
+        handleSteeringInput();
+        com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTask(physics::update);    // Apply physics (movement, rotation, buoyancy)
     }
 
     public MobileBlockState.MobileStateSet getMaterial(Material TEST) {
@@ -1562,6 +1558,12 @@ public class ShipInstance {
             if (entity instanceof Player) continue;
             if (entity.isValid() || !entity.isDead()) entity.remove();
         }
+        for (Collection<TrackedLocation> STATES : TRACKED_STATE_MAP.values()) {
+            for (TrackedLocation STATE : STATES) {
+                STATE.clearTracked();
+            }
+        }
+        TRACKED_STATE_MAP.clear();
         vehicle.remove();
         driver = null;
         for (MobileBlockState state : BLOCK_STATES) {
@@ -1602,6 +1604,39 @@ public class ShipInstance {
 
         // Sound effect
         world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.5f);
+    }
+
+    public void setTrackedBukkitLocation(String key, final Collection<Location> data) {
+        if (key == null) return;
+        if (data == null || data.isEmpty()) return;
+        key = key.toLowerCase(Locale.ENGLISH);
+        List<TrackedLocation> ADAPTED = new ArrayList<>(data.size()+25);
+        data.forEach(pos -> {
+            TrackedLocation tlock = new TrackedLocation(this,pos);
+            ADAPTED.add(tlock);
+        });
+        setTrackedLocation(key, ADAPTED);
+    }
+
+    public Collection<TrackedLocation> setTrackedLocation(String key, final Collection<TrackedLocation> data) {
+        if (key == null) return null;
+        if (data == null || data.isEmpty()) return removeTrackedLocation(key);
+        key = key.toLowerCase(Locale.ENGLISH);
+        return this.TRACKED_STATE_MAP.put(key, data);
+    }
+
+    public Collection<TrackedLocation> removeTrackedLocation(String key) {
+        if (key == null) return null;
+        key = key.toLowerCase(Locale.ENGLISH);
+        Collection<TrackedLocation> tag = getTrackedLocation(key);
+        this.TRACKED_STATE_MAP.remove(key);
+        return tag;
+    }
+
+    public Collection<TrackedLocation> getTrackedLocation(String key) {
+        if (key == null) return null;
+        key = key.toLowerCase(Locale.ENGLISH);
+        return this.TRACKED_STATE_MAP.getOrDefault(key, null);
     }
 
     public <V> V setDataTag(String key, Object data) {
