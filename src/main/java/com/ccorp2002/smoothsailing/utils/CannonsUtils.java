@@ -124,7 +124,7 @@ public class CannonsUtils implements Listener {
 
     public static Set<Cannon> getCannons(ShipInstance ship) {
         if (INTERFACE == null || ship == null) return new HashSet<Cannon>(0);
-        List<Location> shipLocations = new ArrayList<>(ship.BLOCK_STATES.size());
+        List<Location> shipLocations = new ArrayList<>(ship.blockCount);
         for (MobileBlockState loc : ship.BLOCK_STATES) {
             shipLocations.add(loc.getLocation());
         }

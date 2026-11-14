@@ -593,7 +593,7 @@ public class ShipWheelManager {
                 ship = SmoothSailingPlugin.shipListener().getShipFromEntity(player);
             }
             if (ship != null && ship.vehicle != null && ship.vehicle.isValid()) {
-                int blockCount = ship.BLOCK_STATES.size();
+                int blockCount = ship.blockCount;
                 double maxHealth = ship.maxHealth;
                 double currentHealth = ship.currentHealth;
                 wheelData.setLastDetectedStats(blockCount, ship.model.totalWeight, (int)maxHealth);
@@ -740,6 +740,7 @@ public class ShipWheelManager {
 
         for (Location bstate : shipBlocks) {
             BlockProperties props = configManager.getProperties(bstate.getBlock().getType(), bstate.getBlock().getBlockData());
+            if (!props.isAllowed()) continue;
 
             float blockY = (float) (bstate.getBlockY() - vehicleLoc.getY());
             if (blockY < minY) minY = blockY;
@@ -766,7 +767,7 @@ public class ShipWheelManager {
             float t = (meanDensity - airDensity) / (waterDensity - airDensity);
             float referenceY = minY;
             float waterlineY = referenceY + t * (centerOfVolumeY - referenceY);
-            surfaceOffset = (float)-Math.ceil(waterlineY/2.75f);
+            surfaceOffset = (float)-Math.ceil(waterlineY);
         } else {
             surfaceOffset = 0;
         }
@@ -787,7 +788,7 @@ public class ShipWheelManager {
         int weightedCount = 0;
         for (MobileBlockState bstate : shipBlocks) {
             BlockProperties props = configManager.getProperties(bstate.getBlockData().getMaterial(), bstate.getBlockData());
-
+            if (!props.isAllowed()) continue;
             float blockY = (float) (bstate.getBlockY() - vehicleLoc.getY());
             if (blockY < minY) minY = blockY;
 
@@ -813,7 +814,7 @@ public class ShipWheelManager {
             float t = (meanDensity - airDensity) / (waterDensity - airDensity);
             float referenceY = minY;
             float waterlineY = referenceY + t * (centerOfVolumeY - referenceY);
-            surfaceOffset = (float)-Math.ceil(waterlineY/2.75f);
+            surfaceOffset = (float)-Math.ceil(waterlineY);
         } else {
             surfaceOffset = 0;
         }
@@ -835,7 +836,7 @@ public class ShipWheelManager {
 
         for (Location bstate : shipBlocks) {
             BlockProperties props = configManager.getProperties(bstate.getBlock().getType(), bstate.getBlock().getBlockData());
-
+            if (!props.isAllowed()) continue;
             float blockY = (float) (bstate.getBlockY() - wheelLoc.getY());
             if (blockY < minY) minY = blockY;
 
@@ -861,7 +862,7 @@ public class ShipWheelManager {
             float t = (meanDensity - airDensity) / (waterDensity - airDensity);
             float referenceY = minY;
             float waterlineY = referenceY + t * (centerOfVolumeY - referenceY);
-            surfaceOffset = (float)-Math.ceil(waterlineY/2.75f);
+            surfaceOffset = (float)-Math.ceil(waterlineY);
         } else {
             surfaceOffset = 0;
         }

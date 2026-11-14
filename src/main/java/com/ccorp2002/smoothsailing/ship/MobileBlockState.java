@@ -186,23 +186,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
         @Override
         public boolean equals(Object a, Object b) {
             if (a == null || b == null) return false;
-            if (a instanceof MobileBlockState amb && b instanceof MobileBlockState bmb) {
-                return equals(amb,bmb);
-            } else if (a instanceof MobileBlockState amb && b instanceof Location bmb) {
-                return amb.equals(bmb);
-            } else if (a instanceof Location amb && b instanceof MobileBlockState bmb) {
-                return bmb.equals(amb);
-            } else if (a instanceof Location amb && b instanceof Location bmb) {
-                return hashCode(bmb) == hashCode(amb);
-            } else if (a instanceof Block amb && b instanceof Block bmb) {
-                return hashCode(bmb) == hashCode(amb);
-            } else if (a instanceof Block amb) {
-                return this.equals(amb.getLocation(),b);
-            } else if (b instanceof Block bmb) {
-                return this.equals(a,bmb.getLocation());
-            } else {
-                return false;
-            }
+            else return hashCode(a) == hashCode(b);
         }
         public boolean equals(MobileBlockState a, MobileBlockState b) {
             if (a == null || b == null) return false;
@@ -216,7 +200,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
     public boolean equals(Object oth, boolean fuzzyCheck) {
         if (oth == null) return false;
         if (oth instanceof MobileBlockState state) {
-            if (this.vector.equals(state.vector)) {
+            if (this.hashCode() == state.hashCode()) {
                 if (fuzzyCheck) return true;
                 if (state.state == null || this.state == null) return true;
                 else if (state.vector.worldName == null || this.vector.worldName == null) return true;
@@ -226,11 +210,11 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
                 else return false;
             }
         } else if (oth instanceof Location loc) {
-            if (hashCode(loc.toBlockLocation().toVector()) == hashCode(this.vector)) {
+            if (hashCode(loc) == hashCode(this.vector)) {
                 return true;
             }
         } else if (oth instanceof Block block) {
-            if (hashCode(block.getLocation().toBlockLocation().toVector()) == hashCode(this.vector)) {
+            if (hashCode(block) == hashCode(this.vector)) {
                 return true;
             }
         } else if (oth instanceof org.bukkit.util.Vector vector) {
@@ -496,7 +480,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
     }
 
     public static int hashCode(Location loc) {
-        int result = hashCode(loc.toBlockLocation().toVector());
+        int result = hashCode(loc.toVector());
         return result;
     }
     private static final long BITS_26 = NmsUtils.mask(26);
@@ -537,7 +521,7 @@ public class MobileBlockState implements Comparable<MobileBlockState> {
 
     public static long packVector(org.bukkit.util.Vector vec) {
         if (vec == null) return 0;
-        return (vec.getBlockX() & BITS_26) | ((vec.getBlockZ() & BITS_26) << 26) | (((vec.getBlockY() & (long) BITS_12) << (26 + 26)));
+        return ((int)vec.getX() & BITS_26) | (((int)vec.getZ() & BITS_26) << 26) | ((((int)vec.getY() & (long) BITS_12) << (26 + 26)));
     }
     public static org.bukkit.util.Vector unpack(long l){
         return new org.bukkit.util.Vector((int) (l << 38 >> 38),(int) (l >> 52),(int) (l << 12 >> 38));

@@ -693,7 +693,7 @@ public class ShipInstance {
         calculateBoundingBox();
         if (facing == null) facing = vehicle.getFacing();
         if (forwards == null || forwards.isZero()) forwards = vehicle.getLocation().getDirection();
-        SmoothSailingPlugin.getInstance().getLogger().info("Piloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.BLOCK_STATES.size());
+        SmoothSailingPlugin.getInstance().getLogger().info("Piloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.blockCount);
         this.BLOCK_STATES.addAll(INTERIOR_BLOCKS);
         INTERIOR_BLOCKS.clear();
         ShipRegistry.register(this);
@@ -702,8 +702,7 @@ public class ShipInstance {
         Runnable RUN_ME = new Runnable() {
             @Override
             public void run() {
-                Location bottomLoc = vehicle.getLocation().clone();
-                Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(bottomLoc,ShipInstance.this.BLOCK_STATES,ShipInstance.this.model.totalWeight);
+                Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(getLocation(),ShipInstance.this.BLOCK_STATES,ShipInstance.this.model.totalWeight);
                 Float floatOffset = -1f;
                 Number floatOff = DATA.getOrDefault("surface_offset",null);
                 float heightY = maxY() - minY();
@@ -715,7 +714,7 @@ public class ShipInstance {
                 PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
                 DATA.clear();
                 if (ShipInstance.this.physics != null) {
-                    ShipInstance.this.physics.handleBuoyancy(ShipInstance.this.getLocation(),true);
+                    ShipInstance.this.physics.handleBuoyancy(ShipInstance.this.getLocation(),true,0d);
                     ShipInstance.this.physics.moving = false;
                     updateWaterLogging(true);
                 }
@@ -782,14 +781,12 @@ public class ShipInstance {
         } else {
             if (java.lang.Math.abs(props.weight) >= 20d) {
                 health = (java.lang.Math.abs(props.weight)*0.675d);
-                if (props.weight <= 0.125) ship.weightCalc += props.weight;
-                else ship.weightCalc += (props.weight*1.0625);
+                ship.weightCalc += props.weight;
                 blockHealth = health;
                 if (props.baseHealth == null || blockHealth <= 1d) blockHealth += 6.75d;
             } else {
                 health = (java.lang.Math.abs(props.weight)*0.375d);
-                if (props.weight <= 0.125) ship.weightCalc += props.weight;
-                else ship.weightCalc += (props.weight*1.125);
+                ship.weightCalc += props.weight;
                 blockHealth = health;
                 if (props.baseHealth == null || blockHealth <= 1d) blockHealth += 2.5d;
             }
@@ -851,17 +848,7 @@ public class ShipInstance {
         if (ship == null || state == null) return;
         BlockData blockData = state.getBlockData();
         final BlockProperties props = BlockConfigManager.getInstance().getProperties(blockData.getMaterial(), blockData);
-        if (props.weight > 7.25d) {
-            ship.weightCalc -= props.weight;
-        } else {
-            if (java.lang.Math.abs(props.weight) >= 10d) {
-                if (props.weight <= 0.125) ship.weightCalc += java.lang.Math.abs(props.weight);
-                else ship.weightCalc -= (props.weight*1.0625);
-            } else {
-                if (props.weight <= 0.125) ship.weightCalc += java.lang.Math.abs(props.weight);
-                else ship.weightCalc -= (props.weight*1.25);
-            }
-        }
+        ship.weightCalc += props.weight;
         if (props.hasEngineState()) {
             ship.engineCount -= 1;
             if (ship.engineCount <= 0) {
@@ -912,12 +899,8 @@ public class ShipInstance {
     public void updateWaterLogging(boolean init) {
         if (this.physics == null || this.CHANGE_WORLD) return;
         float heightY = maxY() - minY();
-        Float floatOffset = -1f;
-        Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(this.getLocation(), this.BLOCK_STATES, this.model.totalWeight);
-        Number floatOff = DATA.getOrDefault("surface_offset",null);
-        if (floatOff == null) floatOffset = (float)(-Math.round(heightY/3.75f)) + (float)Math.round((heightY/3f));
-        else floatOffset = -1*(floatOff.floatValue());
-        final int checkY = (int)(ShipInstance.this.physics.CURRENT_FLUID_LEVEL+floatOffset);
+        Float floatOffset = this.model.waterFloatOffset;
+        final int checkY = (int)(ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
         final BlockData FLUID_BLOCK = (!isAirship) ? ShipPhysics.getPrimaryMediumBlockAtBelowY(physics.getExterior(0,0), checkY) : ShipPhysics.VOID;
         if (SmoothSailingPlugin.DEBUG) {
             System.out.println("CURRENT FLUID LEVEL: "+ShipInstance.this.physics.CURRENT_FLUID_LEVEL);
@@ -1565,7 +1548,7 @@ public class ShipInstance {
     }
 
     public void destroy() {
-        SmoothSailingPlugin.getInstance().getLogger().info("Unpiloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.BLOCK_STATES.size());
+        SmoothSailingPlugin.getInstance().getLogger().info("Unpiloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.blockCount);
         if (task != null) {
             task.cancel();
             task = null;
