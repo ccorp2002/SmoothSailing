@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.ccorp2002"
-version = "0.1.8"
+version = "0.1.9"
 
 java {
     toolchain {

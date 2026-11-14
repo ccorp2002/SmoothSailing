@@ -101,10 +101,6 @@ public class SmoothSailingPlugin extends JavaPlugin {
         // Load global physics config
         ShipInstance.loadGlobalPhysicsConfig(INSTANCE);
 
-        // Initialize block configuration manager
-        BlockConfigManager.initialize(this);
-        BlockConfigManager.getInstance().loadConfig();
-
         // Check for ProtocolLib for WASD input detection
         if (Bukkit.getPluginManager().getPlugin("ProtocolLib") == null || !PROTOCOL) {
             if (PROTOCOL) {
@@ -132,6 +128,10 @@ public class SmoothSailingPlugin extends JavaPlugin {
         // First destroy all registered ships (cleans up properly)
         int shipCount = ShipRegistry.getAllShips().size();
         ShipRegistry.destroyAll();
+
+        // Initialize block configuration manager
+        BlockConfigManager.initialize(this);
+        BlockConfigManager.getInstance().loadConfig();
 
         // Then clean up any orphaned entities with ship tags
         for (World world : Bukkit.getWorlds()) {
@@ -366,6 +366,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
                 DEBUG = this.getConfig().getConfigurationSection("debug").getBoolean("enabled",false);
                 // Reload block configuration
                 registerFuelTypes();
+                loadSignHeaders();
                 BlockConfigManager.getInstance().reloadConfig();
                 sender.sendMessage("SmoothSailing config reloaded!");
                 return true;
