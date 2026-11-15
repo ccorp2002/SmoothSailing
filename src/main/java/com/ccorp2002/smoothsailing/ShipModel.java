@@ -10,8 +10,8 @@ import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.joml.*;
 
+import java.lang.Math;
 import java.util.*;
 
 public class ShipModel {
@@ -27,7 +27,7 @@ public class ShipModel {
 
     public ShipModel(List<Location> blocks, float waterFloatOffset, int totalWeight, float minY, float maxY) {
         this.blocks = blocks;
-        this.waterFloatOffset = waterFloatOffset;
+        this.waterFloatOffset = (float)Math.ceil(waterFloatOffset);
         this.totalWeight = totalWeight;
         this.blockCount = this.blocks.size();
         this.minY = minY;
