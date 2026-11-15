@@ -109,24 +109,29 @@ public class ShipPhysics {
         FRAGILE_MATERIALS.addAll(Tag.CARPETS.getValues());
         FRAGILE_MATERIALS.addAll(Tag.RAILS.getValues());
         FRAGILE_MATERIALS.addAll(Tag.WOODEN_PRESSURE_PLATES.getValues());
+        initMediums();
+    }
+
+    public static void initMediums() {
         //LAVA SHIPS
+        var CONFIG = SmoothSailingPlugin.getPlugin().getConfig();
         Medium LAVA_MEDIUM = new Medium();
         LAVA_MEDIUM.BLOCKS.add(0,LAVA);
         BlockType LAVA_TYPE = Material.LAVA.asBlockType();
         LAVA_MEDIUM.BLOCKS.addAll(LAVA_TYPE.createBlockDataStates());
         LAVA_MEDIUM.BLOCKS.add(Material.MAGMA_BLOCK.createBlockData());
-        LAVA_MEDIUM.baseDensity = 25d;
+        LAVA_MEDIUM.baseDensity = CONFIG.getDouble("buoyancy.lava-density", 10d);
         LAVA_MEDIUM.id = "lava";
-        LAVA_MEDIUM.dragMultiplier = 0.275d;
+        LAVA_MEDIUM.dragMultiplier = CONFIG.getDouble("buoyancy.lava-drag-mod", 1.5d);
         MEDIUM_MATERIALS.put(Material.LAVA,LAVA_MEDIUM);
         MEDIUM_MATERIALS.put(Material.MAGMA_BLOCK,LAVA_MEDIUM);
         FLUID_MEDIUMS.put("lava",LAVA_MEDIUM);
         //WATER SHIPS
         Medium WATER_MEDIUM = new Medium();
         WATER_MEDIUM.BLOCKS.add(0,WATER);
-        WATER_MEDIUM.baseDensity = SmoothSailingPlugin.getPlugin().getConfig().getDouble("buoyancy.water-density", 10d);
+        WATER_MEDIUM.baseDensity = CONFIG.getDouble("buoyancy.water-density", 10d);
         WATER_MEDIUM.id = "water";
-        WATER_MEDIUM.dragMultiplier = 0.325d;
+        WATER_MEDIUM.dragMultiplier = CONFIG.getDouble("buoyancy.water-drag-mod", 0.75d);
         for (Material FLUID_MAT : FLUID) {
             BlockType WATER_TYPE = FLUID_MAT.asBlockType();
             WATER_MEDIUM.BLOCKS.addAll(WATER_TYPE.createBlockDataStates());
@@ -136,9 +141,9 @@ public class ShipPhysics {
         //AIR SHIPS
         Medium VOID_MEDIUM = new Medium();
         VOID_MEDIUM.BLOCKS.add(0,VOID);
-        VOID_MEDIUM.baseDensity = SmoothSailingPlugin.getPlugin().getConfig().getDouble("buoyancy.air-density", -0.25d);
+        VOID_MEDIUM.baseDensity = CONFIG.getDouble("buoyancy.air-density", -0.25d);
         VOID_MEDIUM.id = "void";
-        VOID_MEDIUM.dragMultiplier = 0.575d;
+        VOID_MEDIUM.dragMultiplier = CONFIG.getDouble("buoyancy.air-drag-mod", 0.25d);
         for (Material VOID_MAT : EnumSet.of(Material.END_GATEWAY, Material.NETHER_PORTAL, Material.AIR, Material.CAVE_AIR)) {
             BlockType VOID_TYPE = VOID_MAT.asBlockType();
             VOID_MEDIUM.BLOCKS.addAll(VOID_TYPE.createBlockDataStates());
@@ -321,30 +326,31 @@ public class ShipPhysics {
     public float getFluidMediumDrag() {
         // Apply drag based on medium presence (unless actively pressing W/S)
         if (ship == null) return 0f;
-        if (ship.isNotProcessing()) return 0.45f;
+        if (ship.isNotProcessing()) return 0.75f;
         ShipConfig config = ShipInstance.config;
         float dragMultiplier = 0f;
         Map.Entry<String, Integer> maxEntry = getPrimaryMedium(ship.BLOCK_STATES);
-        if (maxEntry == null) return 0.25f;
+        if (maxEntry == null) return 0.75f;
         Integer maxValue = maxEntry.getValue();
         dragMultiplier = maxValue + 0.0f;
-        if (Math.abs(dragMultiplier) >= 1) { //Fallback
-            dragMultiplier = 0.125f;
+        if (Math.abs(dragMultiplier) >= 1f) { //Fallback
+            dragMultiplier = 0.75f;
         }
         return dragMultiplier;
     }
+
 
     public float getMaxEngineSpeedFactor() {
         if (ship == null) return 0.75f;
         if (ship.initialEngineCount == 0 || ship.engineCount == 0) return 0.75f;
         final double enginePercent = getEnginePercent();
-        float speedFactor = this.PER_MAX_SPEED;
+        float speedFactor = 1f;
         if (ship.engineCount > 0 && enginePercent >= 0.75d) {
-            speedFactor += (Math.abs(speedFactor) * (ship.engineCount / ship.blockCount)+0.45f);
+            speedFactor += (Math.abs(speedFactor) * ((ship.engineCount / ship.blockCount)+0.125f));
             if (SmoothSailingPlugin.DEBUG) System.out.println("ENGINE BLOCK PERCENT: "+enginePercent+"; CURRENT ENGINE COUNT: "+ship.engineCount+"; NEW SPEED FACTOR: "+speedFactor);
         }
-        if (speedFactor >= 7.5f) {
-            speedFactor = 7.5f; //Hardcoded Temporary Cap
+        if (speedFactor >= ShipPhysics.MAX_SPEED) {
+            speedFactor = (float)ShipPhysics.MAX_SPEED; //Hardcoded Temporary Cap
         }
         return speedFactor;
     }
@@ -363,36 +369,6 @@ public class ShipPhysics {
         return enginePercent;
     }
 
-    public void processFluidMediumDrag() {
-        if (ship == null) return;
-        ShipConfig config = ShipInstance.config;
-        if (Math.abs(this.currentSpeed) >= 0.275f) {
-            float dragMultiplier = getFluidMediumDrag();
-
-            // Apply extra drag in fluid mediums
-            if (this.currentSpeed > 0.5f) {
-                this.currentSpeed *= dragMultiplier;
-            } else if (this.currentSpeed < -0.5f) {
-                this.currentSpeed *= dragMultiplier;
-            } else {
-                this.currentSpeed = 0.0f;
-            }
-        } else {
-            this.currentSpeed = 0.0f;
-        }
-        if (Math.abs(this.currentYVelocity) >= 0.275f) {
-            if (this.currentYVelocity > 0.5f) {
-                this.currentYVelocity -= 0.5f;
-            } else if (this.currentYVelocity < -0.5f) {
-                this.currentYVelocity += 0.5f;
-            } else {
-                this.currentYVelocity = 0.0f;
-            }
-        } else {
-            this.currentYVelocity = 0.0f;
-        }
-    }
-
 
     public final ShipInstance ship;
     // Grid snap resolution (4.0 = quarter block, i.e. 1/4 = 0.25)
@@ -400,15 +376,15 @@ public class ShipPhysics {
     public volatile int customMoveTicks = 0;
     public volatile int physicsInterval = 0;
     public volatile int loadTicks = 0;
-    // Velocity state
-    public static float MAX_SPEED = 3f;
+    public static float MAX_SPEED = 75f; //Hard Max Speed
     public float PER_MAX_SPEED = MAX_SPEED;
+    // Velocity state
     public volatile float currentSpeed = 0.0f;
     public volatile float currentYVelocity = 0.0f;
     public volatile float currentRotationVelocity = 0.0f;
     public volatile boolean moving = false;
-    public long MOVEMENT_COOLDOWN = 15l;
-    public int GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);;
+    public long MOVEMENT_COOLDOWN = 7l;
+    public int GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);
     public int CURRENT_FLUID_LEVEL;
     private int ROTATION_INCR = 1;
 
@@ -427,6 +403,7 @@ public class ShipPhysics {
         this.GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);
         this.CURRENT_FLUID_LEVEL = (int)this.detectFluidLine()-1;
         this.PER_MAX_SPEED = MAX_SPEED;
+        this.detectNearbyEntities();
     }
 
     public static double ROUND_VALUE(double value, int precision) {
@@ -453,7 +430,6 @@ public class ShipPhysics {
                 ship.displayHealth();
             }
         }
-        if (!ship.hasInputState()) processFluidMediumDrag();
         if (this.loadTicks >= 120) {
             this.loadTicks = 0;
         }
@@ -496,23 +472,23 @@ public class ShipPhysics {
                 }
             }
             if (ship.hasInputState()) {
-                float accel = ship.getGear() <= 1 ? 0.65f : (float)getMaxEngineSpeedFactor();
+                float accel = getMaxEngineSpeedFactor()+0.75f;
                 if (ship.isForwardPressed) {
-                    currentSpeed = Math.min(currentSpeed + accel, PER_MAX_SPEED);
+                    currentSpeed = Math.min(currentSpeed + accel, PER_MAX_SPEED+ship.getGear());
                 } else if (ship.isBackwardPressed) {
                     if (currentSpeed > 0) {
                         currentSpeed = Math.max(currentSpeed - accel, 0.0f);
                     } else {
-                        currentSpeed = Math.max(currentSpeed - accel, -PER_MAX_SPEED);
+                        currentSpeed = Math.max(currentSpeed - accel, -PER_MAX_SPEED+ship.getGear());
                     }
                 }
-                this.currentSpeed = ShipPhysics.CLAMP_VALUE(this.currentSpeed,-this.PER_MAX_SPEED,this.PER_MAX_SPEED);
+                this.currentSpeed = ShipPhysics.CLAMP_VALUE(this.currentSpeed,-this.PER_MAX_SPEED+ship.getGear(),this.PER_MAX_SPEED+ship.getGear());
                 if (ship.isSpacePressed) {
                     this.currentYVelocity += (accel/1.125f)+0.25f;
-                    this.currentSpeed *= 0.475f;
+                    this.currentSpeed *= 0.625f;
                 } else if (ship.isSprintPressed) {
                     this.currentYVelocity -= (accel/1.125f)+0.25f;
-                    this.currentSpeed *= 0.475f;
+                    this.currentSpeed *= 0.625f;
                 }
                 this.currentYVelocity = ShipPhysics.CLAMP_VALUE(this.currentYVelocity,-this.PER_MAX_SPEED,this.PER_MAX_SPEED);
                 if (ship.getGear() > ship.getMaxGear()) {
@@ -520,11 +496,22 @@ public class ShipPhysics {
                     ship.displayGears();
                 }
             } else {
-                this.currentSpeed = ShipPhysics.CLAMP_VALUE(this.currentSpeed,-this.PER_MAX_SPEED/2,this.PER_MAX_SPEED/2);
-                this.currentYVelocity = ShipPhysics.CLAMP_VALUE(this.currentYVelocity,-this.PER_MAX_SPEED/2,this.PER_MAX_SPEED/2);
+                float decel = 1f;
+                if (currentSpeed != 0f) {
+                    decel = getFluidMediumDrag();
+                    if (currentSpeed >= 1f) currentSpeed -= decel;
+                    else if (currentSpeed <= -0.5f) currentSpeed += decel;
+                    else currentSpeed = 0f;
+                }
+                if (currentYVelocity != 0f) { 
+                    decel = getFluidMediumDrag();
+                    if (currentYVelocity >= 1f) currentYVelocity -= decel;
+                    else if (currentYVelocity <= -0.5f) currentYVelocity += decel;
+                    else currentYVelocity = 0f;
+                }
             }
         } else {
-            this.currentYVelocity = -0.75f;
+            this.currentYVelocity = -3f;
         }
 
         // Stop if speed is very small
@@ -540,7 +527,6 @@ public class ShipPhysics {
         } else {
             currentRotationVelocity = 0f;
         }
-        if (ship.isSinking) currentYVelocity = -1.5f;
         if (SmoothSailingPlugin.INSTANCE == null) {
             ship.setProcessing(false);
             ship.isLeftPressed = false;
@@ -577,8 +563,8 @@ public class ShipPhysics {
                 fx = (forwardX * (currentSpeed));
                 fz = (forwardZ * (currentSpeed));
                 if (ship.getGear() > 1) {
-                    fx = (double)CLAMP_VALUE((float)fx, (float)-((PER_MAX_SPEED/1.25)+ship.getGear()+2), (float)((PER_MAX_SPEED/1.25)+ship.getGear()+2));
-                    fz = (double)CLAMP_VALUE((float)fz, (float)-((PER_MAX_SPEED/1.25)+ship.getGear()+2), (float)((PER_MAX_SPEED/1.25)+ship.getGear()+2));
+                    fx = (double)CLAMP_VALUE((float)fx, (float)-((PER_MAX_SPEED)+ship.getGear()+2), (float)((PER_MAX_SPEED)+ship.getGear()+2));
+                    fz = (double)CLAMP_VALUE((float)fz, (float)-((PER_MAX_SPEED)+ship.getGear()+2), (float)((PER_MAX_SPEED)+ship.getGear()+2));
                 } else {
                     fx = (double)CLAMP_VALUE((float)fx, -2f, 2f);
                     fz = (double)CLAMP_VALUE((float)fz, -2f, 2f);
@@ -601,7 +587,7 @@ public class ShipPhysics {
                 fy = -3d;
             }
             Location offset = new Location(ship.getWorld(),fx,fy,fz);
-            this.move(pilot,offset,FILTERED_ENTS,true);
+            this.move(pilot,offset,FILTERED_ENTS,ship.doGearsRequireFuel());
             return;
         }
     }
@@ -742,7 +728,7 @@ public class ShipPhysics {
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 moving = false;
                 ship.setProcessing(false);
-            },(long)(MOVEMENT_COOLDOWN)+120L);
+            },(long)(MOVEMENT_COOLDOWN)+25L);
         }
     }
 
@@ -863,12 +849,14 @@ public class ShipPhysics {
             BlockData TURNED = st.getBlockData().clone();
             TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
             st.setBlockData(TURNED,true);
+            /*
             if (SmoothSailingPlugin.DEBUG_DUMP) {
                 System.out.println(st.getBlockData().getAsString(false)+":  ORIGIN: "+stloc.toVector().toString()+" ");
                 System.out.println("  SEGMENT-ROTATED: "+updLoc.toVector().toString()+" ");
                 System.out.println("  SEGMENT-ROTATION TYPE: "+LEFT_RIGHT);
                 System.out.println("  SEGMENT-NEW BLOCK DATA: "+NmsUtils.BlockDataGetter.get(NmsUtils.getBlockState(TURNED)).getAsString(false));
             }
+            */
             ship.FLUIDS.set(updLoc,st.occupiedBlock);
             st = st.teleport(updLoc,false);
             NmsUtils.setBlockFast(updLoc,TURNED);
@@ -904,7 +892,7 @@ public class ShipPhysics {
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
             moving = false;
             ship.setProcessing(false);
-        },(long)(MOVEMENT_COOLDOWN)+120L);
+        },(long)(MOVEMENT_COOLDOWN)+25L);
     }
 
     public void rotate(final Player pilotF, Boolean leftRight) {
@@ -1063,12 +1051,14 @@ public class ShipPhysics {
                     BlockData TURNED = st.getBlockData().clone();
                     TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
                     st.setBlockData(TURNED,true);
+                    /*
                     if (SmoothSailingPlugin.DEBUG_DUMP) {
                         System.out.println(st.getBlockData().getAsString(false)+":  ORIGIN: "+stloc.toVector().toString()+" ");
                         System.out.println("  ROTATED: "+updLoc.toVector().toString()+" ");
                         System.out.println("  ROTATION TYPE: "+LEFT_RIGHT);
                         System.out.println("  NEW BLOCK DATA: "+NmsUtils.BlockDataGetter.get(NmsUtils.getBlockState(TURNED)).getAsString(false));
                     }
+                    */
                     st = st.teleport(updLoc,false);
                     NmsUtils.setBlockFast(updLoc,TURNED);
                     ship.FLUIDS.set(updLoc,st.occupiedBlock);
@@ -1077,6 +1067,7 @@ public class ShipPhysics {
                 }
                 ship.BLOCK_STATES.clear();
                 ship.BLOCK_STATES.setAll(TEMPS);
+                ship.maxGear = (getEngineGears());
                 //System.out.println("POST ROTATION BLOCK COUNT: "+ship.BLOCK_STATES.size());
                 for (Entity entity : FILTERED_ENTS) {
                     if (entity == null) continue;
@@ -1144,7 +1135,7 @@ public class ShipPhysics {
                     currentSpeed = xzVelocity/2f;
                     moving = false;
                     ship.setProcessing(false);
-                },(long)(MOVEMENT_COOLDOWN+140L));
+                },(long)(MOVEMENT_COOLDOWN+90L));
             };
             moving = true;
             ship.setProcessing(true);
@@ -1384,6 +1375,7 @@ public class ShipPhysics {
         //System.out.println("FILTERED BLOCK COUNT: "+FILTERED_TEMPS.length);
         ship.BLOCK_STATES.clear();
         ship.BLOCK_STATES.setAll(TEMPS);
+        ship.maxGear = (getEngineGears());
         //System.out.println("POST MOVEMENT BLOCK COUNT: "+ship.BLOCK_STATES.size());
         ship.model.minY = ship.minY();
         ship.model.maxY = ship.maxY();
@@ -1415,11 +1407,12 @@ public class ShipPhysics {
         ship.updateRedstone();
         this.currentRotationVelocity = 0.0f;
         if (toBurnFuel) {
-            int burnRate = (int)(ship.getFuelCost()+(getEngineGears()/getEnginePercent()));
+            int burnRate = (int)(ship.getFuelCost()+(getEngineGears()/getEnginePercent())+1);
             toBurnFuel = InventoryUtil.doBurnFuelType(ship,null,false,burnRate);
             ship.setDataTag("has_fuel",toBurnFuel);
         } else {
-            ship.setDataTag("has_fuel",true);
+            toBurnFuel = true;
+            ship.setDataTag("has_fuel",toBurnFuel);
         }
         for (String KEY : ship.TRACKED_STATE_MAP.keySet()) {
             if (KEY == null) continue;
@@ -1433,10 +1426,11 @@ public class ShipPhysics {
             ship.setTrackedLocation(KEY,Arrays.asList(_COPY));
         }
         processFluidRestore();
+        if (!toBurnFuel) ship.setGear(1);
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.getLocation()).runTaskLater(()->{
             moving = false;
             ship.setProcessing(false);
-        },(long)(MOVEMENT_COOLDOWN+25l));
+        },(long)(MOVEMENT_COOLDOWN+15l));
     }
 
     public static void rotateSubship2d(ShipInstance parent, Location CENTER_POINT, String LEFT_RIGHT, Collection<Block> BLOCKS) {

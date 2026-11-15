@@ -15,6 +15,7 @@ import com.ccorp2002.smoothsailing.nmsutils.CEUtils;
 import com.ccorp2002.smoothsailing.region.TaskUtils;
 import com.ccorp2002.smoothsailing.ship.MobileBlockState;
 import com.ccorp2002.smoothsailing.ship.ShipInstance;
+import com.ccorp2002.smoothsailing.ship.ShipPhysics;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Material;
@@ -115,6 +116,9 @@ public class SmoothSailingPlugin extends JavaPlugin {
         }
         shipListener = new ShipListener(INSTANCE);
         signFunctions = new SignFunctions();
+        ShipPhysics.initMediums();
+        ShipPhysics.MAX_SPEED = (float)getConfig().getDouble("hard-max-speed", 75d);
+        getLogger().info("Absolute Max Speed is currently set to: "+ShipPhysics.MAX_SPEED);
         Bukkit.getPluginManager().registerEvents(shipListener, INSTANCE);
         Bukkit.getPluginManager().registerEvents(signFunctions, INSTANCE);
         try {
@@ -345,7 +349,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
             }
             sender.sendMessage("Unpiloted " + removedCount + " registered Ship(s)");
             return true;
-        } else if (command.getName().equalsIgnoreCase("smoothsailing")) {
+        } else if (command.getName().equalsIgnoreCase("smoothsailing") || command.getName().equalsIgnoreCase("smooth") || command.getName().equalsIgnoreCase("sail")) {
             if (args.length > 0 && args[0].equalsIgnoreCase("reload")) {
                 if (!sender.hasPermission("smoothsailing.reload") && !sender.hasPermission("smoothsailing.admin")) {
                     sender.sendMessage("You don't have permission to reload this plugin.");
@@ -367,6 +371,9 @@ public class SmoothSailingPlugin extends JavaPlugin {
                 // Reload block configuration
                 registerFuelTypes();
                 loadSignHeaders();
+                ShipPhysics.initMediums();
+                ShipPhysics.MAX_SPEED = (float)getConfig().getDouble("hard-max-speed", 75d);
+                getLogger().info("Absolute Max Speed is currently set to: "+ShipPhysics.MAX_SPEED);
                 BlockConfigManager.getInstance().reloadConfig();
                 sender.sendMessage("SmoothSailing config reloaded!");
                 return true;
@@ -461,7 +468,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (!command.getName().equalsIgnoreCase("smoothsailing")) {
+        if ((!command.getName().equalsIgnoreCase("smoothsailing") && !command.getName().equalsIgnoreCase("smooth") && !command.getName().equalsIgnoreCase("sail"))) {
             return null;
         }
 

@@ -592,10 +592,10 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
 
     public void setBlockData(BlockData data, boolean updateShip) {
         if (data == null) return;
-        if (!data.getMaterial().isAir() || updateShip) {
-            this.state = ((CraftBlockData) data).getState();
-        }
-        if (updateShip) {
+        this.state = NmsUtils.getBlockState(data);
+        if (!updateShip) return;
+        BlockData current = this.getBlockData();
+        if (updateShip && data.getMaterial() != current.getMaterial()) {
             ShipInstance ship = this.getShip();
             if (ship != null && !ship.CHANGE_WORLD) {
                 ShipInstance.updateBlockStateOnShip(ship,this);
@@ -651,6 +651,7 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
         Location pos = this.getLocation();
         if (this.isDead() && pos != null) {
             NmsUtils.setBlockFast(pos,ShipPhysics.VOID);
+            NmsUtils.renderBlockChanges(pos);
             return;
         }
         if (ship != null && !ship.CHANGE_WORLD && pos != null) {

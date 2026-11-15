@@ -179,6 +179,15 @@ public class ShipInstance {
     public float currentHealth = maxHealth;
     public boolean gearsRequireFuel = true;
 
+
+    public boolean doGearsRequireFuel() {
+        return this.gearsRequireFuel;
+    }
+
+    public void setGearsRequireFuel(boolean fuel) {
+        this.gearsRequireFuel = fuel;
+    }
+    
     public int getHardMaxGear() {
         return this.hardMaxGear;
     }
@@ -188,14 +197,6 @@ public class ShipInstance {
             this.hardMaxGear = hardMaxGear;
         }
         setMaxGear(this.hardMaxGear);
-    }
-
-    public boolean doGearsRequireFuel() {
-        return this.gearsRequireFuel;
-    }
-
-    public void setGearsRequireFuel(boolean fuel) {
-        this.gearsRequireFuel = fuel;
     }
 
     public int getMaxGear() {
@@ -654,10 +655,6 @@ public class ShipInstance {
         } else {
             ShipInstance.this.initialEngineCount = engineCount;
         }
-        if (this.hardMaxGear < 0) {
-            this.hardMaxGear = physics.getEngineGears();
-        }
-        displayGears();
         if (dryFire) {
             return;
         }
@@ -700,7 +697,7 @@ public class ShipInstance {
         ShipRegistry.register(this);
         if (ShipInstance.this.parentShip != null) ShipInstance.this.setProcessing(false);
         else ShipInstance.this.setProcessing(true);
-        setDataTag("has_fuel",InventoryUtil.canBurnFuelType(this,null));
+        setDataTag("has_fuel",!this.doGearsRequireFuel());
         Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(getLocation(),ShipInstance.this.BLOCK_STATES,ShipInstance.this.model.totalWeight);
         float floatOffset = model.waterFloatOffset;
         setDataTag("float_offset",floatOffset);
@@ -708,11 +705,16 @@ public class ShipInstance {
         PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:float_offset",""+floatOffset);
         PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
         DATA.clear();
+
         this.updateWaterLogging(true);
         Runnable RUN_ME = () -> {  
             if (ShipInstance.this.physics != null) {
                 ShipInstance.this.setProcessing(true);
             }
+            if (ShipInstance.this.hardMaxGear <= 1) {
+                ShipInstance.this.hardMaxGear = physics.getEngineGears();
+            }
+            ShipInstance.this.displayGears();
             Runnable RUN_ME_2 = new Runnable() {
                 @Override
                 public void run() {
@@ -828,7 +830,6 @@ public class ShipInstance {
                     if (props.isEngine()) ship.engineCount = java.lang.Math.max(ship.initialEngineCount, ship.engineCount + 1);
                     else ship.engineCount = java.lang.Math.max(0, ship.engineCount - 1);
                 }
-                ship.maxGear = (ship.physics.getEngineGears());
             }
             ship.BLOCK_STATES.set(state);
             if (ship.physics != null) ship.physics.moving = false;
@@ -838,6 +839,7 @@ public class ShipInstance {
 
     public static void updateDamagedBlock(final ShipInstance ship, MobileBlockState state) {
         if (ship == null || state == null) return;
+        if (!state.isDead()) return;
         BlockData blockData = state.getBlockData();
         final BlockProperties props = BlockConfigManager.getInstance().getProperties(blockData.getMaterial(), blockData);
         ship.weightCalc += props.weight;
@@ -845,10 +847,9 @@ public class ShipInstance {
             ship.engineCount -= 1;
             if (ship.engineCount <= 0) {
                 ship.engineCount = 0;
-                ship.physics.PER_MAX_SPEED = 0.625f;
-                ship.physics.MOVEMENT_COOLDOWN += 12; //1 Second minimum
+                ship.physics.MOVEMENT_COOLDOWN += 15; //1 Second minimum
             } else {
-                ship.physics.MOVEMENT_COOLDOWN += 2;
+                ship.physics.MOVEMENT_COOLDOWN += 5;
             }
             ship.displayGears();
         }
@@ -894,14 +895,14 @@ public class ShipInstance {
         this.physics.currentYVelocity += 1f;
         float floatOffset = Math.abs(this.model.waterFloatOffset);
         final BlockData FLUID_BLOCK = ShipPhysics.getLocationPrimaryMediumAtBelowY(this.physics.getExteriorLocations(0,0,(int)floatOffset), this.physics.CURRENT_FLUID_LEVEL);
-        if (SmoothSailingPlugin.DEBUG) {
+        if (SmoothSailingPlugin.DEBUG_DUMP) {
             System.out.println("CURRENT FLUID LEVEL: "+this.physics.CURRENT_FLUID_LEVEL);
             System.out.println("PRIMARY FLUID BLOCK: "+FLUID_BLOCK.getAsString(false));
         }
         if (init) {
             this.BLOCK_STATES.forEach(st -> {
                 if (st.getY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
-                    System.out.println("FOUND FLUID LEVEL: "+st.getY()+" FOR: "+FLUID_BLOCK);
+                    //System.out.println("FOUND FLUID LEVEL: "+st.getY()+" FOR: "+FLUID_BLOCK);
                     st.occupiedBlock = FLUID_BLOCK;
                     FLUIDS.set(st.getLocation(),FLUID_BLOCK);
                 } else {
@@ -1124,9 +1125,9 @@ public class ShipInstance {
             setInputState(false, false, false, false);
             setVerticalInputState(false, false);
 
-            this.physics.currentSpeed = 0.0f;
-            this.physics.currentYVelocity = 0.0f;
-            this.physics.currentRotationVelocity = 0.0f;
+            this.physics.currentSpeed = 0f;
+            this.physics.currentYVelocity = 0f;
+            this.physics.currentRotationVelocity = 0f;
             return;
         }
         if (driver != null && driver instanceof Player player && player.getVehicle() != null) {
@@ -1140,9 +1141,9 @@ public class ShipInstance {
         if (!CHANGE_WORLD && driver != null && driver instanceof Player player) (new org.bukkit.event.player.PlayerMoveEvent(player,player.getLocation(),player.getLocation())).callEvent();
         final ShipTickEvent ticking = new ShipTickEvent(this,this.vehicle);
         ticking.callEvent();
+        handleSteeringInput();
         if (ticking.isCancelled()) return;
         if (this.parentShip != null) return;
-        handleSteeringInput();
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTask(physics::update);    // Apply physics (movement, rotation, buoyancy)
     }
 

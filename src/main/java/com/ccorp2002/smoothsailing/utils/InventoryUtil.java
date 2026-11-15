@@ -81,7 +81,7 @@ public final class InventoryUtil {
     public static boolean canBurnFuelType(ShipInstance ship, Pair<Pair<FuelType,ItemStack>,Inventory> fuelBurner) {
         if (ship == null) return false;
         if (ship.engineCount == 0) return false;
-        if (!ship.doGearsRequireFuel()) return false;
+        if (!ship.doGearsRequireFuel()) return true;
         if (fuelBurner == null) fuelBurner = checkFuelTypeToBurn(ship);
         if (fuelBurner != null) {
             return true;
@@ -102,22 +102,27 @@ public final class InventoryUtil {
         if (canBurnFuelType(ship,fuelBurner)) {
             Pair<FuelType,ItemStack> fuel = fuelBurner.getLeft();
             Inventory source = fuelBurner.getRight();
-            ItemStack toBurn = fuel.getRight().asOne();
             FuelType type = fuel.getLeft();
             ShipBurnFuelEvent burnEvent = new ShipBurnFuelEvent(ship,ship.vehicle,type);
             burnEvent.callEvent();
             FuelType newType = burnEvent.getFuelType();
+            if (newType != null) {
+                type = newType;
+            }
             if (burnEvent.isCancelled()) {
                 return type != null;
-            } else if (newType == null) {
-                newType = type;
             }
-            if (ShipInstance.RANDOM.nextDouble() < newType.burnChance || force) {
-                MobileBlockState STATE = MobileBlockState.getStateFromLoc(source.getLocation());
-                boolean burnt = !reduceItemStack(source,toBurn,(newType.burnRate+extra)).isEmpty();
-                if (STATE != null) {
-                    Location pos = STATE.getLocation();
-                    ShipInstance.spawnFuelBurnEffects(pos);
+            //System.out.println(type.id+" FUEL TYPE FOUND?: "+type != null);
+            if (ShipInstance.RANDOM.nextDouble() < type.burnChance || force) {
+                Location pos = source.getLocation();
+                boolean burnt = false;
+                for (ItemStack toBurn : type.getFuelItems()) {
+                    burnt = !reduceItemStack(source,toBurn,(type.burnRate+extra)).isEmpty();
+                    //System.out.println(toBurn+" FUEL BURNT?: "+burnt);
+                    if (pos != null && burnt) {
+                        ShipInstance.spawnFuelBurnEffects(pos);
+                    }
+                    if (burnt) break;
                 }
                 return burnt;
             } else {
@@ -129,7 +134,6 @@ public final class InventoryUtil {
     public static Pair<Pair<FuelType,ItemStack>,Inventory> checkFuelTypeToBurn(ShipInstance ship) {
         if (ship == null) return null;
         Pair<FuelType,ItemStack> fuel = null;
-        if (ship.getGear() <= 1) return null;
         for (MobileBlockState state : getDefaultFuelBlocks(ship)) {
             if (state == null || state.isDead()) continue;
             if (state.getBlock().getState(false) instanceof Container holder) {
@@ -167,7 +171,6 @@ public final class InventoryUtil {
         if (index == -1) return ItemStack.empty();
         ItemStack reduced = reduceItemStack(inv.getItem(index),amntChange);
         inv.setItem(index, reduced);
-        //System.out.println("REDUCED: "+check.toString()+" BY "+amntChange + " INTO: "+reduced.toString());
         return reduced;
     }
 

@@ -1,21 +1,37 @@
 # SmoothSailing Plugin Configuration (Stripped down from BlockShips' Config)
 
-water-level: 63  # Default/fallback water-level, if none is automatically found for a sailing ship.
-#^ May eventually be migrated to a per-world option, with this as a fallback, but not yet.
+water-level: 62  # Default/fallback water-level, if none is automatically found for a sailing ship.
+# ^ May eventually be migrated to a per-world option, with this as a fallback, but not ready yet.
+
+hard-max-speed: 75  # Hard max speed, no vehicle can go faster than this; Does not factor in Gears/Engines & API Usage.
+# ^ A higher max speed may increase the maximum distance a ship can "drift" after stopping movement inputs.
+
 max-ship-size: 28500  # Maximum number of blocks in a ship.
 max-scan-size: 28700  # Maximum blocks to scan when ship hits the above limit (for reporting actual size.)
 
 # Buoyancy system - weight-based floating
-# Ships float based on their density (total weight / block count) compared to water density
+# Ships float based on their density (total weight / block count) compared to fluid density, like `water` for this example:
 # - Density < water: floats higher (surface offset increases)
-# - Density = water: neutral (floats at water surface)
-# - Density > water: sinks lower (surface offset decreases, eventually sinks)
+# - Density = water: neutral (floats around the water surface)
+# - Density > water: sinks lower (surface offset decreases, eventually submerging)
+
+# Drag Modifier system - How fast a ship decelarates in the primary fluid medium (whichever the ship is exposed the most to, does not count Air, if a vehicle is touching anything else).
 buoyancy:
   # Reference density of air (ships lighter than this become airships)
-  air-density: -2.5
-  # Reference density of water (ships lighter than this become sailing ships, and ships heavier may become submarines, where the water-level becomes their max height)
-  water-density: 5.0
-# See `blocks.yml` to further understand block configurations, and how they impact a ships function.
+  air-density: -5.0
+  # Controls Deceleration of a vehicle in an Air-type fluid medium. Applies when movement inputs have stopped.
+  air-drag-mod: 1.25 # -1.25 speed while going without movement input.
+
+  # Reference density of water (ships lighter than this become sailing ships, and ships heavier may become submerged, where the water-level becomes their max height)
+  water-density: 10.0
+  # Controls Deceleration of a vehicle in an Water-type fluid medium.
+  water-drag-mod: 2.5 # -2.5 speed while going without movement input.
+  
+  # Reference density of lava (ships lighter than this may become lava-ships, and ships heavier may become submerged, where the lava-level becomes their max height)
+  lava-density: 25.0
+  # Controls Deceleration of a vehicle in an Lava-type fluid medium.
+  lava-drag-mod: 5.0 # -5 speed while going without movement input. (Acts like a very viscous/thick fluid, thats difficult to move through.)
+
 signs:
   helm: "[helm]"
   turret: "[turret]"
@@ -35,10 +51,13 @@ towny:
   enemy:
     can-pilot-blocks: false
     can-passthrough: true
+
 worldguard:
   enabled: true
+
 debug:
-  enabled: false
+  enabled: false # Debug logs may be spammy but will also help with determining what is going on with a ships (lack of) movement.
+
 fuel-types:
   char_and_coal: # 1 Coal and 1 Charcoal serialized into a list of Base64 Strings.
     item:
@@ -47,3 +66,5 @@ fuel-types:
     id: char_and_coal
     chance: 0.75
     rate: 1
+
+# See `blocks.yml` for the reference block property configurations, and how they impact a ships function.

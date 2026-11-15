@@ -78,7 +78,7 @@ public class SignFunctions implements Listener {
     public static void CHANGE_GEAR_AT(final PlayerInteractEvent event, org.bukkit.block.Sign signState) {
         Block block = event.getClickedBlock();
         final Player player = event.getPlayer();
-        ShipInstance ship = MobileBlockState.getShipFromLoc(block.getLocation());
+        ShipInstance ship = MobileBlockState.getShipFromLoc(signState.getLocation());
         if (ship == null) {
             if (signState != null) signState.setLine(1,"");
             return;
@@ -92,6 +92,7 @@ public class SignFunctions implements Listener {
         if (signState != null) {
             String line = ChatColor.BLACK+"["+ChatColor.RESET+ ChatColor.BOLD + ChatColor.YELLOW + ship.getGear() + ChatColor.GOLD + "/" + ChatColor.RED + ship.getMaxGear() + ChatColor.RESET+ChatColor.BLACK+"]";
             signState.setLine(1,line);
+            signState.update(false,false);
         }
 
     }
@@ -100,10 +101,10 @@ public class SignFunctions implements Listener {
         Block block = event.getClickedBlock();
         final Player player = event.getPlayer();
         ShipInstance ship = MobileBlockState.getShipFromLoc(block.getLocation());
-        if (player.isSneaking() || ship == null) return;
+        if (ship == null) return;
         event.setCancelled(true);
         Boolean LEFT_RIGHT = null;
-        if (event.getAction() == Action.LEFT_CLICK_BLOCK) LEFT_RIGHT = Boolean.FALSE;
+        if (event.getAction() == Action.LEFT_CLICK_BLOCK || player.isSneaking()) LEFT_RIGHT = Boolean.FALSE;
         else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) LEFT_RIGHT = Boolean.TRUE;
         else return;
         ship.physics.rotate(player,LEFT_RIGHT);
@@ -113,14 +114,14 @@ public class SignFunctions implements Listener {
         Block block = event.getClickedBlock();
         final Player player = event.getPlayer();
         ShipInstance ship = MobileBlockState.getShipFromLoc(block.getLocation());
-        if (player.isSneaking() || ship == null) return;
+        if (ship == null) return;
         event.setCancelled(true);
         RUN_TURRET_AT(event.getAction(), ship, player, block);
     }
 
     public static void RUN_TURRET_AT(final Action action, ShipInstance ship, Player player, Block block) {
         String LEFT_RIGHT = "NONE";
-        if (action == Action.LEFT_CLICK_BLOCK) LEFT_RIGHT = "LEFT";
+        if (action == Action.LEFT_CLICK_BLOCK || player.isSneaking()) LEFT_RIGHT = "LEFT";
         else if (action == Action.RIGHT_CLICK_BLOCK) LEFT_RIGHT = "RIGHT";
         else return;
         Location CENTER = block.getLocation().toBlockLocation();

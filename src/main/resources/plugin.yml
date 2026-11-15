@@ -5,6 +5,7 @@ api-version: 1.21
 author: C_Corp2002
 description: "SmoothSailing - Working Block-based ships for all!"
 softdepend: [ProtocolLib, CraftEngine, Towny, WorldGuard, Cannons]
+website: "https://github.com/ccorp2002/SmoothSailing"
 commands:
   smoothsailing:
     description: SmoothSailing plugin commands
@@ -14,6 +15,7 @@ commands:
       /smoothsailing release - Releases/unpilots your SmoothSailing Ship(s)
       /smoothsailing releaseall - Releases/unpilots all SmoothSailing Ships
     permission: smoothsailing.admin
+    aliases: ["smooth","sail"]
   savefuel:
     usage: "Saves a player's held item to a basic FuelType in the config.yml; Requires the permission: 'smoothsailing.admin'."
     permission: smoothsailing.admin

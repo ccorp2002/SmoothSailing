@@ -33,6 +33,7 @@ public class FuelType implements ConfigurationSerializable {
 
     public FuelType addFuelItem(ItemStack item) {
         if (this.isItemFuel(item)) return this;
+        item.setAmount(1);
         this.FUEL_ITEMS.add(item);
         return this;
     }
