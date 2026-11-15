@@ -440,14 +440,14 @@ public class ShipPhysics {
         }
         if (this.loadTicks == 0) NmsUtils.loadChunksIn(ship.vehicle.getWorld(),ship.BLOCK_STATES);
         if (!ship.isNotProcessing() || this.moving) return;
-        BlockFace facing = ship.facing;
-        if (facing == null) {
-            facing = ship.vehicle.getFacing();
+        Vector facing = ship.facing;
+        if (facing.isZero() || facing == null) {
+            facing = ship.vehicle.getLocation().getDirection();
             ship.facing = facing;
         }
         Vector forwards = ship.forwards;
-        if (forwards == null) {
-            forwards = ship.vehicle.getLocation().getDirection();
+        if (forwards.isZero() || forwards == null) {
+            forwards = facing;
             ship.forwards = forwards;
         }
         if (ship.isSinking) {
@@ -464,17 +464,6 @@ public class ShipPhysics {
         if (!ship.isSinking) {
             if (ship.driver != null && ship.driver instanceof Player) {
                 pilot = (Player)ship.driver;
-                if (pilot.getFacing() == ship.facing) {
-                    facing = ship.facing;
-                } else if (pilot.getFacing().getOppositeFace() == ship.facing) {
-                    facing = ship.facing;
-                } else {
-                    Vector pilotFacing = pilot.getLocation().getDirection();
-                    forwardX += pilotFacing.getX();
-                    forwardZ += pilotFacing.getZ();
-                    forwardX = ROUND_VALUE(forwardX,2);
-                    forwardZ = ROUND_VALUE(forwardZ,2);
-                }
             }
             if (ship.hasInputState()) {
                 float accel = getMaxEngineSpeedFactor()+0.75f;
@@ -724,7 +713,7 @@ public class ShipPhysics {
             }
             var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(ship.id);
             if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), ship.facing);
+                SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), DirectionalUtils.getDirection(ship.facing,false));
             }
             ship.sendSolids();
             ship.calculateBoundingBox();
@@ -917,8 +906,6 @@ public class ShipPhysics {
         if ((ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving) || leftRight != null) {
             // Apply rotation
             Location newLoc = ship.getLocation().clone();
-            newLoc.setYaw(DirectionalUtils.blockFaceToYaw(ship.facing));
-            float newYaw = newLoc.getYaw();
             float rotation = 0.0f;
             final String LEFT_RIGHT;
             final org.bukkit.block.structure.StructureRotation TURN_BLOCK_DATA;
@@ -1100,12 +1087,15 @@ public class ShipPhysics {
                 }
                 ship.isLeftPressed = false;
                 ship.isRightPressed = false;
-                ship.vehicle.setRotation(DirectionalUtils.faceToYaw(ship.facing)+rotationF,0f);
-                ship.facing = DirectionalUtils.yawToFace(ship.vehicle.getYaw(),true);
+                ship.vehicle.setRotation(DirectionalUtils.faceToYaw(DirectionalUtils.getDirection(ship.facing))+rotationF,0f);
+                ship.facing = DirectionalUtils.yawToFace(ship.vehicle.getYaw(),true).getDirection();
                 Vector newForwards = VectorMath.rotY(ship.forwards.clone(),rotationF).multiply(new Vector(-1,1,-1));
                 newForwards = newForwards.setX(ROUND_VALUE(newForwards.getX(),2));
                 newForwards = newForwards.setZ(ROUND_VALUE(newForwards.getZ(),2));
-                ship.forwards = newForwards;
+                Vector newFacing = VectorMath.rotY(ship.facing.clone(),rotationF).multiply(new Vector(-1,1,-1));
+                newFacing = newFacing.setX(ROUND_VALUE(newFacing.getX(),2));
+                newFacing = newFacing.setZ(ROUND_VALUE(newFacing.getZ(),2));
+                ship.facing = newFacing;
                 this.currentSpeed = this.currentSpeed - this.currentSpeed/2f;
                 this.currentRotationVelocity = 0.0f;
                 this.currentYVelocity = 0f;
@@ -1117,7 +1107,7 @@ public class ShipPhysics {
                 this.currentRotationVelocity = 0.0f;
                 var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(ship.id);
                 if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), ship.facing);
+                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), DirectionalUtils.getDirection(ship.facing,false));
                 }
                 for (String KEY : ship.TRACKED_STATE_MAP.keySet()) {
                     if (KEY == null) continue;
@@ -1404,7 +1394,7 @@ public class ShipPhysics {
         }
         var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(ship.id);
         if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-            SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), ship.facing);
+            SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), DirectionalUtils.getDirection(ship.facing,false));
         }
         ship.sendSolids();
         ship.calculateBoundingBox();

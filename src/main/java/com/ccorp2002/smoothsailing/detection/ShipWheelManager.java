@@ -539,7 +539,7 @@ public class ShipWheelManager {
 
         // Update wheel tracking to new location
         Location newWheelLocation = shipLocf.toBlockLocation();
-        updateWheelLocation(wheelData, newWheelLocation, ship.facing);
+        updateWheelLocation(wheelData, newWheelLocation, DirectionalUtils.getDirection(ship.getFacing(),false));
 
 
         // Remove ship from per-world storage (delete file and chunk index)

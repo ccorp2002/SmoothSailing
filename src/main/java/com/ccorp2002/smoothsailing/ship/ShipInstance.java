@@ -19,6 +19,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.BoundingBox;
+import org.bukkit.util.Vector;
 import org.joml.*;
 import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -98,8 +99,8 @@ public class ShipInstance {
     public List<Entity> HIDDEN_ENTITIES = new ArrayList<>();
     public org.bukkit.entity.Entity driver = null;// Seat shulkers in order (index 0 = driver)
     public com.ccorp2002.smoothsailing.region.scheduler.task.Task<?> task;
-    public BlockFace facing = null;
-    public org.bukkit.util.Vector forwards = new org.bukkit.util.Vector();
+    protected Vector facing = new Vector();
+    public Vector forwards = facing;
 
     public float weightCalc = 0;
     public int ticksSinceLastMovement = 0;
@@ -121,6 +122,17 @@ public class ShipInstance {
         return this.vehicle.getLocation();
     }
 
+    public Vector getFacing() {
+        return facing;
+    }
+
+
+    public void setForwards(Vector newVec) {
+        if (newVec == null || newVec.isZero()) newVec = this.facing;
+        if (newVec == null || newVec.isZero()) return;
+        this.forwards = newVec;
+    }
+
     public BoundingBox getBoundingBox() {
         if (bbox == null) calculateBoundingBox();
         return bbox;
@@ -134,12 +146,11 @@ public class ShipInstance {
     public static ShipConfig config = null;
 
     // Delegate instances for physics and collision
-    public ShipPhysics physics;
-    public ShipCollision collision;
+    public final ShipPhysics physics;
+    public final ShipCollision collision;
 
     // Driver and player tracking (public for delegates)
     public boolean hasDriver = false;
-    public boolean hasPlayersNearby = false;
 
     // Input state tracking (set by ShipSteeringListener/ShipListener, read by ShipPhysics)
     public boolean isForwardPressed = false;
@@ -689,8 +700,8 @@ public class ShipInstance {
         this.ENTITY_COMPOSITION.add(vehicle);
         ENTITY_COMPOSITION.addAll(HIDDEN_ENTITIES);
         calculateBoundingBox();
-        if (facing == null) facing = vehicle.getFacing();
-        if (forwards == null || forwards.isZero()) forwards = vehicle.getLocation().getDirection();
+        if (facing == null || facing.isZero()) facing = vehicle.getFacing().getDirection();
+        if (forwards == null || forwards.isZero()) forwards = facing;
         SmoothSailingPlugin.getInstance().getLogger().info("Piloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.blockCount);
         this.BLOCK_STATES.addAll(INTERIOR_BLOCKS);
         INTERIOR_BLOCKS.clear();
@@ -993,7 +1004,7 @@ public class ShipInstance {
             NmsUtils.loadChunksIn(dest.getWorld(),this.BLOCK_STATES);
             var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(this.id);
             if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, moveVehicleLoc, this.facing);
+                SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, moveVehicleLoc, DirectionalUtils.getDirection(this.facing,false));
             }
             physics.moving = true;
             for (Entity entity : this.ENTITY_COMPOSITION) {
@@ -1184,8 +1195,6 @@ public class ShipInstance {
         if (player != null) {
             hasDriver = true;
             driver = player;
-        } else {
-            hasDriver = false;
         }
 
         // NOTE: Actual WASD input detection is handled by ShipSteeringListener (ProtocolLib)
@@ -1225,8 +1234,6 @@ public class ShipInstance {
         if (player != null) {
             hasDriver = true;
             driver = player;
-        } else {
-            hasDriver = false;
         }
 
         // NOTE: Actual WASD input detection is handled by ShipSteeringListener (ProtocolLib)
@@ -1263,7 +1270,6 @@ public class ShipInstance {
         if (driver instanceof Player) player = (Player) driver;
 
         if (player == null) {
-            hasDriver = false;
             return;
         }
 

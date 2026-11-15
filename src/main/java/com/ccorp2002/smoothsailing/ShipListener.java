@@ -179,9 +179,6 @@ public class ShipListener implements Listener {
                     ship.setInputState(input.isForward(), input.isBackward(), input.isLeft(), input.isRight());
                     ship.setVerticalInputState(input.isJump(), input.isSprint());
                     ship.hasDriver = true;
-                } else if (ship.driver == null) {
-                    ship.driver = player;
-                    ship.hasDriver = true;
                 }
             }
         }

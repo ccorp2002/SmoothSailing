@@ -86,11 +86,13 @@ public class ShipSteeringListener {
                     System.out.println("RIGHT:"+right);
                     System.out.println("HAS VALID VEHICLE?:"+ship.vehicle.isValid());
                 }
-                if (forward || backward || jump || sprint || left || right) { //
-                    ship.setInputState(forward, backward, left, right);
-                    ship.setVerticalInputState(jump, sprint);
-                    ship.hasDriver = true;
-                    ship.driver = player;
+                if (player.equals(ship.driver)) {
+                    if (forward || backward || jump || sprint || left || right) { //
+                        ship.setInputState(forward, backward, left, right);
+                        ship.setVerticalInputState(jump, sprint);
+                        ship.hasDriver = true;
+                    }
+
                 }
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to read Input fields: " + e.getMessage());
