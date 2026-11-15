@@ -732,7 +732,7 @@ public class ShipInstance {
                     tick();
                 }
             };
-            task = com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTaskTimer(RUN_ME_2, 5L, 5L);
+            task = com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTaskTimer(RUN_ME_2, 7L, 3L);
         };
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTaskLater(RUN_ME, 7L);
     }
