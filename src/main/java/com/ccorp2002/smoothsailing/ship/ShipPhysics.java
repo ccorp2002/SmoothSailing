@@ -545,14 +545,6 @@ public class ShipPhysics {
         Collection<Entity> FILTERED_ENTS = ship.ENTITY_COMPOSITION.stream().filter(p -> p.isValid()).collect(Collectors.toList());
         final Location ABS_CENTER = new Location(ship.vehicle.getWorld(),0,0,0);
         // Move the vehicle
-        if ((ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving)) {
-            // Apply rotation
-            if (ship.isLeftPressed) this.rotate(pilot, FILTERED_ENTS, false);
-            else if (ship.isRightPressed) this.rotate(pilot, FILTERED_ENTS, true);
-            ship.isLeftPressed = false;
-            ship.isRightPressed = false;
-            return;
-        }
         boolean hasHorizontalMovement = (Math.abs(currentSpeed)) >= 0.25f;
         boolean hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.25f;
         if ((hasHorizontalMovement || hasVerticalMovement) && !(ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving)) {
@@ -588,6 +580,13 @@ public class ShipPhysics {
             }
             Location offset = new Location(ship.getWorld(),fx,fy,fz);
             this.move(pilot,offset,FILTERED_ENTS,ship.doGearsRequireFuel());
+        }
+        // Apply rotation
+        if ((ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving)) {
+            if (ship.isLeftPressed) this.rotate(pilot, FILTERED_ENTS, false);
+            else if (ship.isRightPressed) this.rotate(pilot, FILTERED_ENTS, true);
+            ship.isLeftPressed = false;
+            ship.isRightPressed = false;
             return;
         }
     }
@@ -1135,7 +1134,7 @@ public class ShipPhysics {
                     currentSpeed = xzVelocity/2f;
                     moving = false;
                     ship.setProcessing(false);
-                },(long)(MOVEMENT_COOLDOWN+60L));
+                },(long)(MOVEMENT_COOLDOWN+15L));
             };
             moving = true;
             ship.setProcessing(true);
@@ -1430,7 +1429,7 @@ public class ShipPhysics {
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.getLocation()).runTaskLater(()->{
             moving = false;
             ship.setProcessing(false);
-        },(long)(MOVEMENT_COOLDOWN+10l));
+        },(long)(MOVEMENT_COOLDOWN+5l));
     }
 
     public static void rotateSubship2d(ShipInstance parent, Location CENTER_POINT, String LEFT_RIGHT, Collection<Block> BLOCKS) {
@@ -1454,7 +1453,7 @@ public class ShipPhysics {
             child.destroy();
             parent.physics.moving = false;
             parent.setProcessing(false);
-        },(long)(parent.physics.MOVEMENT_COOLDOWN)+5l);
+        },(long)(parent.physics.MOVEMENT_COOLDOWN)+2l);
     }
 
     public Set<Location> getInteriorLocs() {
