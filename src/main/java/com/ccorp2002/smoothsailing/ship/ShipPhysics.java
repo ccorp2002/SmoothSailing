@@ -383,7 +383,7 @@ public class ShipPhysics {
     public volatile float currentYVelocity = 0.0f;
     public volatile float currentRotationVelocity = 0.0f;
     public volatile boolean moving = false;
-    public long MOVEMENT_COOLDOWN = 7l;
+    public long MOVEMENT_COOLDOWN = 4l;
     public int GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);
     public int CURRENT_FLUID_LEVEL;
     private int ROTATION_INCR = 1;
@@ -728,7 +728,7 @@ public class ShipPhysics {
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 moving = false;
                 ship.setProcessing(false);
-            },(long)(MOVEMENT_COOLDOWN)+25L);
+            },(long)(MOVEMENT_COOLDOWN)+5L);
         }
     }
 
@@ -892,7 +892,7 @@ public class ShipPhysics {
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
             moving = false;
             ship.setProcessing(false);
-        },(long)(MOVEMENT_COOLDOWN)+25L);
+        },(long)(MOVEMENT_COOLDOWN)+5L);
     }
 
     public void rotate(final Player pilotF, Boolean leftRight) {
@@ -1135,7 +1135,7 @@ public class ShipPhysics {
                     currentSpeed = xzVelocity/2f;
                     moving = false;
                     ship.setProcessing(false);
-                },(long)(MOVEMENT_COOLDOWN+90L));
+                },(long)(MOVEMENT_COOLDOWN+60L));
             };
             moving = true;
             ship.setProcessing(true);
@@ -1430,7 +1430,7 @@ public class ShipPhysics {
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.getLocation()).runTaskLater(()->{
             moving = false;
             ship.setProcessing(false);
-        },(long)(MOVEMENT_COOLDOWN+15l));
+        },(long)(MOVEMENT_COOLDOWN+10l));
     }
 
     public static void rotateSubship2d(ShipInstance parent, Location CENTER_POINT, String LEFT_RIGHT, Collection<Block> BLOCKS) {
