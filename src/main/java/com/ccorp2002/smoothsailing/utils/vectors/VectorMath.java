@@ -3,6 +3,26 @@ package com.ccorp2002.smoothsailing.utils.vectors;
 import org.bukkit.util.Vector;
 
 public class VectorMath {
+	
+	public static String getIntegerRatio(int total, int fraction) {
+		int gcd = intGCD(Math.abs(total), Math.abs(fraction));
+		return (total / gcd) + ":" + (fraction / gcd);
+	}
+	
+	public static int getIntegerRatioResult(int total, int fraction) {
+		int gcd = intGCD(Math.abs(total), Math.abs(fraction));
+		return Math.abs(Math.abs(total / gcd) / Math.abs(fraction / gcd));
+	}
+	
+	public static int getIntegerGCD(int total, int fraction) {
+		int gcd = intGCD(Math.abs(total), Math.abs(fraction));
+		return gcd;
+	}
+
+
+	private static int intGCD(int a, int b) {
+		return b == 0 ? a : intGCD(b, a % b);
+	}
 
 	public static final double PI = Math.PI;
 	public static final double DEG_TO_RAD = PI / 180.0;

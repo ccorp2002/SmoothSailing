@@ -333,9 +333,6 @@ public class ShipPhysics {
         if (maxEntry == null) return 0.75f;
         Integer maxValue = maxEntry.getValue();
         dragMultiplier = maxValue + 0.0f;
-        if (Math.abs(dragMultiplier) >= 1f) { //Fallback
-            dragMultiplier = 0.75f;
-        }
         return dragMultiplier;
     }
 
@@ -347,19 +344,27 @@ public class ShipPhysics {
         float speedFactor = 1f;
         if (ship.engineCount > 0 && enginePercent >= 0.75d) {
             speedFactor += (Math.abs(speedFactor) * ((ship.engineCount / ship.blockCount)+0.125f));
-            if (SmoothSailingPlugin.DEBUG) System.out.println("ENGINE BLOCK PERCENT: "+enginePercent+"; CURRENT ENGINE COUNT: "+ship.engineCount+"; NEW SPEED FACTOR: "+speedFactor);
+            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ENGINE BLOCK PERCENT: "+enginePercent+"; CURRENT ENGINE COUNT: "+ship.engineCount+"; NEW SPEED FACTOR: "+speedFactor);
         }
         if (speedFactor >= ShipPhysics.MAX_SPEED) {
-            speedFactor = (float)ShipPhysics.MAX_SPEED; //Hardcoded Temporary Cap
+            speedFactor = (float)ShipPhysics.MAX_SPEED;
         }
         return speedFactor;
     }
 
 
     public int getEngineGears() {
-        final int enginePercent = (int)getEnginePercent();
-        int engineGear = (enginePercent+1);
-        return engineGear;
+        final double enginePercent = (getEnginePercent());
+        int engineGear = 1;
+        if (enginePercent <= 0.25d) return engineGear;
+        else {
+            engineGear += (int)Math.ceil(VectorMath.getIntegerRatioResult((int)ship.engineCount,(int)Math.abs(ship.model.getDensity()))*enginePercent);
+            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ENGINE GEAR CAP?: "+engineGear+" RATIO?: "+VectorMath.getIntegerRatio((int)ship.engineCount,(int)Math.abs(ship.model.getDensity())));
+            if (engineGear >= (ShipPhysics.MAX_SPEED/2)) {
+                engineGear = (int)(ShipPhysics.MAX_SPEED/2);
+            } else if (engineGear <= 0) engineGear = 1;
+            return engineGear;
+        }
     }
 
     public double getEnginePercent() {

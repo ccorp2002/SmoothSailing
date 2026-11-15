@@ -18,7 +18,7 @@ max-scan-size: 28700  # Maximum blocks to scan when ship hits the above limit (f
 # Drag Modifier system - How fast a ship decelarates in the primary fluid medium (whichever the ship is exposed the most to, does not count Air, if a vehicle is touching anything else).
 buoyancy:
   # Reference density of air (ships lighter than this become airships)
-  air-density: -5.0
+  air-density: -3.0
   # Controls Deceleration of a vehicle in an Air-type fluid medium. Applies when movement inputs have stopped.
   air-drag-mod: 1.25 # -1.25 speed while going without movement input.
 
