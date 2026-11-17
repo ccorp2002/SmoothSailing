@@ -7,7 +7,6 @@ import com.ccorp2002.smoothsailing.utils.vectors.*;
 import com.ccorp2002.smoothsailing.event.*;
 import com.ccorp2002.smoothsailing.nmsutils.*;
 import com.ccorp2002.smoothsailing.detection.*;
-import com.ccorp2002.smoothsailing.detection.*;
 import com.ccorp2002.smoothsailing.utils.displays.*;
 import org.bukkit.*;
 import org.bukkit.block.*;
@@ -323,10 +322,6 @@ public class ShipInstance {
             this.vehicle.setGravity(false);
             this.vehicle.setPersistent(true);
             this.vehicle.setCustomNameVisible(true);
-            if (this.vehicle.getCustomName() == null) {
-                this.vehicle.setCustomName("ShipRoot");
-                this.vehicle.setCustomNameVisible(false);
-            }
             if (this.vehicle instanceof ArmorStand as) {
                 as.setRemoveWhenFarAway(false);
                 as.setCollidable(false);
@@ -529,7 +524,7 @@ public class ShipInstance {
                     s.setInvisible(true);
                     s.setPersistent(true);
                     s.setInvulnerable(true);
-                    s.setCustomNameVisible(true);
+                    s.setCustomNameVisible(false);
                     s.setCustomName("[Rolling Wheel]");
                     PDCUtils.setPDC(s,"destroyable","true");
                     //s.setPeek(0);  // Prevent shulker from peeking/moving up
@@ -700,10 +695,10 @@ public class ShipInstance {
         this.ENTITY_COMPOSITION.add(vehicle);
         ENTITY_COMPOSITION.addAll(HIDDEN_ENTITIES);
         calculateBoundingBox();
-        if (facing == null || facing.isZero()) facing = vehicle.getFacing().getDirection();
+        if (facing == null || facing.isZero()) facing = vehicle.getFacing().getDirection().normalize().setY(0);
         if (forwards == null || forwards.isZero()) forwards = facing;
         SmoothSailingPlugin.getInstance().getLogger().info("Piloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.blockCount);
-        this.BLOCK_STATES.addAll(INTERIOR_BLOCKS);
+        this.BLOCK_STATES.setAll(INTERIOR_BLOCKS);
         INTERIOR_BLOCKS.clear();
         ShipRegistry.register(this);
         if (ShipInstance.this.parentShip != null) ShipInstance.this.setProcessing(false);
@@ -716,7 +711,6 @@ public class ShipInstance {
         PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:float_offset",""+floatOffset);
         PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
         DATA.clear();
-
         this.updateWaterLogging(true);
         Runnable RUN_ME = () -> {  
             if (ShipInstance.this.physics != null) {
@@ -900,29 +894,99 @@ public class ShipInstance {
         updateWaterLogging(false);
     }
 
-    public void updateWaterLogging(boolean init) {
+    public void updateWaterLogging(final boolean init) {
         if (this.physics == null || this.CHANGE_WORLD) return;
-        this.physics.handleBuoyancy(this.getLocation(),true,1d);
-        this.physics.currentYVelocity += 1f;
-        float floatOffset = Math.abs(this.model.waterFloatOffset);
-        final BlockData FLUID_BLOCK = ShipPhysics.getLocationPrimaryMediumAtBelowY(this.physics.getExteriorLocations(0,0,(int)floatOffset), this.physics.CURRENT_FLUID_LEVEL);
-        if (SmoothSailingPlugin.DEBUG_DUMP) {
-            System.out.println("CURRENT FLUID LEVEL: "+this.physics.CURRENT_FLUID_LEVEL);
-            System.out.println("PRIMARY FLUID BLOCK: "+FLUID_BLOCK.getAsString(false));
-        }
-        if (init) {
-            this.BLOCK_STATES.forEach(st -> {
-                if (st.getY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
-                    //System.out.println("FOUND FLUID LEVEL: "+st.getY()+" FOR: "+FLUID_BLOCK);
-                    st.occupiedBlock = FLUID_BLOCK;
-                    FLUIDS.set(st.getLocation(),FLUID_BLOCK);
-                } else {
-                    st.occupiedBlock = ShipPhysics.VOID;
+        final World w = this.getWorld();
+        com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskAsync(()->{
+            this.setProcessing(true);
+            BlockData FLUID_BLOCK = ShipPhysics.VOID;
+            int waterLine = this.minY() - 15;
+            //level by examining blocks next to the outer boundaries of the ship
+            int numOther = 0;
+            int numAir = 0;
+            int minX = minX();
+            int maxX = maxX();
+            int minY = minY();
+            int maxY = maxY();
+            int minZ = minZ();
+            int maxZ = maxZ();
+            Medium m = ShipPhysics.getMedium("void");
+            for (int posY = maxY+ 2; posY >= minY- 2; posY--) {
+                numOther = 0;
+                numAir = 0;
+                int posX;
+                int posZ;
+                posZ = minZ- 2;
+                for (posX = minX- 2; posX <= maxX+ 2; posX++) {
+                    final Vector loc = new Vector(posX, posY, posZ);
+                    if (MobileBlockState.doesShipHave(this,loc)) continue;
+                    BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                    m = ShipPhysics.getMedium(data);
+                    if (m != null && !m.id.equalsIgnoreCase("void"))
+                        numOther++;
+                    else numAir++;
                 }
-                ShipInstance.this.BLOCK_STATES.set(st);
-            });
-        }
-    };
+                posZ = maxZ+ 2;
+                for (posX = minX- 2; posX <= maxX+ 2; posX++) {
+                    final Vector loc = new Vector(posX, posY, posZ);
+                    if (MobileBlockState.doesShipHave(this,loc)) continue;
+                    BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                    m = ShipPhysics.getMedium(data);
+                    if (m != null && !m.id.equalsIgnoreCase("void"))
+                        numOther++;
+                    else numAir++;
+                }
+                posX = minX- 2;
+                for (posZ = minZ- 2; posZ <= maxZ+ 2; posZ++) {
+                    final Vector loc = new Vector(posX, posY, posZ);
+                    if (MobileBlockState.doesShipHave(this,loc)) continue;
+                    BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                    m = ShipPhysics.getMedium(data);
+                    if (m != null && !m.id.equalsIgnoreCase("void"))
+                        numOther++;
+                    else numAir++;
+                }
+                posX = maxX+ 2;
+                for (posZ = minZ- 2; posZ <= maxZ+ 2; posZ++) {
+                    final Vector loc = new Vector(posX, posY, posZ);
+                    if (MobileBlockState.doesShipHave(this,loc)) continue;
+                    BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                    m = ShipPhysics.getMedium(data);
+                    if (m != null && !m.id.equalsIgnoreCase("void"))
+                        numOther++;
+                    else numAir++;
+                }
+                if (numOther > numAir) {
+                    waterLine = posY;
+                    FLUID_BLOCK = m.getBlockDatas().getFirst();
+                    break;
+                }
+            }
+            this.setProcessing(false);
+            if (init) {
+                if (m.id.equalsIgnoreCase("void")) waterLine = ShipInstance.this.physics.GLOBAL_WATER_SURFACE;
+                ShipInstance.this.physics.CURRENT_FLUID_LEVEL = waterLine;
+                final BlockData F_FLUID = FLUID_BLOCK;
+                this.BLOCK_STATES.forEach(st -> {
+                    if (st.getY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
+                        //System.out.println("FOUND FLUID LEVEL: "+st.getY()+" FOR: "+FLUID_BLOCK);
+                        st.occupiedBlock = F_FLUID;
+                        FLUIDS.set(st.getLocation(),F_FLUID);
+                    } else {
+                        st.occupiedBlock = ShipPhysics.VOID;
+                    }
+                    ShipInstance.this.BLOCK_STATES.set(st);
+                });
+                ShipInstance.this.physics.CURRENT_FLUID_LEVEL = waterLine;
+                this.physics.currentYVelocity = 0f;
+                this.physics.currentSpeed = 0.5f;
+            }
+            if (SmoothSailingPlugin.DEBUG) {
+                System.out.println("CURRENT FLUID LEVEL: "+waterLine);
+                System.out.println("PRIMARY FLUID BLOCK: "+FLUID_BLOCK.getAsString(false));
+            }
+        });
+    }
 
     public boolean HIDE_ENTITES = true;
     public boolean VOID_BLOCKS = false;
@@ -1127,7 +1191,6 @@ public class ShipInstance {
     }
     public void doTick() {
         if (firstTick) {
-            ShipInstance.this.setProcessing(false);
             physics.detectNearbyEntities();
             firstTick = false;
         }
@@ -1556,6 +1619,7 @@ public class ShipInstance {
             task.cancel();
             task = null;
         }
+        int removedCount = 0;
         // Remove all collision shulkers and their carriers
         // Note: Seats are now the shulkers themselves (no separate seat ArmorStands)
         for (Entity entity : ENTITY_COMPOSITION) {
@@ -1577,9 +1641,16 @@ public class ShipInstance {
             if (state.shipRef != null) state.shipRef.clear();
             state.shipRef = null;
         }
+        World world = this.getWorld();
+        removedCount+=world.getLoadedChunks().length;
+        NmsUtils.removeChunksToLoad(world,Arrays.asList(world.getLoadedChunks()));
+
+        SmoothSailingPlugin.getInstance().getLogger().info("Cleared " + removedCount + " SmoothSailing-loaded chunks");
         DATA_TAGS.clear();
         BLOCK_STATES.clear();
         ENTITY_COMPOSITION.clear();
+        this.forwards = null;
+        this.facing = null;
         ShipRegistry.unregister(this);
     }
 

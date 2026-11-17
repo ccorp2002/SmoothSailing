@@ -329,7 +329,7 @@ public class ShipPhysics {
         if (ship.isNotProcessing()) return 0.75f;
         ShipConfig config = ShipInstance.config;
         float dragMultiplier = 0f;
-        Map.Entry<String, Integer> maxEntry = getPrimaryMedium(ship.BLOCK_STATES);
+        Map.Entry<String, Integer> maxEntry = getPrimaryMedium(ship.BLOCK_STATES,this.CURRENT_FLUID_LEVEL+1);
         if (maxEntry == null) return 0.75f;
         Integer maxValue = maxEntry.getValue();
         dragMultiplier = maxValue + 0.0f;
@@ -390,8 +390,8 @@ public class ShipPhysics {
     public volatile boolean moving = false;
     public long MOVEMENT_COOLDOWN = 4l;
     public int GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);
-    public int CURRENT_FLUID_LEVEL;
-    private int ROTATION_INCR = 1;
+    public int CURRENT_FLUID_LEVEL = GLOBAL_WATER_SURFACE;
+    protected int ROTATION_INCR = -1;
 
     public BlockData getVOID() {
         return ShipPhysics.VOID;
@@ -406,7 +406,7 @@ public class ShipPhysics {
     public ShipPhysics(ShipInstance ship) {
         this.ship = ship;
         this.GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);
-        this.CURRENT_FLUID_LEVEL = (int)this.detectFluidLine()-1;
+        this.CURRENT_FLUID_LEVEL = GLOBAL_WATER_SURFACE;
         this.PER_MAX_SPEED = MAX_SPEED;
         this.detectNearbyEntities();
     }
@@ -443,46 +443,70 @@ public class ShipPhysics {
         Vector facing = ship.facing;
         if (facing.isZero() || facing == null) {
             facing = ship.vehicle.getLocation().getDirection();
+            facing.setY(0);
             ship.facing = facing;
         }
         Vector forwards = ship.forwards;
         if (forwards.isZero() || forwards == null) {
             forwards = facing;
+            forwards.setY(0);
             ship.forwards = forwards;
         }
         if (ship.isSinking) {
             ship.driver = ship.vehicle;
             ship.hasDriver = true;
         }
+        if (physicsInterval >= 10) {
+            if (!ship.isAirship && ship.isNotProcessing()) {
+                if (isInAir()) ship.isSprintPressed = true;
+            }
+            physicsInterval = 0;
+        }
+        this.physicsInterval++;
         Player pilot = null;
         ShipConfig config = ShipInstance.config;
         Location vehicleLoc = ship.vehicle.getLocation();
-
         double forwardX = ROUND_VALUE(forwards.getX()*2,2);
         double forwardZ = ROUND_VALUE(forwards.getZ()*2,2);
+
         // Apply acceleration/deceleration based on input state
         if (!ship.isSinking) {
-            if (ship.driver != null && ship.driver instanceof Player) {
-                pilot = (Player)ship.driver;
-            }
             if (ship.hasInputState()) {
+                if (ship.driver != null && ship.driver instanceof Player) {
+                    pilot = (Player)ship.driver;
+                    Vector pilotFacing = pilot.getEyeLocation().clone().getDirection().setY(0);
+                    pilotFacing = pilotFacing.setX(Math.round(pilotFacing.getX()));
+                    pilotFacing = pilotFacing.setZ(Math.round(pilotFacing.getZ()));
+                    if (DirectionalUtils.getDirection(pilotFacing,false) == DirectionalUtils.getDirection(ship.facing,false).getOppositeFace()) {
+                        facing = ship.facing;
+                    } else {
+                        forwardX += pilotFacing.getX()*1.5;
+                        forwardZ += pilotFacing.getZ()*1.5;
+                        forwardX = ROUND_VALUE(forwardX,2);
+                        forwardZ = ROUND_VALUE(forwardZ,2);
+                    }
+                    if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) {
+                        System.out.println("PLAYER (FACING) VECTOR?: "+pilotFacing.toString());
+                        System.out.println("'FORWARDS' (X/Z) VALUES?: Z"+forwardX+" / Z"+forwardZ);
+                    }
+                }
                 float accel = getMaxEngineSpeedFactor()+0.75f;
                 if (ship.isForwardPressed) {
                     currentSpeed = Math.min(currentSpeed + accel, PER_MAX_SPEED+ship.getGear());
                 } else if (ship.isBackwardPressed) {
                     if (currentSpeed > 0) {
-                        currentSpeed = Math.max(currentSpeed - accel, 0.0f);
+                        currentSpeed = Math.max(currentSpeed - accel, 0.0f) * 0.5f;
                     } else {
                         currentSpeed = Math.max(currentSpeed - accel, -PER_MAX_SPEED+ship.getGear());
                     }
                 }
                 this.currentSpeed = ShipPhysics.CLAMP_VALUE(this.currentSpeed,-this.PER_MAX_SPEED+ship.getGear(),this.PER_MAX_SPEED+ship.getGear());
                 if (ship.isSpacePressed) {
-                    this.currentYVelocity += (accel/1.125f)+0.25f;
-                    this.currentSpeed *= 0.625f;
+                    this.currentYVelocity += (accel*0.25f)+0.25f;
+                    this.currentSpeed *= 0.25f;
                 } else if (ship.isSprintPressed) {
-                    this.currentYVelocity -= (accel/1.125f)+0.25f;
-                    this.currentSpeed *= 0.625f;
+                    this.currentYVelocity -= (accel*0.25f)+0.25f;
+                    this.currentSpeed *= 0.25f;
                 }
                 this.currentYVelocity = ShipPhysics.CLAMP_VALUE(this.currentYVelocity,-this.PER_MAX_SPEED,this.PER_MAX_SPEED);
                 if (ship.getGear() > ship.getMaxGear()) {
@@ -490,17 +514,17 @@ public class ShipPhysics {
                     ship.displayGears();
                 }
             } else {
-                float decel = 1f;
+                float decel = 0.5f;
                 if (currentSpeed != 0f) {
-                    decel = getFluidMediumDrag();
-                    if (currentSpeed >= 1f) currentSpeed -= decel;
-                    else if (currentSpeed <= -0.5f) currentSpeed += decel;
+                    decel += getFluidMediumDrag();
+                    if (currentSpeed > 0f) currentSpeed = Math.max(currentSpeed - decel, 0.0f) * 0.25f;
+                    else if (currentSpeed < -0.5f) currentSpeed += decel;
                     else currentSpeed = 0f;
                 }
                 if (currentYVelocity != 0f) { 
-                    decel = getFluidMediumDrag();
-                    if (currentYVelocity >= 1f) currentYVelocity -= decel;
-                    else if (currentYVelocity <= -0.5f) currentYVelocity += decel;
+                    decel += getFluidMediumDrag();
+                    if (currentYVelocity > 1.5f) currentYVelocity = Math.max(currentYVelocity - decel, 0.0f) * 0.125f;
+                    else if (currentYVelocity < -0.5f) currentYVelocity += decel;
                     else currentYVelocity = 0f;
                 }
             }
@@ -552,22 +576,22 @@ public class ShipPhysics {
                     fx = (double)CLAMP_VALUE((float)fx, (float)-((PER_MAX_SPEED)+ship.getGear()+2), (float)((PER_MAX_SPEED)+ship.getGear()+2));
                     fz = (double)CLAMP_VALUE((float)fz, (float)-((PER_MAX_SPEED)+ship.getGear()+2), (float)((PER_MAX_SPEED)+ship.getGear()+2));
                 } else {
-                    fx = (double)CLAMP_VALUE((float)fx, -2f, 2f);
-                    fz = (double)CLAMP_VALUE((float)fz, -2f, 2f);
+                    fx = (double)CLAMP_VALUE((float)fx, -4f, 4f);
+                    fz = (double)CLAMP_VALUE((float)fz, -4f, 4f);
                 }
                 if (Math.abs(fx)<1) fx = 0;
                 if (Math.abs(fz)<1) fz = 0;
             }
             if (!ship.isAirship) {
-                fy = handleBuoyancy(ship.getLocation(),false,fy);
                 if (fy > 0) {
                     fx = 0;
                     fz = 0;
                 }
             }
             hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.45f;
-            if (hasVerticalMovement) {
-                fy = Math.round(CLAMP_VALUE(currentYVelocity, (float)-((PER_MAX_SPEED/1.25)+2d), (float)((PER_MAX_SPEED/1.25)+2d)));
+            if (hasVerticalMovement && !ship.isAirship && !ship.isLandcraft) {
+                fy = (double)handleBuoyancy(ship.getLocation(),false,fy)*2f;
+                fy = Math.round(CLAMP_VALUE(currentYVelocity, -2f, 2f));
             }
             if (ship.isSinking) {
                 fy = -3d;
@@ -937,7 +961,7 @@ public class ShipPhysics {
                     if (!canEnterAt) {
                         COLLISION_MAP.put(stloc,rotatedLoc);
                         collisionCount++;
-                        if (SmoothSailingPlugin.DEBUG) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
+                        if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
                         ship.isLeftPressed = false;
                         ship.isRightPressed = false;
                         ship.isForwardPressed = false;
@@ -974,7 +998,7 @@ public class ShipPhysics {
                     collisionCount = COLLIDED.isCancelled() ? 0 : collisionCount;
                 }
                 if (collisionCount > 0) {
-                    if (SmoothSailingPlugin.DEBUG) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
+                    if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
                     ship.isLeftPressed = false;
                     ship.isRightPressed = false;
                     ship.isForwardPressed = false;
@@ -1069,9 +1093,9 @@ public class ShipPhysics {
                     Location entityLoc = entity.getLocation();
                     Location rotatedLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, entityLoc.subtract(CENTER_POINT)).add(CENTER_POINT).toBlockLocation();
                     rotatedLoc = rotatedLoc.add(0.5,0.0,0.5);
+                    rotatedLoc.setY(entity.getY());
                     rotatedLoc.setPitch(entity.getPitch());
-                    rotatedLoc.setYaw(entity.getLocation().getYaw()+rotationF);
-                    rotatedLoc.setY(entity.getLocation().getY());
+                    rotatedLoc.setYaw(entity.getYaw()+rotationF);
                     if (entity.getVehicle() == null) NmsUtils.teleportSilentCurrentThread(rotatedLoc, entity);
                     if (!ship.CHANGE_WORLD && entity instanceof Player player) {
                         (new org.bukkit.event.player.PlayerMoveEvent(player,rotatedLoc,rotatedLoc)).callEvent();
@@ -1082,33 +1106,34 @@ public class ShipPhysics {
                 }
                 ship.model.minY = (ship.BLOCK_STATES.stream().mapToInt(MobileBlockState::by).min().orElse(-129));
                 ship.model.maxY = (ship.BLOCK_STATES.stream().mapToInt(MobileBlockState::by).max().orElse(-129));
-                if (ship.model.minY < CURRENT_FLUID_LEVEL+15 && !ship.isAirship) {
-                    this.currentYVelocity = 0f;
-                }
                 ship.isLeftPressed = false;
                 ship.isRightPressed = false;
-                ship.vehicle.setRotation(DirectionalUtils.faceToYaw(DirectionalUtils.getDirection(ship.facing))+rotationF,0f);
-                ship.facing = DirectionalUtils.yawToFace(ship.vehicle.getYaw(),true).getDirection();
-                Vector newForwards = VectorMath.rotY(ship.forwards.clone(),rotationF).multiply(new Vector(-1,1,-1));
+                Vector newForwards = VectorMath.rotY(ship.forwards.clone(),rotationF).multiply(-2);
                 newForwards = newForwards.setX(ROUND_VALUE(newForwards.getX(),2));
                 newForwards = newForwards.setZ(ROUND_VALUE(newForwards.getZ(),2));
-                Vector newFacing = VectorMath.rotY(ship.facing.clone(),rotationF).multiply(new Vector(-1,1,-1));
+                Vector newFacing = VectorMath.rotY(ship.facing,rotationF).multiply(-2);
                 newFacing = newFacing.setX(ROUND_VALUE(newFacing.getX(),2));
                 newFacing = newFacing.setZ(ROUND_VALUE(newFacing.getZ(),2));
+                if (SmoothSailingPlugin.DEBUG_DUMP) {
+                    System.out.println("OLD SHIP-HEADING (FACING) VECTOR?: "+ship.facing.toString());
+                    System.out.println("OLD FORWARDS-MOVEMENT VECTOR?: "+ship.forwards.toString());
+                    System.out.println("NEW ROTATED SHIP-HEADING (FACING) VECTOR?: "+newFacing.toString());
+                    System.out.println("NEW ROTATED FORWARDS-MOVEMENT VECTOR?: "+newForwards.toString());
+                }
+                ship.sendSolids();
+                ship.forwards = newForwards;
                 ship.facing = newFacing;
                 this.currentSpeed = this.currentSpeed - this.currentSpeed/2f;
                 this.currentRotationVelocity = 0.0f;
                 this.currentYVelocity = 0f;
                 ship.model.minY = ship.minY();
                 ship.model.maxY = ship.maxY();
-                ship.sendSolids();
-                ship.calculateBoundingBox();
-                ship.updateRedstone();
-                this.currentRotationVelocity = 0.0f;
                 var TEMP_WHEEL = SmoothSailingPlugin.INSTANCE.shipWheelManager.getWheelByShipUUID(ship.id);
                 if (TEMP_WHEEL != null && SmoothSailingPlugin.INSTANCE.shipWheelManager != null) {
-                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), DirectionalUtils.getDirection(ship.facing,false));
+                    SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), DirectionalUtils.yawToBlockFace(ship.vehicle.getYaw()));
                 }
+                ship.updateRedstone();
+                ship.calculateBoundingBox();
                 for (String KEY : ship.TRACKED_STATE_MAP.keySet()) {
                     if (KEY == null) continue;
                     Collection<TrackedLocation> VALUE = ship.TRACKED_STATE_MAP.getOrDefault(KEY,new ArrayList<TrackedLocation>(1));
@@ -1129,7 +1154,7 @@ public class ShipPhysics {
                     currentSpeed = xzVelocity/2f;
                     moving = false;
                     ship.setProcessing(false);
-                },(long)(MOVEMENT_COOLDOWN+15L));
+                },(long)(MOVEMENT_COOLDOWN+5L));
             };
             moving = true;
             ship.setProcessing(true);
@@ -1187,7 +1212,7 @@ public class ShipPhysics {
                                 PACKET_CHANGES.set(rotatedLoc,st.getBlockData());
                             }
                             NmsUtils.sendBlockChanges(ship.getWorld(),PACKET_CHANGES.toMap(ship.getWorld()));
-                       },(long)(MOVEMENT_COOLDOWN+((incr*ROTATION_INCR)+(15l*incr)+45l)));
+                       },(long)(MOVEMENT_COOLDOWN+((incr*ROTATION_INCR)+(5l*incr)+45l)));
 
                     }
                 }
@@ -1203,6 +1228,11 @@ public class ShipPhysics {
     }
 
     public void move(final Player pilotF, Location offset, final Iterable<Entity> FILTERED_ENTS, boolean toBurnFuel) {
+        if (this.ship.parentShip != null) {
+            this.ship.setProcessing(false);
+            this.moving = false;
+        }
+        if (!this.ship.isNotProcessing() || this.moving) return;
         double fx = offset.getBlockX();
         double fy = offset.getBlockY();
         double fz = offset.getBlockZ();
@@ -1275,9 +1305,6 @@ public class ShipPhysics {
         }
         int collisionCount = 0;
         final MobileBlockState[] TEMPS = ship.BLOCK_STATES.toArray(MobileBlockState[]::new);
-        if (ship.model.minY < CURRENT_FLUID_LEVEL+15 && !ship.isAirship) {
-            this.currentYVelocity = 0f;
-        }
         for (MobileBlockState st : TEMPS) {
             if (st == null) continue;
             Location stloc = st.getLocation(offsetf.getWorld());
@@ -1332,11 +1359,11 @@ public class ShipPhysics {
             this.moving = false;
             return;
         }
-        if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("MOVEMENT VECTOR?: "+offsetf.toVector().toString());
         ship.setProcessing(true);
         this.moving = true;
         //Runnable runMe = () -> {
         detectNearbyEntities();
+        if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("MOVEMENT VECTOR?: "+offsetf.toVector().toString());
         //boolean isShipBobbingUp = offsetf.getBlockY() > 0 && !ship.isAirship;
         for (int indx = 0; indx < TEMPS.length; indx ++) {
             MobileBlockState st = TEMPS[indx];
@@ -1518,18 +1545,19 @@ public class ShipPhysics {
         int fluidY = this.GLOBAL_WATER_SURFACE;
         if (world == null) return fluidY;
         fluidY = (int)(ship.model.minY);
-        if (m.id.equalsIgnoreCase("void")) return fluidY - 1;
+        if (m.id.equalsIgnoreCase("void")) return (int)ship.model.minY+1;
         Collection<Location> outsideBlocks = getExteriorLocations(0,0,2);
         
         for (Location b : outsideBlocks) {
             if (MobileBlockState.doesShipHave(ship,b)) continue;
-            Material mat = NmsUtils.toBukkitBlockFast(b);
-            Medium other = ShipPhysics.MEDIUM_MATERIALS.get(mat);
+            BlockData data = NmsUtils.toBukkitBlockDataFast(b);
+            Medium other = getMedium(data);
             if (m.equals(other)) {
                 fluidY = Math.max(b.getBlockY(), fluidY);
             }
         }
-        if (SmoothSailingPlugin.DEBUG) System.out.println(m.id+"'s FLUID LEVEL: "+fluidY);
+        fluidY+=1;
+        if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println(m.id+"'s FLUID LEVEL: "+fluidY);
         return fluidY;
     }
 
@@ -1559,11 +1587,11 @@ public class ShipPhysics {
             Long2LocationSet innerShip = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
             scanLongHull(outsideBlocks, outerHull, innerShip, houtset, voutset, scanDown);
             Set<Location> EXT = outsideBlocks.toSet(world);
-            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ADDED TRACKED EXTERIOR POS COUNT:"+EXT.size());
+            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ADDED TRACKED EXTERIOR POS COUNT: "+EXT.size());
             ship.setTrackedBukkitLocation(ShipInstance.EXTERIOR_KEY, EXT);
             return EXT;
         } else {
-            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("GOT EXTERIOR POS COUNT:"+EXTPOS.size());
+            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("GOT EXTERIOR POS COUNT: "+EXTPOS.size());
             List<Location> EXT = EXTPOS.stream().parallel().map(TrackedLocation::toRealLocation).collect(Collectors.toList());
             return EXT;
         }
@@ -2107,7 +2135,6 @@ public class ShipPhysics {
         }
         return 0;
     }
-
     public float detectFluidLine() {
         if (ship.parentShip != null) return (float)this.CURRENT_FLUID_LEVEL;
         else if (ship.CHANGE_WORLD) return ship.getWorld().getMinHeight()+1f;
@@ -2125,50 +2152,31 @@ public class ShipPhysics {
         float FLUID_LINE = this.CURRENT_FLUID_LEVEL;
         if (FLUID_BELOW.id.equalsIgnoreCase("void")) {
             FLUID_LINE = (float)this.getFluidLevel(FLUID_BELOW);
-            if (SmoothSailingPlugin.DEBUG) System.out.println("Fluid Below: "+FLUID_BELOW.id+"; Line: "+FLUID_LINE);
+            if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("1a) Fluid Check: "+FLUID_BELOW.id+"; Line: "+FLUID_LINE);
             Medium FLUID_ABOVE = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(this.CURRENT_FLUID_LEVEL + 5)));
             if (!FLUID_ABOVE.id.equalsIgnoreCase("void")) FLUID_LINE = (float)this.getFluidLevel(FLUID_ABOVE);
-            if (SmoothSailingPlugin.DEBUG) System.out.println("Fluid Above: "+FLUID_ABOVE.id+"; Line: "+FLUID_LINE);
+            if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("1b) Fluid Check: "+FLUID_ABOVE.id+"; Line: "+FLUID_LINE);
         } else {
             Medium FLUID_ABOVE = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(this.CURRENT_FLUID_LEVEL + 5)));
             if (!FLUID_ABOVE.id.equalsIgnoreCase("void")) FLUID_LINE = (float)this.getFluidLevel(FLUID_ABOVE);
-            if (SmoothSailingPlugin.DEBUG) System.out.println("Fluid Above: "+FLUID_ABOVE.id+"; Line: "+FLUID_LINE);
+            if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("2a) Fluid Check Above: "+FLUID_ABOVE.id+"; Line: "+FLUID_LINE);
         }
+        if (Math.abs(this.CURRENT_FLUID_LEVEL - FLUID_LINE) > 2f) FLUID_LINE = this.CURRENT_FLUID_LEVEL;
+        if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("3a) Final Fluid Line: "+FLUID_LINE);
         return (float)FLUID_LINE;
     }
-        /*   //Old system for detecting air pockets under the water of a ship; very slow, probably obsolete...
-        long airPockets = 0;
-        int airPocketY = MIN_BY + 2;
-        var level = NmsUtils.getLevel(ship.getWorld());
-        for (Location block : EXT) {
-            int checkDist = 0;
-            boolean foundAir = false;
-            Location checked = block.clone().add(0,-1,0);
-            for ( ; checkDist < (int)heightY; checkDist++) {
-                var nmsBlock = NmsUtils.getBlockFaster(level, NmsUtils.locationToPosition(checked));
-                if (MobileBlockState.doesShipHave(ship,checked)) continue;
-                else if (nmsBlock.isSolid() && !foundAir) {
-                    foundAir = false;
-                    break;
-                } else if (nmsBlock.isAir() && !foundAir) {
-                    foundAir = true;
-                    checked = checked.add(0,-1,0);
-                } else if (!foundAir) checked = checked.add(0,-1,0);
-            }
-            if (foundAir) {
-                airPockets++;
-                airPocketY = Math.min(airPocketY, (int)checked.getY());
-            }
-        }
-        if (airPockets > EXT.size()) FLUID_LINE = Math.min(FLUID_LINE, (float)airPocketY);
-        */
-
+    
     public double checkBuoyancy() {
         return handleBuoyancy(ship.getLocation(),true,0d);
     }
 
     public void handleBuoyancy(Location vehicleLoc) {
         handleBuoyancy(vehicleLoc,false,0d);
+    }
+
+    public boolean isInAir() {
+        Float floatOffset = ship.model.waterFloatOffset;
+        return (getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(getExteriorLocations(0,0,(int)Math.abs(floatOffset)), this.CURRENT_FLUID_LEVEL)).id.equalsIgnoreCase("void"));
     }
 
     public double handleBuoyancy(Location vehicleLoc, boolean check, double fy) {
@@ -2186,33 +2194,35 @@ public class ShipPhysics {
         double waterSurfaceY = (double)FLUID_LINE;
         // Target Y position: water surface + float offset
         Float floatOffset = ship.model.waterFloatOffset;
-        boolean isInAir = (getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(getExteriorLocations(0,0,(int)Math.abs(floatOffset)), FLUID_LINE)).id.equalsIgnoreCase("void"));
         double currentY = (double)MIN_BY;
         double targetY = waterSurfaceY + floatOffset;
         double yDifference = Math.abs(targetY - currentY);
-        if (SmoothSailingPlugin.DEBUG) {
+        if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) {
             System.out.println("SHIP HEIGHT: "+heightY);
             System.out.println("NEW SURFACE Y: "+FLUID_LINE);
             System.out.println("ORIGINAL SURFACE Y: "+this.CURRENT_FLUID_LEVEL);
-            System.out.println("IS IN AIR?: "+isInAir);
-
-            System.out.println("WATER LEVEL DIFFERENCE: "+yDifference);
 
             System.out.println("FLOAT OFFSET: "+(double)floatOffset);
             System.out.println("TARGET FLOAT Y: "+targetY);
             System.out.println("CURRENT MIN Y: "+currentY);
+
+            System.out.println("WATER LEVEL DIFFERENCE: "+yDifference);
         }
-        this.CURRENT_FLUID_LEVEL = FLUID_LINE;
-        if (check) return fy;
-        if (targetY > currentY) {
-            currentYVelocity = 1f;
-            fy = 1;
-        } else if (currentY > targetY) {
-            currentYVelocity = -1f;
-            fy = -1;
+        if (Math.abs(this.CURRENT_FLUID_LEVEL - FLUID_LINE) <= 4f || yDifference >= 3f) this.CURRENT_FLUID_LEVEL = FLUID_LINE;
+        boolean isInAir = isInAir();
+        if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) {
+            System.out.println("IS SHIP IN AIR?: "+isInAir);
         }
+        if (targetY > currentY && !isInAir) {
+            fy = 1d;
+        } else if (currentY > targetY || isInAir) {
+            fy = -1d;
+        }
+        if (yDifference <= 1 && !isInAir) fy = 0d;
+        else if (isInAir) fy = -1d;
         return fy;
     }
+
 
     public void processFluidRestore() {
         if (ship.CHANGE_WORLD) return;

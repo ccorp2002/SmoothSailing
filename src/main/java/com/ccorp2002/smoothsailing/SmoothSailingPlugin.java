@@ -155,7 +155,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
             removedCount+=world.getLoadedChunks().length;
             NmsUtils.removeChunksToLoad(world,Arrays.asList(world.getLoadedChunks()));
         }
-        getLogger().info("Cleared " + removedCount + " force-loaded chunks");
+        getLogger().info("Cleared " + removedCount + " SmoothSailing-loaded chunks");
     }
 
     public void loadSignHeaders() {
@@ -223,7 +223,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
             NmsUtils.removeChunksToLoad(world,Arrays.asList(world.getLoadedChunks()));
         }
 
-        getLogger().info("Cleared " + removedCount + " force-loaded chunks");
+        getLogger().info("Cleared " + removedCount + " SmoothSailing-loaded chunks");
         InventoryUtil.FUEL_TYPES.clear();
         TaskUtils.cancelTasks();
         
@@ -364,7 +364,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
                     NmsUtils.removeChunksToLoad(world,world.getForceLoadedChunks());
                 }
 
-                getLogger().info("Cleared " + removedCount + " force-loaded chunks");
+                getLogger().info("Cleared " + removedCount + " SmoothSailing-loaded chunks");
                 // Reload global physics config
                 ShipInstance.loadGlobalPhysicsConfig(this);
                 DEBUG = this.getConfig().getConfigurationSection("debug").getBoolean("enabled",false);

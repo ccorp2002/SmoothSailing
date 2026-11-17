@@ -427,7 +427,7 @@ public class ShipWheelManager {
                     happy.setNoPhysics(true);
                 }
                 ShipListener.addTag(s,ShipListener.seatTag(0));
-                s.setCustomNameVisible(false);
+                s.setCustomNameVisible(true);
                 s.setVisibleByDefault(true);
                 s.setInvisible(true);
             });
@@ -771,6 +771,7 @@ public class ShipWheelManager {
         } else {
             surfaceOffset = 0;
         }
+        if (Math.abs(surfaceOffset) >= 25) Math.ceil(surfaceOffset *= 0.275f);
         DATA.put("center_of_volume_y",centerOfVolumeY);
         DATA.put("min_y",minY);
         DATA.put("surface_offset",surfaceOffset);
@@ -818,6 +819,7 @@ public class ShipWheelManager {
         } else {
             surfaceOffset = 0;
         }
+        if (Math.abs(surfaceOffset) >= 25) Math.ceil(surfaceOffset *= 0.275f);
         DATA.put("center_of_volume_y",centerOfVolumeY);
         DATA.put("min_y",minY);
         DATA.put("surface_offset",surfaceOffset);
@@ -868,6 +870,7 @@ public class ShipWheelManager {
         }
 
         wheelData.lastMinY = minY;
+        if (Math.abs(surfaceOffset) >= 25) Math.ceil(surfaceOffset *= 0.275f);
         wheelData.lastSurfaceOffset = surfaceOffset;
     }
 

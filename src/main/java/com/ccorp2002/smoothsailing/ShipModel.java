@@ -27,7 +27,7 @@ public class ShipModel {
 
     public ShipModel(List<Location> blocks, float waterFloatOffset, int totalWeight, float minY, float maxY) {
         this.blocks = blocks;
-        this.waterFloatOffset = (float)Math.ceil(waterFloatOffset);
+        this.waterFloatOffset = (float)Math.round(waterFloatOffset);
         this.totalWeight = totalWeight;
         this.blockCount = this.blocks.size();
         this.minY = minY;

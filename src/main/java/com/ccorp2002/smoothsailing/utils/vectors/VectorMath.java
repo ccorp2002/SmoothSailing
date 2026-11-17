@@ -10,7 +10,9 @@ public class VectorMath {
 	}
 	
 	public static int getIntegerRatioResult(int total, int fraction) {
+		if (fraction == 0 || total == 0) return 1;
 		int gcd = intGCD(Math.abs(total), Math.abs(fraction));
+		if (gcd == 0) return 1;
 		return Math.abs(Math.abs(total / gcd) / Math.abs(fraction / gcd));
 	}
 	

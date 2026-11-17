@@ -382,26 +382,6 @@ public class ShipListener implements Listener {
             };
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(player.getLocation()).runTaskLater(RUN_ME, 2L);
         }
-
-        // Parse tags: displayship:{uuid} and shipseat:{index}
-        // Tag creation: ShipInstance constructor (lines 285-297)
-        ShipInstance inst = ShipListener.getShipFromEntity(shulker);
-        if (inst != null) {
-            // Speed persists - don't reset currentSpeed
-
-            // Transfer ship velocity to exiting player
-            //if (inst.driver != null && inst.driver.equals(player)) inst.driver = null;
-            float currentSpeed = inst.physics.currentSpeed;
-            float currentYVelocity = inst.physics.currentYVelocity;
-
-            // Calculate ship velocity from currentSpeed and yaw (needed if ship is moving)
-            float yawRad = (float) Math.toRadians(-inst.vehicle.getYaw());
-            double forwardX = Math.sin(yawRad) * currentSpeed;
-            double forwardZ = Math.cos(yawRad) * currentSpeed;
-            boolean shipIsMoving = Math.abs(currentSpeed) > 1 || Math.abs(currentYVelocity) > 1;
-            inst.physics.currentSpeed = inst.physics.currentSpeed / 4f;
-            // Delay by 2 ticks to ensure Minecraft's dismount logic completes
-        }
     }
 
     /**
@@ -735,15 +715,14 @@ public class ShipListener implements Listener {
         }
         if (found != null) {
             final ShipInstance ship = found;
-            ship.physics.moving = true;
             ship.setProcessing(true);
             if (block.getType().toString().endsWith("ANVIL")) {
                 event.setCancelled(true);
                 ship.setProcessing(false);
-                ship.physics.moving = false;
                 return;
             }
             ShipInstance.addBlock(ship,block,true);
+            ship.setProcessing(false);
         }
     }
 

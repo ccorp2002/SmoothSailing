@@ -205,7 +205,7 @@ public class ShipWheelMenu {
         // Get config values for float status thresholds
         Float airDensity = (float)ShipInstance.airDensity();
         Float waterDensity = (float)ShipInstance.waterDensity();
-        if (airDensity == null) airDensity = -2.5f;
+        if (airDensity == null) airDensity = -3f;
         if (waterDensity == null) waterDensity = 10f;
 
         // Use stored surface offset (calculated during detection)
@@ -227,13 +227,11 @@ public class ShipWheelMenu {
         if (wheelData.isAssembled()) {
             ShipInstance ship = ShipRegistry.byId(wheelData.getAssembledShipUUID());
             if (ship != null) {
+                blockCount = ship.blockCount;
                 currentHealth = (int)ship.getHealth();
                 maxHealth = (int)ship.getMaxHealth();
                 totalWeight = (int)ship.weightCalc;
-                var floating = ship.getDataTag("float_offset");
-                Integer floatOffset = 0;
-                if (floating != null && floating instanceof Double ddbl) floatOffset = (int)java.lang.Math.floor(ddbl);
-                surfaceOffset = (float)floatOffset;
+                surfaceOffset = (float)ship.model.waterFloatOffset;
                 currentGear = ship.getGear();
                 maxGear = ship.getMaxGear();
             }

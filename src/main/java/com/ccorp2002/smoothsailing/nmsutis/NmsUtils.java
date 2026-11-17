@@ -41,7 +41,6 @@ import net.minecraft.world.ticks.LevelChunkTicks;
 import net.minecraft.world.ticks.ScheduledTick;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.portal.*;
-import ca.spottedleaf.moonrise.common.util.WorldUtil;
 import net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket;
 import net.minecraft.world.entity.*;
 
@@ -97,7 +96,7 @@ import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
 import com.ccorp2002.smoothsailing.utils.*;
 import com.ccorp2002.smoothsailing.utils.objects.*;
-import com.ccorp2002.smoothsailing.nmsutils.NmsUtils;
+import com.ccorp2002.smoothsailing.nmsutils.anvil.*;
 import com.ccorp2002.smoothsailing.detection.ShipWheelData;
 import com.ccorp2002.smoothsailing.detection.ShipWheelManager;
 
@@ -538,82 +537,106 @@ public final class NmsUtils {
                 block instanceof HopperBlock;
     }
 
-  @Nullable
-  public static BlockState getBlockFastest(@NotNull Level world, @NotNull BlockPos position) {
-      LevelChunk chunk = (LevelChunk) world.getChunkIfLoaded(position);
-      if (chunk == null) chunk = (LevelChunk) world.getChunkAt(position);
-      if (chunk == null) return AIR;
-      BlockState data = getBlockFaster(world,position);
-      return data;
-  }
+    @Nullable
+    public static org.bukkit.block.data.BlockData toSafeBukkitBlockData(@NotNull Location location) {
+        World world = location.getWorld();
+        if (world == null) return null;
 
-  @Nullable
-  public static org.bukkit.block.BlockState getBukkitState(@NotNull Location location) {
-      org.bukkit.block.Block data = location.getBlock();
-      if (data == null) return null;
-      return data.getState(false);
-  }
+        ChunkBlockSource cbs = AnvilChunkLoader.load(world, location.getBlockX()>>4, location.getBlockZ()>>4);
+        if (cbs != null && cbs instanceof AnvilChunkSource acs) {
+            BlockData data = acs.getBlockData(location.getBlockX() & 15, location.getBlockY(), location.getBlockZ() & 15);
+            if (data != null && !data.getMaterial().isAir()) return data;
+        }
+        return toBukkitBlockDataFast(location);
+    }
 
-  @Nullable
-  public static org.bukkit.block.BlockState getBukkitStateCopy(@NotNull Location location) {
-      org.bukkit.block.Block data = location.getBlock();
-      if (data == null) return null;
-      return data.getState(true);
-  }
+    @Nullable
+    public static org.bukkit.block.data.BlockData toSafeBukkitBlockData(@NotNull World world, @NotNull Vector vector) {
 
-  @Nullable
-  public static org.bukkit.Material toBukkitBlockFast(@NotNull Location location) {
-      if (location.getWorld() == null) return null;
-      ServerLevel world = ((CraftWorld) location.getWorld()).getHandle();
-      BlockPos position = locationToPosition(location);
-      BlockState data = getBlockFastest(world,position);
-      if (data == null) return Material.AIR;
-      return data.getBukkitMaterial();
-  }
+        ChunkBlockSource cbs = AnvilChunkLoader.load(world, vector.getBlockX()>>4, vector.getBlockZ()>>4);
+        if (cbs != null && cbs instanceof AnvilChunkSource acs) {
+            BlockData data = acs.getBlockData(vector.getBlockX() & 15, vector.getBlockY(), vector.getBlockZ() & 15);
+            if (data != null && !data.getMaterial().isAir()) return data;
+        }
+        return toBukkitBlockDataFast(vector.toLocation(world));
+    }
 
-  @Nullable
-  public static org.bukkit.block.data.BlockData toBukkitBlockDataFast(@NotNull Location location) {
-      if (location.getWorld() == null) return null;
-      ServerLevel world = ((CraftWorld) location.getWorld()).getHandle();
-      BlockPos position = locationToPosition(location);
-      BlockState data = getBlockFastest(world,position);
-      return BlockDataGetter.get(data);
-  }
-  @Nullable
-  public static org.bukkit.block.Block getBukkitBlockFast(@NotNull Location location) {
-      return getBukkitBlockFaster(location);
-  }
-  public static boolean isMainThread() {
-    return Bukkit.isPrimaryThread();
-  }
-  public static boolean isMainThreadNotLevel() {
-    return isMainThread();
-  }
+    @Nullable
+    public static BlockState getBlockFastest(@NotNull Level world, @NotNull BlockPos position) {
+        LevelChunk chunk = (LevelChunk) world.getChunkIfLoaded(position);
+        if (chunk == null) chunk = (LevelChunk) world.getChunkAt(position);
+        if (chunk == null) return AIR;
+        BlockState data = getBlockFaster(world,position);
+        return data;
+    }
 
-  @Nullable
-  public static org.bukkit.block.Block getBukkitBlockFaster(@NotNull final Location location) {
-      if (location.getWorld() == null) return null;
-      ServerLevel level = ((CraftWorld) location.getWorld()).getHandle();
-      if (!isMainThread())  {
-        WrappedCallable<org.bukkit.block.Block> runMe = new WrappedCallable<>(() ->{
+    @Nullable
+    public static org.bukkit.block.BlockState getBukkitState(@NotNull Location location) {
+        org.bukkit.block.Block data = location.getBlock();
+        if (data == null) return null;
+        return data.getState(false);
+    }
+
+    @Nullable
+    public static org.bukkit.block.BlockState getBukkitStateCopy(@NotNull Location location) {
+        org.bukkit.block.Block data = location.getBlock();
+        if (data == null) return null;
+        return data.getState(true);
+    }
+
+    @Nullable
+    public static org.bukkit.Material toBukkitBlockFast(@NotNull Location location) {
+        if (location.getWorld() == null) return null;
+        ServerLevel world = ((CraftWorld) location.getWorld()).getHandle();
+        BlockPos position = locationToPosition(location);
+        BlockState data = getBlockFastest(world,position);
+        if (data == null) return Material.AIR;
+        return data.getBukkitMaterial();
+    }
+
+    @Nullable
+    public static org.bukkit.block.data.BlockData toBukkitBlockDataFast(@NotNull Location location) {
+        if (location.getWorld() == null) return null;
+        ServerLevel world = ((CraftWorld) location.getWorld()).getHandle();
+        BlockPos position = locationToPosition(location);
+        BlockState data = getBlockFastest(world,position);
+        return BlockDataGetter.get(data);
+    }
+    @Nullable
+    public static org.bukkit.block.Block getBukkitBlockFast(@NotNull Location location) {
+        return getBukkitBlockFaster(location);
+    }
+    public static boolean isMainThread() {
+        return Bukkit.isPrimaryThread();
+    }
+    public static boolean isMainThreadNotLevel() {
+        return isMainThread();
+    }
+
+    @Nullable
+    public static org.bukkit.block.Block getBukkitBlockFaster(@NotNull final Location location) {
+        if (location.getWorld() == null) return null;
+        ServerLevel level = ((CraftWorld) location.getWorld()).getHandle();
+        if (!isMainThread())  {
+            WrappedCallable<org.bukkit.block.Block> runMe = new WrappedCallable<>(() ->{
+                BlockPos position = locationToPosition(location);
+                LevelChunk chunk = (LevelChunk) level.getChunkIfLoaded(position);
+                if (chunk == null) chunk = (LevelChunk) level.getChunkAt(position);
+                org.bukkit.block.Block block = (org.bukkit.block.Block)CraftBlock.at(level, position);
+                if (block == null || !block.isSolid()) block = location.getBlock();
+                return block;
+            });
+            runTaskInWorld(runMe,location);
+            return runMe.get();
+        } else {
             BlockPos position = locationToPosition(location);
             LevelChunk chunk = (LevelChunk) level.getChunkIfLoaded(position);
             if (chunk == null) chunk = (LevelChunk) level.getChunkAt(position);
             org.bukkit.block.Block block = (org.bukkit.block.Block)CraftBlock.at(level, position);
             if (block == null || !block.isSolid()) block = location.getBlock();
             return block;
-        });
-        runTaskInWorld(runMe,location);
-        return runMe.get();
-      } else {
-        BlockPos position = locationToPosition(location);
-        LevelChunk chunk = (LevelChunk) level.getChunkIfLoaded(position);
-        if (chunk == null) chunk = (LevelChunk) level.getChunkAt(position);
-        org.bukkit.block.Block block = (org.bukkit.block.Block)CraftBlock.at(level, position);
-        if (block == null || !block.isSolid()) block = location.getBlock();
-        return block;
-      }
-  }
+        }
+    }
     public static org.bukkit.Chunk getChunkFastest(Location loc) {
         if (loc == null) return null;
         if (loc.getWorld() == null) return null;
@@ -1374,7 +1397,7 @@ public final class NmsUtils {
     }
     if (!loc.getWorld().equals(entity.getWorld())) loadChunksIn(loc.getWorld(),loc);
     if (entity instanceof Player player) {
-        player.teleportAsync(
+        player.teleport(
                 loc, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.UNKNOWN,
                 io.papermc.paper.entity.TeleportFlag.Relative.X,
                 io.papermc.paper.entity.TeleportFlag.Relative.Y,
@@ -1384,7 +1407,6 @@ public final class NmsUtils {
                 io.papermc.paper.entity.TeleportFlag.EntityState.RETAIN_OPEN_INVENTORY,
                 io.papermc.paper.entity.TeleportFlag.EntityState.RETAIN_VEHICLE,
                 io.papermc.paper.entity.TeleportFlag.EntityState.RETAIN_PASSENGERS);
-        player.setVelocity(EMPTY_VEC);
     } else {
         entity.teleport(
                 loc, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.UNKNOWN,
