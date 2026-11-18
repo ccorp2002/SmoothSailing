@@ -88,6 +88,7 @@ import java.lang.reflect.Field;
 import java.util.function.Predicate;
 import java.util.*;
 
+import org.bukkit.util.Vector;
 import org.bukkit.util.BlockVector;
 
 import com.ccorp2002.smoothsailing.*;
@@ -312,6 +313,12 @@ public class CEUtils {
         }
         return holder;
     }
+
+    @Nullable
+    public NmsUtils.TileHolder removeAndCreateTileHolder(@NotNull World world, @NotNull Vector pos){
+        return removeAndCreateTileHolder((ServerLevel)((CraftWorld) world).getHandle(),NmsUtils.locationToPosition(pos));
+    }
+
 
     @Nullable
     public NmsUtils.TileHolder removeAndCreateTileHolder(@NotNull Location pos){

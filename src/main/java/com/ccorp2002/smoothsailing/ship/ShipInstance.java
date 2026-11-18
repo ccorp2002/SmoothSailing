@@ -109,7 +109,7 @@ public class ShipInstance {
     public BoundingBox bbox = null;
 
     public void calculateBoundingBox() {
-        if (BLOCK_STATES.isEmpty()) this.bbox = new BoundingBox(0, 0, 0, 0, 0, 0);
+        if (BLOCK_STATES.isEmpty()) this.bbox = null;
         this.bbox = new BoundingBox(minX(), minY(), minZ(), maxX(), maxY()+1.5, maxZ());
     }
     public World getWorld() {
@@ -694,7 +694,7 @@ public class ShipInstance {
         this.currentHealth = this.maxHealth;
         this.ENTITY_COMPOSITION.add(vehicle);
         ENTITY_COMPOSITION.addAll(HIDDEN_ENTITIES);
-        calculateBoundingBox();
+        this.calculateBoundingBox();
         if (facing == null || facing.isZero()) facing = vehicle.getFacing().getDirection().normalize().setY(0);
         if (forwards == null || forwards.isZero()) forwards = facing;
         SmoothSailingPlugin.getInstance().getLogger().info("Piloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.blockCount);
@@ -900,13 +900,13 @@ public class ShipInstance {
         com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskAsync(()->{
             this.setProcessing(true);
             BlockData FLUID_BLOCK = ShipPhysics.VOID;
-            int waterLine = this.minY() - 15;
+            int waterLine = this.minY() - 5;
             //level by examining blocks next to the outer boundaries of the ship
             int numOther = 0;
             int numAir = 0;
             int minX = minX();
             int maxX = maxX();
-            int minY = minY();
+            int minY = waterLine;
             int maxY = maxY();
             int minZ = minZ();
             int maxZ = maxZ();
@@ -1006,14 +1006,15 @@ public class ShipInstance {
     public void teleport(final Location dest) {
         if (!vehicle.isValid() || vehicle.isDead() || CHANGE_WORLD) return;
         if (dest.getWorld() == null) return;
-        final Location vehicleLoc = vehicle.getLocation();
-        final Location center = vehicleLoc.clone();
+        final Location center = this.getLocation().clone();
+        final World originWorld = center.getWorld();
         sendVoids();
         CHANGE_WORLD = !center.getWorld().equals(dest.getWorld());
         int dx, dy, dz = 0;
         dx = dest.getBlockX() - center.getBlockX();
         dy = dest.getBlockY() - center.getBlockY();
         dz = dest.getBlockZ() - center.getBlockZ();
+        final World destWorld = dest.getWorld();
         final Location offsetf = new Location(dest.getWorld(),dx,dy,dz);
         final MobileBlockState[] TEMPS = this.BLOCK_STATES.toArray(MobileBlockState[]::new);
         physics.moving = true;
@@ -1035,24 +1036,24 @@ public class ShipInstance {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
                 final Location stloc = st.getLocation();
-                st.setBlockData(NmsUtils.toBukkitBlockDataFast(stloc),true);
-                st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(stloc);
-                st.tile = NmsUtils.removeAndCreateTileHolder(stloc);
-                NmsUtils.setBlockFast(stloc,st.occupiedBlock);
+                st.setBlockData(NmsUtils.toBukkitBlockDataFast(originWorld,st),true);
+                st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(originWorld,st);
+                st.tile = NmsUtils.removeAndCreateTileHolder(originWorld,st);
+                NmsUtils.setBlockFast(originWorld,st,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
-            this.sendVoids(Arrays.asList(TEMPS));
+            this.refreshChunks();
             NmsUtils.loadChunksIn(dest.getWorld(),this.BLOCK_STATES);
             for (int indx = 0; indx < TEMPS.length; indx ++) {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
                 final Location stloc = st.getLocation();
                 Location updLoc = stloc.clone();
-                updLoc.setWorld(offsetf.getWorld());
+                updLoc.setWorld(destWorld);
                 updLoc = updLoc.add(offsetf);
-                BlockData occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
+                BlockData occupiedBlock = NmsUtils.toBukkitBlockDataFast(destWorld,updLoc.toVector());
+                st = st.teleport(destWorld,updLoc.toVector(),false);
                 st.occupiedBlock = occupiedBlock;
-                st = st.teleport(updLoc,false);
                 
                 getFluidBlocks().set(updLoc,st.occupiedBlock);
                 TEMPS[indx] = st;
@@ -1060,7 +1061,7 @@ public class ShipInstance {
             this.BLOCK_STATES.clear();
             this.BLOCK_STATES.setAll(TEMPS);
             Location moveVehicleLoc = this.vehicle.getLocation().clone();
-            moveVehicleLoc.setWorld(offsetf.getWorld());
+            moveVehicleLoc.setWorld(destWorld);
             moveVehicleLoc = moveVehicleLoc.add(offsetf);
             NmsUtils.loadChunksIn(moveVehicleLoc.getWorld(),Arrays.asList(TEMPS));
             NmsUtils.teleportSilentCurrentThread(moveVehicleLoc, this.vehicle);
@@ -1097,7 +1098,6 @@ public class ShipInstance {
             isBackwardPressed = false;
             isSprintPressed = false;
             isSpacePressed = false;
-            sendVoids();
             NmsUtils.loadChunksIn(dest.getWorld(),this.BLOCK_STATES);
             this.model.minY = minY();
             this.model.maxY = maxY();
@@ -1113,6 +1113,7 @@ public class ShipInstance {
                 }
                 this.setTrackedLocation(KEY,Arrays.asList(_COPY));
             }
+            refreshChunks();
             Runnable RUN_ME = ()->{
                 if (CHANGE_WORLD) CHANGE_WORLD = false;
                 ShipInstance.this.calculateBoundingBox();
@@ -1125,61 +1126,71 @@ public class ShipInstance {
         });
     }
 
-    public void sendSolids(Collection<MobileBlockState> SEND_STATES) {
+
+    public void refreshChunks() {
         if (CHANGE_WORLD) return;
-        NmsUtils.resetBlocks(vehicle.getWorld(),SEND_STATES.stream().map(
-            MobileBlockState::getLocation
-        ).collect(Collectors.toCollection(
-            ArrayList::new              // Supplier: create a HashMap
-        )));
+        if (this.vehicle == null) return;
+        NmsUtils.refreshChunksIn(this.getWorld(),this.BLOCK_STATES);
+    }
+
+    public void sendSolids(final Collection<MobileBlockState> SEND_STATES) {
+        if (CHANGE_WORLD) return;
+        if (this.vehicle == null) return;
+        if (BLOCK_STATES.size() >= 25_000) NmsUtils.refreshChunksIn(this.getWorld(),BLOCK_STATES);
+        else {
+            NmsUtils.sendBlockChanges(vehicle.getWorld(),SEND_STATES.stream().collect(Collectors.toMap(
+                MobileBlockState::getLocation,
+                MobileBlockState::getBlockData,
+                (existing, replacement) -> replacement,
+                () -> new it.unimi.dsi.fastutil.objects.Object2ObjectOpenCustomHashMap<>(SEND_STATES.size(),0.75f,MobileBlockState.HASH_STRAT)
+            )));
+        }
     }
 
 
     public void sendSolids() {
         if (CHANGE_WORLD) return;
-        NmsUtils.resetBlocks(vehicle.getWorld(),BLOCK_STATES.stream().map(
-            MobileBlockState::getLocation
-        ).collect(Collectors.toCollection(
-            ArrayList::new              // Supplier: create a HashMap
-        )));
+        sendSolids(this.BLOCK_STATES);
     }
 
-    public void sendVoids(Collection<MobileBlockState> SEND_STATES) {
+    public void sendVoids(final Collection<MobileBlockState> SEND_STATES) {
         if (CHANGE_WORLD) return;
+        if (this.vehicle == null) return;
         NmsUtils.sendBlockChanges(vehicle.getWorld(),SEND_STATES.stream().collect(Collectors.toMap(
-            MobileBlockState::getLocation,      // Key: the string itself
-            MobileBlockState::getOccupied,           // Value: length of the string
-            (existing, replacement) -> replacement, // Merge: keep existing on collision
-            HashMap::new              // Supplier: create a HashMap
+            MobileBlockState::getLocation,
+            MobileBlockState::getOccupied,
+            (existing, replacement) -> replacement,
+            () -> new it.unimi.dsi.fastutil.objects.Object2ObjectOpenCustomHashMap<>(SEND_STATES.size(),0.75f,MobileBlockState.HASH_STRAT)
         )));
     }
 
     public void sendVoids() {
         if (CHANGE_WORLD) return;
-        NmsUtils.sendBlockChanges(vehicle.getWorld(),BLOCK_STATES.stream().collect(Collectors.toMap(
-            MobileBlockState::getLocation,      // Key: the string itself
-            MobileBlockState::getOccupied,           // Value: length of the string
-            (existing, replacement) -> replacement, // Merge: keep existing on collision
-            HashMap::new              // Supplier: create a HashMap
-        )));
+        sendVoids(this.BLOCK_STATES);
     }
 
     public int maxX() {
+        if (bbox != null) return (int)bbox.getMaxX();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bx).max().orElse(0));
     }
     public int minX() {
+        if (bbox != null) return (int)bbox.getMinX();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bx).min().orElse(0));
     }
     public int maxY() {
+        if (bbox != null) return (int)bbox.getMaxY();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::by).max().orElse(0));
     }
     public int minY() {
+        if (bbox != null) return (int)bbox.getMinY();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::by).min().orElse(0));
     }
     public int maxZ() {
+        if (bbox != null) return (int)bbox.getMaxZ();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bz).max().orElse(0));
     }
     public int minZ() {
+        if (bbox != null) return (int)bbox.getMinZ();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bz).min().orElse(0));
     }
 

@@ -143,6 +143,17 @@ public class ShipListener implements Listener {
     public void onWorldUnload(org.bukkit.event.world.WorldUnloadEvent event) {
         ShipRegistry.destroyAllInWorld(event.getWorld());
     }
+
+
+    @EventHandler
+    public void onLeave(org.bukkit.event.player.PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        for (ShipInstance SHIP : ShipRegistry.getAllShips()) {
+            if (player.equals(SHIP.driver)) {
+                SHIP.destroy();
+            }
+        }
+    }
     /**
      * Handles chunk unload events.
      * Suspends ship tasks and unregisters from ShipRegistry.
@@ -155,8 +166,8 @@ public class ShipListener implements Listener {
             if (!ship.vehicle.getWorld().equals(chunk.getWorld())) {
                 continue;
             } else if (ship.vehicle == null || ship.vehicle.isDead()) {
-                ShipRegistry.unregister(ship);
                 ship.destroy();
+                ShipRegistry.unregister(ship);
                 plugin.getLogger().warning("Released ship " + ship.id + " for chunk unload at " + chunk.getX() + "," + chunk.getZ() + "," + chunk.getWorld().getName());
                 continue;
             }

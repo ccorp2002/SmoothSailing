@@ -414,28 +414,32 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
     }
 
     public MobileBlockState teleport(Location loc, boolean reAdd) {
+        return teleport(loc.getWorld(),loc.toVector(),reAdd);
+    }
+
+    public MobileBlockState teleport(World world, final Vector loc, boolean reAdd) {
+        if (world == null) return this;
         if (loc == null) return this;
-        if (loc.getWorld() == null) return this;
-        final Location floc = loc;
         final ShipInstance ship = this.getShip();
+        final Location floc = loc.toLocation(world);
         if (ship != null) {
             if (!NmsUtils.withinWorldBorder(floc) && ship.isSinking) {
                 this.damage(this.health);
                 return this;
             }
         }
-        final Location origin = toLocation(ship.getWorld());
-        final ServerLevel oldLevel = (ServerLevel)NmsUtils.getLevel(origin);
-        final ServerLevel newLevel = (ServerLevel)NmsUtils.getLevel(loc);
-        BlockPos position = NmsUtils.locationToPosition(origin);
-        BlockPos newPosition = NmsUtils.locationToPosition(floc);
+        //final Location origin = toLocation();
+        //final ServerLevel oldLevel = NmsUtils.getLevel(NmsUtils.getLevel(origin));
+        final ServerLevel newLevel = NmsUtils.getLevel(NmsUtils.getLevel(world));
+        BlockPos position = NmsUtils.locationToPosition(this);
+        BlockPos newPosition = NmsUtils.locationToPosition(loc);
+        /*
         final org.bukkit.inventory.Inventory inv;
         if (NmsUtils.HAS_CRAFT_ENGINE && this.tile instanceof CEUtils.CraftEngineTileHolder) {
             inv = CEUtils.INSTANCE.getCEBlockInv(origin);
         } else {
             inv = null;
         }
-        /*
         if (NmsUtils.HAS_CRAFT_ENGINE && ship != null) {
             TaskUtils.runTask(()->{
                 final org.bukkit.persistence.PersistentDataContainer pdcC = CEUtils.getCEBlockPDC(origin);
@@ -447,12 +451,15 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
         NmsUtils.setBlockFast(floc,this.state);
         if (this.isDead()) {
             if (NmsUtils.HAS_CRAFT_ENGINE) CEUtils.INSTANCE.removeCEBlock(floc,false,true);
-            NmsUtils.setBlockFast(floc,ShipPhysics.VOID);
+            NmsUtils.setBlockFast(world,loc,ShipPhysics.VOID);
         }
+        this.x = (floc.getX());
+        this.y = (floc.getY());
+        this.z = (floc.getZ());
         if (this.tile != null) {
             this.tile.tilePosition = position;
             this.tile.newPosition = newPosition;
-            final NmsUtils.TileHolder mutated = NmsUtils.moveReturnBlockEntity(floc,this.tile,this.state);
+            final NmsUtils.TileHolder mutated = NmsUtils.moveReturnBlockEntity(world,loc,this.tile,this.state);
             if (mutated != null) this.tile = mutated;
             else this.tile = NmsUtils.createTileHolder(floc);
         }
@@ -460,15 +467,14 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
             NmsUtils.MOVE_TICK_TO(this.TICK_TO_MOVE,floc);
             this.TICK_TO_MOVE = null;
         }
+        /*
         if (NmsUtils.HAS_CRAFT_ENGINE && inv != null && this.tile instanceof CEUtils.CraftEngineTileHolder) {
             org.bukkit.inventory.Inventory other = CEUtils.INSTANCE.getCEBlockInv(floc);
             try {
                 if (inv != null && other != null) other.setContents(inv.getContents());
             } catch (Throwable thr) {}
         }
-        this.x = (floc.getX());
-        this.y = (floc.getY());
-        this.z = (floc.getZ());
+        */
         if (ship != null && reAdd) {
             ship.BLOCK_STATES.set(this);
             if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("RE-ADDING: ("+super.toString()+") TO SHIP? "+ship);

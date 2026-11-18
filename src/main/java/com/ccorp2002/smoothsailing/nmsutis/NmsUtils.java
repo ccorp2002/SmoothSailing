@@ -374,6 +374,12 @@ public final class NmsUtils {
         return createTileHolder((ServerLevel)((CraftWorld) pos.getWorld()).getHandle(),locationToPosition(pos));
     }
 
+
+    @Nullable
+    public static TileHolder createTileHolder(@NotNull World world, @NotNull Vector pos){
+        return createTileHolder(getLevel(world),locationToPosition(pos));
+    }
+
     @Nullable
     public static TileHolder createTileHolder(@NotNull Level world, @NotNull BlockPos position){
         Object tile = null;
@@ -411,6 +417,11 @@ public final class NmsUtils {
     }
 
     @Nullable
+    public static TileHolder removeAndCreateTileHolder(@NotNull World world, @NotNull org.bukkit.util.Vector position){
+        return removeAndCreateTileHolder(getLevel(world),locationToPosition(position));
+    }
+
+    @Nullable
     public static TileHolder removeAndCreateTileHolder(@NotNull Level world, @NotNull BlockPos position){
         Object tile = null;
         TileHolder holder = null;
@@ -424,14 +435,6 @@ public final class NmsUtils {
                 holder = new VanillaTileHolder(tileSt,position);
             }
         }
-        /*
-        if (tile == null && holder == null) {
-            tile = getBukkitStateCopy(positionToLocation(position,world));
-            if (tile instanceof org.bukkit.block.TileState tileSt) {
-                holder = new BukkitTileHolder(tileSt,position);
-            }
-        }
-        */
         return holder;
     }
 
@@ -449,6 +452,10 @@ public final class NmsUtils {
 
   public static Location positionToLocation(@NotNull BlockPos pos, Level world) {
     return org.bukkit.craftbukkit.util.CraftLocation.toBukkit(pos,world);
+  }
+
+  public static BlockPos locationToPosition(@NotNull Vector loc) {
+      return new BlockPos(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ());
   }
 
   public static BlockPos locationToPosition(@NotNull Location loc) {
@@ -558,7 +565,7 @@ public final class NmsUtils {
             BlockData data = acs.getBlockData(vector.getBlockX() & 15, vector.getBlockY(), vector.getBlockZ() & 15);
             if (data != null && !data.getMaterial().isAir()) return data;
         }
-        return toBukkitBlockDataFast(vector.toLocation(world));
+        return toBukkitBlockDataFast(world, vector);
     }
 
     @Nullable
@@ -587,21 +594,23 @@ public final class NmsUtils {
     @Nullable
     public static org.bukkit.Material toBukkitBlockFast(@NotNull Location location) {
         if (location.getWorld() == null) return null;
-        ServerLevel world = ((CraftWorld) location.getWorld()).getHandle();
-        BlockPos position = locationToPosition(location);
-        BlockState data = getBlockFastest(world,position);
-        if (data == null) return Material.AIR;
-        return data.getBukkitMaterial();
+        return toBukkitBlockDataFast(location).getMaterial();
     }
 
     @Nullable
     public static org.bukkit.block.data.BlockData toBukkitBlockDataFast(@NotNull Location location) {
         if (location.getWorld() == null) return null;
-        ServerLevel world = ((CraftWorld) location.getWorld()).getHandle();
-        BlockPos position = locationToPosition(location);
-        BlockState data = getBlockFastest(world,position);
+        return toBukkitBlockDataFast(location.getWorld(),location.toVector());
+    }
+
+    @Nullable
+    public static org.bukkit.block.data.BlockData toBukkitBlockDataFast(@NotNull World world, @NotNull Vector position) {
+        ServerLevel level = ((CraftWorld) world).getHandle();
+        BlockPos blockPos = locationToPosition(position);
+        BlockState data = getBlockFastest(level,blockPos);
         return BlockDataGetter.get(data);
     }
+
     @Nullable
     public static org.bukkit.block.Block getBukkitBlockFast(@NotNull Location location) {
         return getBukkitBlockFaster(location);
@@ -859,8 +868,12 @@ public final class NmsUtils {
 
     @SuppressWarnings("all")
     public static TileHolder moveReturnBlockEntity(@NotNull Location loc, @NotNull TileHolder tile, BlockState newTileState) {
-        if (loc.getWorld() == null) return tile;
-        ServerLevel world = ((CraftWorld) loc.getWorld()).getHandle();
+        return moveReturnBlockEntity(loc.getWorld(), loc.toVector(), tile, newTileState);
+    }
+    @SuppressWarnings("all")
+    public static TileHolder moveReturnBlockEntity(World w, @NotNull Vector loc, @NotNull TileHolder tile, BlockState newTileState) {
+        if (w == null) return tile;
+        ServerLevel world = ((CraftWorld) w).getHandle();
         tile.newPosition = locationToPosition(loc);
         if (tile instanceof BukkitTileHolder bth) {
             if (tile.newPosition == null) return bth;
@@ -871,7 +884,7 @@ public final class NmsUtils {
                 else bth.tile.setBlockData(oldBlockData);
                 moveTileState(world, tile.newPosition, bth.getTile());
                 tile.tilePosition = tile.newPosition;
-                bth.tile = getBukkitStateCopy(loc);
+                bth.tile = getBukkitStateCopy(loc.toLocation(w));
                 return bth;
             } else {
                 if (SmoothSailingPlugin.DEBUG) SmoothSailingPlugin.getPlugin().getLogger().warning("BUKKIT TILE COPY @ "+tile.newPosition.toString()+" MISSING VALID BLOCK STATE");
@@ -897,18 +910,18 @@ public final class NmsUtils {
             if (tile.newPosition == null) return ceth;
             CE_UTILS.moveBlockEntity(world, tile.newPosition, ceth.getTile());
             tile.tilePosition = tile.newPosition;
-            ceth.tile = CE_UTILS.getCEBlockEntity(loc);
+            ceth.tile = CE_UTILS.getCEBlockEntity(loc.toLocation(w));
             return ceth;
         }
         return tile;
     }
 
-  @SuppressWarnings("all")
-  public static void moveBlockEntity(@NotNull Location loc, @NotNull BlockEntity tile) {
-    if (loc.getWorld() == null) return;
-    ServerLevel world = ((CraftWorld) loc.getWorld()).getHandle();
-    moveBlockEntity(world,locationToPosition(loc),tile);
-  }
+    @SuppressWarnings("all")
+    public static void moveBlockEntity(@NotNull Location loc, @NotNull BlockEntity tile) {
+        if (loc.getWorld() == null) return;
+        ServerLevel world = ((CraftWorld) loc.getWorld()).getHandle();
+        moveBlockEntity(world,locationToPosition(loc),tile);
+    }
     @SuppressWarnings("all")
     public static void moveBlockEntity(@NotNull Level nativeWorld, @NotNull BlockPos newPosition, @NotNull BlockEntity tile) {
         final BlockPos oldPos = tile.getBlockPos();
@@ -959,36 +972,52 @@ public final class NmsUtils {
         }
     }
 
-  public static BlockState getBlockState(@NotNull BlockData data) {
-      BlockState blockData;
-      if (data instanceof CraftBlockData) {
-          blockData = ((CraftBlockData) data).getState();
-      }
-      else {
-          blockData = (BlockState) data;
-      }
-      return blockData;
-  }
+    public static BlockState getBlockState(@NotNull BlockData data) {
+        BlockState blockData;
+        if (data instanceof CraftBlockData) {
+            blockData = ((CraftBlockData) data).getState();
+        }
+        else {
+            blockData = (BlockState) data;
+        }
+        return blockData;
+    }
 
-  public static void setBlockFast(@NotNull Location location, @NotNull BlockState blockData) {
-      Level world = ((CraftWorld) (location.getWorld())).getHandle();
-      BlockPos blockPos = locationToPosition(location);
-      setBlockFaster(world, blockPos, blockData, false);
-  }
+    public static void setBlockFast(@NotNull World w, @NotNull Vector location, @NotNull BlockState blockData) {
+        Level world = ((CraftWorld) (w)).getHandle();
+        BlockPos blockPos = locationToPosition(location);
+        setBlockFaster(world, blockPos, blockData, false);
+    }
 
-  public static void setBlockFast(@NotNull Location location, @NotNull BlockData data) {
-      BlockState blockData;
-      if (data instanceof CraftBlockData) {
-          blockData = ((CraftBlockData) data).getState();
-      } else {
-          blockData = (BlockState) data;
-      }
-      setBlockFast(location, blockData);
-  }
+    public static void setBlockFast(@NotNull World w, @NotNull Vector location, @NotNull BlockData data) {
+        BlockState blockData;
+        if (data instanceof CraftBlockData) {
+            blockData = ((CraftBlockData) data).getState();
+        } else {
+            blockData = (BlockState) data;
+        }
+        setBlockFast(w,location,blockData);
+    }
 
-  public static void setBlockFaster(@NotNull Level world, @NotNull BlockPos position, @NotNull BlockState data) {
-    setBlockFaster(world,position,data,false);
-  }
+    public static void setBlockFast(@NotNull Location location, @NotNull BlockState blockData) {
+        Level world = ((CraftWorld) (location.getWorld())).getHandle();
+        BlockPos blockPos = locationToPosition(location);
+        setBlockFaster(world, blockPos, blockData, false);
+    }
+
+    public static void setBlockFast(@NotNull Location location, @NotNull BlockData data) {
+        BlockState blockData;
+        if (data instanceof CraftBlockData) {
+            blockData = ((CraftBlockData) data).getState();
+        } else {
+            blockData = (BlockState) data;
+        }
+        setBlockFast(location, blockData);
+    }
+
+    public static void setBlockFaster(@NotNull Level world, @NotNull BlockPos position, @NotNull BlockState data) {
+        setBlockFaster(world,position,data, false);
+    }
 
   public static void setBlockFaster(@NotNull Level world, @NotNull BlockPos position, @NotNull BlockState data, boolean sendChanges) {
       LevelChunk chunk = (LevelChunk) world.getChunkIfLoaded(position);
@@ -1012,7 +1041,6 @@ public final class NmsUtils {
         if (pos.getWorld() == null) return;
         ServerLevel world = (ServerLevel)((CraftWorld) pos.getWorld()).getHandle();
         renderBlockChanges(world,locationToPosition(pos));
-        sendBlockChange(pos,null);
     }
 
     public static void renderBlockChanges(@NotNull Level world, @NotNull BlockPos position) {
@@ -1541,69 +1569,71 @@ public final class NmsUtils {
 
   public static final it.unimi.dsi.fastutil.objects.Object2ObjectMap<WorldBlockVector,BlockData> SENT_BLOCKS = new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>(12500,0.75f);
 
-  public static void sendBlockChange(Location loc, BlockData data) {
-    if (loc == null) return;
-    if (loc.getWorld() == null) return;
-    if (data == null) data = loc.getBlock().getBlockData();
-    final BlockData temp = data;
-    runTaskInWorld(loc,()->{
-        for (Player player : loc.getWorld().getPlayers()) {
-            if (player.getLocation().distance(loc) >= 480) continue;
-            player.sendBlockChange(loc,temp);
-        }
-    });
-  }
+    public static void sendBlockChange(Location loc, BlockData data) {
+        if (loc == null) return;
+        if (loc.getWorld() == null) return;
+        if (data == null) data = loc.getBlock().getBlockData();
+        final BlockData temp = data;
+        runTaskInWorld(loc,()->{
+            for (Player player : loc.getWorld().getPlayers()) {
+                if (player.getLocation().distance(loc) >= 480) continue;
+                player.sendBlockChange(loc,temp);
+            }
+        });
+    }
 
-  public static void resetBlocks(World world) {
-    if (world == null) return;
-    try {
-        Map<Location,BlockData> batch = new HashMap<>(SENT_BLOCKS.size());
-        for (WorldBlockVector wv : SENT_BLOCKS.keySet()) {
-            final Location loc = wv.toLocation(world);
-            if (loc.isChunkLoaded()) sendBlockChange(loc,loc.getBlock().getBlockData());
-            SENT_BLOCKS.remove(wv);
-        }
-    } catch (Throwable thr) {}
-  }
+    public static void resetBlocks(World world) {
+        if (world == null) return;
+        try {
+            Map<Location,BlockData> batch = new HashMap<>(SENT_BLOCKS.size());
+            for (WorldBlockVector wv : SENT_BLOCKS.keySet()) {
+                final Location loc = wv.toLocation(world);
+                if (loc.isChunkLoaded()) sendBlockChange(loc,loc.getBlock().getBlockData());
+                SENT_BLOCKS.remove(wv);
+            }
+        } catch (Throwable thr) {}
+    }
 
-  public static void resetBlocks(World world, Collection<Location> locs) {
-    if (world != null) {
-        runTaskInWorld(world,()->{
+    public static void resetBlocks(World world, Collection<Location> locs) {
+        if (world != null) {
+            runTaskInWorld(world,()->{
+                for (Location loc : locs) {
+                    if (loc.isChunkLoaded()) renderBlockChanges(loc);
+                }
+            });
+        } else {
             for (Location loc : locs) {
                 if (loc.isChunkLoaded()) renderBlockChanges(loc);
             }
-        });
-    } else {
-        for (Location loc : locs) {
-            if (loc.isChunkLoaded()) renderBlockChanges(loc);
         }
     }
-  }
 
-  public static void sendBlockChanges(World world, Map<Location,BlockData> batch) {
-    if (batch == null || batch.isEmpty()) return;
-    if (world != null) {
-        runTaskInWorld(world,()->{
+    public static void sendBlockChanges(World world, Map<Location,BlockData> batch) {
+        if (batch == null || batch.isEmpty()) return;
+        if (world != null) {
             for (Player player : world.getPlayers()) {
-                Set<org.bukkit.block.BlockState> STATES = new HashSet<>(batch.size());
-                for (final Location loc : batch.keySet()) {
-                    if (loc == null) continue;
-                    if (loc.getWorld() == null) continue;
-                    if (!loc.getWorld().equals(world)) continue;
-                    BlockData data = batch.getOrDefault(loc,BlockDataGetter.get(getBlockFaster(loc)));
-                    org.bukkit.block.BlockState state = data.createBlockState();
-                    state = state.copy(loc);
-                    STATES.add(state);
-                }
-                sendBlockChanges(STATES, world);
+                player.sendMultiBlockChange(batch);
             }
-        });
-    } else {
-      for (Player player : Bukkit.getOnlinePlayers()) {
-        player.sendMultiBlockChange(batch);
-      }
+            /*
+            Set<org.bukkit.block.BlockState> STATES = new HashSet<>(batch.size());
+            for (final Location loc : batch.keySet()) {
+                if (loc == null) continue;
+                loc.setWorld(world);
+                BlockData data = batch.getOrDefault(loc,BlockDataGetter.get(getBlockFaster(loc)));
+                org.bukkit.block.BlockState state = data.createBlockState();
+                state = state.copy(loc);
+                STATES.add(state);
+            }
+            sendBlockChanges(STATES, world);
+            */
+        } else {
+            com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskAsync(()->{
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    player.sendMultiBlockChange(batch);
+                }
+            });
+        }
     }
-  }
 
     public static void sendBlockChanges(Set<org.bukkit.block.BlockState> STATES, World world) {
         if (world == null) return;
@@ -1616,10 +1646,11 @@ public final class NmsUtils {
         if (locs == null || locs.isEmpty()) return;
         World world = null;
         for (Location loc : locs) {
-        if (loc != null) {
-            if (world == null) world = loc.getWorld();
-            sendBlockChange(loc,data);
-        }
+            if (loc != null) {
+                if (world == null) world = loc.getWorld();
+                else loc.setWorld(world);
+                sendBlockChange(loc,data);
+            }
         }
     }
     public static BlockData getBlockData(BlockState state) {
@@ -1631,6 +1662,20 @@ public final class NmsUtils {
         else if (from.getWorld() == null) return null;
         BlockPos fromPos = locationToPosition(from);
         ServerLevel fromLvl = getLevel(getLevel(from));
+        final ScheduledTick TICK = TICK_PROVIDER.getNextTick(fromLvl, fromPos);
+        if (TICK != null) {
+            NextTickProvider.TickHolder MOVING_TICK = new NextTickProvider.TickHolder(TICK, fromPos);
+            return MOVING_TICK;
+        } else {
+            return null;
+        }
+    }
+
+    public static NextTickProvider.TickHolder GET_TICK_FROM(World world, Vector from) {
+        if (world == null) return null;
+        else if (from == null) return null;
+        BlockPos fromPos = locationToPosition(from);
+        ServerLevel fromLvl = getLevel(getLevel(world));
         final ScheduledTick TICK = TICK_PROVIDER.getNextTick(fromLvl, fromPos);
         if (TICK != null) {
             NextTickProvider.TickHolder MOVING_TICK = new NextTickProvider.TickHolder(TICK, fromPos);
