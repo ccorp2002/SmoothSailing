@@ -155,6 +155,12 @@ public class TrackedLocation {
         return this;
     }
 
+    public MobileBlockState toMobileState(ShipInstance ship) {
+        MobileBlockState state = new MobileBlockState(this.toRealLocation(),false);
+        state = state.setShip(ship);
+        return state;
+    }
+
     public MobileBlockState toMobileState() {
         MobileBlockState state = new MobileBlockState(this.toRealLocation(),true);
         return state;

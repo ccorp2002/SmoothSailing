@@ -34,8 +34,21 @@ buoyancy:
 
 signs:
   helm: "[helm]"
+  # Rotates the ship this sign is aboard.
   turret: "[turret]"
+  # Rotates a subsection of a vehicle separately (assuming it isn't stuck to the rest of the larger ship).
+  # Subsections created with this method will not attach/stick to blocks with the `turret_base` property set to `true`.
+  extend: "[extend]"
+  # Similar to the turret sign, but allows the user to extend (right click) or retract (left click) the subsection of ship.
+  # Subsections created with this method will not attach/stick to blocks with the `turret_base` or `launch_pad` property set to `true`.
+  detach: "[detach]"
+  # Similar to Extend, but, instead turns the moved subsection into its own independant ship without needing another lectern.
+  # Subsections created with this method will not attach/stick to blocks with the `launch_pad` property set to `true`.
+  # Useful for launching fighters off the deck of a carrier for example.
   thrust: "[thrust]"
+  # Changes Gears without requiring the command.
+  remote: "[remote]"
+  # Remotely interact with any other signs (except for other Remote Signs and Helm Signs).
 
 # Compatibility Options
 towny:

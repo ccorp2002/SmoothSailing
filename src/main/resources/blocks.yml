@@ -95,22 +95,32 @@ note_block:
   allowed: false
   weight: 5
 
-# DEFAULT TURRET-BASE MATERIALS
+# DEFAULT TURRET-BASE/LAUNCH-PAD MATERIALS
 polished_blackstone:
   allowed: true
   turret_base: true
+  launch_pad: true
   weight: 7.0
   health: 5
 polished_deepslate:
   allowed: true
   turret_base: true
+  launch_pad: true
   weight: 7.0
   health: 5
 chiseled_deepslate:
   allowed: true
   turret_base: true
+  launch_pad: true
   weight: 7.0
   health: 5
+
+"#concrete":
+  allowed: true
+  turret_base: true
+  launch_pad: true
+  weight: 2
+  health: 2
 
 
 # DEFAULT SEAT MATERIALS
@@ -189,6 +199,7 @@ end_rod:
 
 "#wool":
   allowed: true
+  turret_base: true
   weight: -2.5
   health: 2
 

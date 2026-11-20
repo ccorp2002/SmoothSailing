@@ -58,6 +58,8 @@ public class ShipPhysics {
     public static final BlockData SOLID = Material.BARRIER.createBlockData();
     public static final BlockData VOID = Material.AIR.createBlockData();
     public static final Vector UP_VECTOR = new Vector(0,1,0);
+    private static final BlockData COLLIDED_HULL = Material.SLIME_BLOCK.createBlockData();
+    private static final BlockData COLLIDED_OTHER = Material.REDSTONE_LAMP.createBlockData("[lit=true]");
     static {
         FLUID.addAll(Tag.FLOWERS.getValues());
         FLUID.addAll(Tag.CORAL_PLANTS.getValues());
@@ -218,7 +220,7 @@ public class ShipPhysics {
     public static Map.Entry<String, Integer> getPrimaryMedium(Collection<MobileBlockState> BLOCK_STATES, Integer y) {
         final Map<String,Integer> FLUID_COUNTER = new HashMap<>();
         for (MobileBlockState STATE : BLOCK_STATES) {
-            if (y != null && STATE.getBlockY() > y) continue;
+            if (y != null && STATE.getBlockY() >= y) continue;
             Medium m = getMedium(STATE);
             if (m == null) continue;
             Integer mi = FLUID_COUNTER.getOrDefault(m.id,0);
@@ -226,8 +228,8 @@ public class ShipPhysics {
             mi += 1;
             FLUID_COUNTER.put(m.id,mi);
         }
-        if (FLUID_COUNTER.isEmpty()) {
-            return null;
+        if (FLUID_COUNTER.isEmpty() && y != null) {
+            FLUID_COUNTER.put("void",0);
         }
         Map.Entry<String, Integer> maxEntry = Collections.max(
             FLUID_COUNTER.entrySet(), 
@@ -255,13 +257,12 @@ public class ShipPhysics {
 
     public static Map.Entry<String, Integer> getPrimaryMediumBlock(Collection<Block> BLOCKS) {
         return getPrimaryMediumBlock(BLOCKS,null);
-
     }
 
     public static Map.Entry<String, Integer> getPrimaryMediumBlock(Collection<Block> BLOCKS, Integer y) {
         final Map<String,Integer> FLUID_COUNTER = new HashMap<>();
         for (Block STATE : BLOCKS) {
-            if (y != null && STATE.getY() > y) continue;
+            if (y != null && STATE.getY() >= y) continue;
             Medium m = getMedium(STATE.getBlockData());
             if (m == null) continue;
             Integer mi = FLUID_COUNTER.getOrDefault(m.id,0);
@@ -269,8 +270,8 @@ public class ShipPhysics {
             mi += 1;
             FLUID_COUNTER.put(m.id,mi);
         }
-        if (FLUID_COUNTER.isEmpty()) {
-            return null;
+        if (FLUID_COUNTER.isEmpty() && y != null) {
+            FLUID_COUNTER.put("void",0);
         }
         Map.Entry<String, Integer> maxEntry = Collections.max(
             FLUID_COUNTER.entrySet(), 
@@ -304,7 +305,7 @@ public class ShipPhysics {
     public static Map.Entry<String, Integer> getLocationPrimaryMedium(Collection<Location> LOCS, Integer y) {
         final Map<String,Integer> FLUID_COUNTER = new HashMap<>();
         for (Location LOC : LOCS) {
-            if (y != null && LOC.getY() > y) continue;
+            if (y != null && LOC.getY() >= y) continue;
             Medium m = MEDIUM_MATERIALS.get(NmsUtils.toBukkitBlockFast(LOC));
             if (m == null) continue;
             Integer mi = FLUID_COUNTER.getOrDefault(m.id,0);
@@ -312,8 +313,8 @@ public class ShipPhysics {
             mi += 1;
             FLUID_COUNTER.put(m.id,mi);
         }
-        if (FLUID_COUNTER.isEmpty()) {
-            return null;
+        if (FLUID_COUNTER.isEmpty() && y != null) {
+            FLUID_COUNTER.put("void",0);
         }
         Map.Entry<String, Integer> maxEntry = Collections.max(
             FLUID_COUNTER.entrySet(), 
@@ -355,14 +356,14 @@ public class ShipPhysics {
 
     public int getEngineGears() {
         final double enginePercent = (getEnginePercent());
-        int engineGear = 1;
+        int engineGear = 2;
         if (enginePercent <= 0.25d) return engineGear;
         else {
             engineGear += (int)Math.ceil(VectorMath.getIntegerRatioResult((int)ship.engineCount,(int)Math.abs(ship.model.getDensity()))*enginePercent);
             if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ENGINE GEAR CAP?: "+engineGear+" RATIO?: "+VectorMath.getIntegerRatio((int)ship.engineCount,(int)Math.abs(ship.model.getDensity())));
             if (engineGear >= (ShipPhysics.MAX_SPEED/2)) {
                 engineGear = (int)(ShipPhysics.MAX_SPEED/2);
-            } else if (engineGear <= 0) engineGear = 1;
+            } else if (engineGear <= 0) engineGear = 2;
             return engineGear;
         }
     }
@@ -408,7 +409,6 @@ public class ShipPhysics {
         this.GLOBAL_WATER_SURFACE = SmoothSailingPlugin.INSTANCE.getConfig().getInt("water-level",62);
         this.CURRENT_FLUID_LEVEL = GLOBAL_WATER_SURFACE;
         this.PER_MAX_SPEED = MAX_SPEED;
-        this.detectNearbyEntities();
     }
 
     public static double ROUND_VALUE(double value, int precision) {
@@ -458,7 +458,7 @@ public class ShipPhysics {
         }
         if (physicsInterval >= 10) {
             if (!ship.isAirship && ship.isNotProcessing()) {
-                if (isInAir()) ship.isSprintPressed = true;
+                ship.isSpacePressed = true;
             }
             physicsInterval = 0;
         }
@@ -590,8 +590,8 @@ public class ShipPhysics {
             }
             if (hasVerticalMovement) fy = Math.round(CLAMP_VALUE(currentYVelocity, -4f, 4f));
             if (hasVerticalMovement && !ship.isAirship && !ship.isLandcraft) {
-                fy = (double)handleBuoyancy(ship.getLocation(),false,fy)*2f;
-                fy = (double)Math.round(CLAMP_VALUE((float)fy, -2f, 2f));
+                fy = (double)handleBuoyancy(ship.getLocation(),false,fy);
+                fy = (double)Math.round(CLAMP_VALUE((float)fy, -4f, 4f));
                 if (fy > 0) {
                     fx = 0;
                     fz = 0;
@@ -690,13 +690,14 @@ public class ShipPhysics {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
                 final Location stloc = st.getLocation(world);
-                st.setBlockData(NmsUtils.toBukkitBlockDataFast(stloc),true);
+                st.setBlockData(NmsUtils.toBukkitBlockDataFast(world,stloc.toVector()),true);
                 st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(world,st);
                 st.tile = NmsUtils.removeAndCreateTileHolder(world,st);
                 NmsUtils.setBlockFast(world,st,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
             ship.sendVoids(Arrays.asList(TEMPS));
+            //NmsUtils.sendBlockChanges(world,Arrays.asList(TEMPS));
             //System.out.println("MID MOVEMENT BLOCK COUNT: "+TEMPS.length);
             for (int indx = 0; indx < TEMPS.length; indx ++) {
                 MobileBlockState st = TEMPS[indx];
@@ -711,6 +712,7 @@ public class ShipPhysics {
                 
                 TEMPS[indx] = st;
             }
+            
             //MobileBlockState[] FILTERED_TEMPS = Arrays.stream(TEMPS).filter(Objects::nonNull).filter(temp -> temp.getBlockData().getMaterial().isSolid()).toArray(MobileBlockState[]::new);
             //System.out.println("FILTERED BLOCK COUNT: "+FILTERED_TEMPS.length);
             ship.BLOCK_STATES.clear();
@@ -745,7 +747,6 @@ public class ShipPhysics {
                 SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), DirectionalUtils.getDirection(ship.facing,false));
             }
             ship.sendSolids();
-            ship.calculateBoundingBox();
             processFluidRestore();
             com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                 moving = false;
@@ -848,7 +849,7 @@ public class ShipPhysics {
         detectNearbyEntities();
         for (int indx = 0; indx < TEMPS.length; indx ++) {
             MobileBlockState st = TEMPS[indx];
-            st.setShip(ship);
+            st = st.setShip(ship);
             if (st == null) continue;
             final Location stloc = st.getLocation(world);
             st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(world,st);
@@ -888,7 +889,6 @@ public class ShipPhysics {
         }
         ship.BLOCK_STATES.addAll(TEMPS);
         ship.updateRedstone(Arrays.asList(TEMPS));
-        ship.calculateBoundingBox();
         ship.sendSolids();
         for (Entity entity : FILTERED_ENTS) {
             if (entity == null) continue;
@@ -1005,6 +1005,9 @@ public class ShipPhysics {
                     collisionCount = COLLIDED.isCancelled() ? 0 : collisionCount;
                 }
                 if (collisionCount > 0) {
+                    NmsUtils.sendBlockDataChanges(COLLISION_MAP.keySet(),COLLIDED_HULL);
+                    NmsUtils.sendBlockDataChanges(COLLISION_MAP.values(),COLLIDED_OTHER);
+                    COLLISION_MAP.clear();
                     if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ROTATION COLLISION COUNT: "+collisionCount);
                     ship.isLeftPressed = false;
                     ship.isRightPressed = false;
@@ -1047,17 +1050,17 @@ public class ShipPhysics {
                 this.currentSpeed = 0f;
                 this.currentYVelocity = 0f;
                 //System.out.println("STARTING BLOCK COUNT: "+TEMPS.length);
+                ship.sendVoids(Arrays.asList(TEMPS));
                 for (int indx = 0; indx < TEMPS.length; indx ++) {
                     MobileBlockState st = TEMPS[indx];
                     ship.BLOCK_STATES.remove(st);
                     if (st == null) continue;
                     final Location stloc = st.getLocation(world);
-                    st.setBlockData(NmsUtils.toBukkitBlockDataFast(stloc),true);
+                    st.setBlockData(NmsUtils.toBukkitBlockDataFast(world,stloc.toVector()),true);
                     st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(world,st);
                     st.tile = NmsUtils.removeAndCreateTileHolder(world,st);
                     NmsUtils.setBlockFast(world,st,st.occupiedBlock);
                 }
-                ship.refreshChunks();
                 if (SmoothSailingPlugin.CANNONS_FOUND) {
                     CannonsUtils.rotateCannons(CENTER_POINT,TURN_BLOCK_DATA,Arrays.asList(TEMPS));
                 }
@@ -1065,10 +1068,10 @@ public class ShipPhysics {
                     MobileBlockState st = TEMPS[indx];
                     if (st == null) continue;
                     final Location stloc = st.getLocation(world);
-                    Location updLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, stloc.subtract(CENTER_POINT)).add(CENTER_POINT); 
-                    //Rotate2D.AddRotationBlock((double)rotationF, CENTER_POINT, origLoc);
-                    
+                    Location updLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, stloc.subtract(CENTER_POINT)).add(CENTER_POINT);
+                    //BlockData postOccupiedBlock = st.occupiedBlock;
                     st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(world, updLoc.toVector());
+                    //if (!getMedium(postOccupiedBlock).equals(st.occupiedBlock))
                     BlockData TURNED = st.getBlockData().clone();
                     TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
                     st.setBlockData(TURNED,true);
@@ -1138,7 +1141,10 @@ public class ShipPhysics {
                     SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), DirectionalUtils.yawToBlockFace(ship.vehicle.getYaw()));
                 }
                 ship.updateRedstone();
-                ship.calculateBoundingBox();
+                Location pos1 = ship.bbox.getMin().toLocation(world);
+                Location pos2 = ship.bbox.getMax().toLocation(world);
+                
+                ship.updateBoundingBox(Rotate2D.ROTATE_VEC(LEFT_RIGHT, pos1.subtract(CENTER_POINT)).add(CENTER_POINT).toVector(),Rotate2D.ROTATE_VEC(LEFT_RIGHT, pos2.subtract(CENTER_POINT)).add(CENTER_POINT).toVector());
                 for (String KEY : ship.TRACKED_STATE_MAP.keySet()) {
                     if (KEY == null) continue;
                     Collection<TrackedLocation> VALUE = ship.TRACKED_STATE_MAP.getOrDefault(KEY,new ArrayList<TrackedLocation>(1));
@@ -1178,9 +1184,9 @@ public class ShipPhysics {
                         }
                         NmsUtils.sendBlockChanges(world,PACKET_CHANGES.toMap(world));
                         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
-                            ship.sendVoids();
                             PACKET_CHANGES.clear();
                             ROTATE_SHIP.run();
+                            NmsUtils.sendBlockChanges(world,ship.BLOCK_STATES);
                         },(long)(MOVEMENT_COOLDOWN+(ROTATION_INCR*ROTATION_INCR)+(17l*ROTATION_INCR)+45l));
                         break;
                     } else {
@@ -1353,6 +1359,10 @@ public class ShipPhysics {
             ShipCollideEvent COLLIDED = new ShipCollideEvent(ship,COLLISION_MAP);
             COLLIDED.callEvent();
             collisionCount = COLLIDED.isCancelled() ? 0 : collisionCount;
+            if (collisionCount > 0) {
+                NmsUtils.sendBlockDataChanges(COLLISION_MAP.keySet(),COLLIDED_HULL);
+                NmsUtils.sendBlockDataChanges(COLLISION_MAP.values(),COLLIDED_OTHER);
+            }
         }
         if (collisionCount > 0 || ship.CHANGE_WORLD) {
             if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("MOVEMENT COLLISION COUNT: "+collisionCount);
@@ -1371,6 +1381,7 @@ public class ShipPhysics {
         detectNearbyEntities();
         if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("MOVEMENT VECTOR?: "+offsetf.toVector().toString());
         //boolean isShipBobbingUp = offsetf.getBlockY() > 0 && !ship.isAirship;
+        ship.sendVoids(Arrays.asList(TEMPS));
         for (int indx = 0; indx < TEMPS.length; indx ++) {
             MobileBlockState st = TEMPS[indx];
             if (st == null) continue;
@@ -1381,7 +1392,6 @@ public class ShipPhysics {
             NmsUtils.setBlockFast(world,st,st.occupiedBlock);
             TEMPS[indx] = st;
         }
-        ship.sendSolids();
         for (int indx = 0; indx < TEMPS.length; indx ++) {
             MobileBlockState st = TEMPS[indx];
             if (st == null) continue;
@@ -1390,7 +1400,8 @@ public class ShipPhysics {
             updLoc.setWorld(world);
             updLoc = updLoc.add(offsetf);
             updLoc = updLoc.toBlockLocation();
-            st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(updLoc);
+            //BlockData pastOccupiedBlock = st.occupiedBlock;
+            st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(world,updLoc.toVector());
             ship.FLUIDS.set(updLoc,st.occupiedBlock);
             
             st = st.teleport(world,updLoc.toVector(),false);
@@ -1398,6 +1409,9 @@ public class ShipPhysics {
             
             TEMPS[indx] = st;
         }
+        Vector pos1 = ship.bbox.getMin().add(offsetf.toVector());
+        Vector pos2 = ship.bbox.getMax().add(offsetf.toVector());
+        ship.updateBoundingBox(pos1,pos2);
         //MobileBlockState[] FILTERED_TEMPS = Arrays.stream(TEMPS).filter(Objects::nonNull).filter(temp -> temp.getBlockData().getMaterial().isSolid()).toArray(MobileBlockState[]::new);
         //System.out.println("FILTERED BLOCK COUNT: "+FILTERED_TEMPS.length);
         ship.BLOCK_STATES.clear();
@@ -1430,7 +1444,6 @@ public class ShipPhysics {
             SmoothSailingPlugin.INSTANCE.shipWheelManager.updateWheelLocation(TEMP_WHEEL, ship.getLocation(), DirectionalUtils.getDirection(ship.facing,false));
         }
         ship.sendSolids();
-        ship.calculateBoundingBox();
         ship.updateRedstone();
         this.currentRotationVelocity = 0.0f;
         if (toBurnFuel) {
@@ -1482,6 +1495,43 @@ public class ShipPhysics {
             parent.physics.moving = false;
             parent.setProcessing(false);
         },(long)(parent.physics.MOVEMENT_COOLDOWN)+2l);
+    }
+
+    public static void extendSubship2d(ShipInstance parent, Location CENTER_POINT, Vector AXIS, Collection<Block> BLOCKS) {
+        extendSubship2d(parent,CENTER_POINT,AXIS,BLOCKS,true);
+    }
+
+    public static void extendSubship2d(ShipInstance parent, Location CENTER_POINT, Vector AXIS, Collection<Block> BLOCKS, boolean reconnect) {
+        if (!parent.isNotProcessing() || parent.physics.moving) return;
+        parent.physics.moving = true;
+        parent.setProcessing(true);
+        final ShipInstance child = SmoothSailingPlugin.getInstance().getShipWheelManager().assembleFromBlocks(null,CENTER_POINT,BLOCKS);
+        child.parentShip = parent;
+        if (reconnect) {
+            child.physics.GLOBAL_WATER_SURFACE = parent.physics.CURRENT_FLUID_LEVEL;
+            child.physics.CURRENT_FLUID_LEVEL = parent.physics.CURRENT_FLUID_LEVEL;
+            child.driver = parent.vehicle;
+        }
+        parent.BLOCK_STATES.removeAll(child.BLOCK_STATES);
+        child.physics.move(AXIS.toLocation(CENTER_POINT.getWorld()));
+        if (reconnect) {
+            com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(parent.vehicle.getLocation()).runTaskLater(()->{
+                parent.BLOCK_STATES.setAll(child.BLOCK_STATES);
+                child.parent = null;
+                child.destroy();
+                parent.physics.moving = false;
+                parent.setProcessing(false);
+            },(long)(parent.physics.MOVEMENT_COOLDOWN)+2l);
+        } else {
+            com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(parent.vehicle.getLocation()).runTaskLater(()->{
+                child.parentShip = null;
+                child.parent = child.vehicle;
+                parent.physics.moving = false;
+                parent.setProcessing(false);
+                child.physics.moving = false;
+                child.setProcessing(false);
+            },(long)(parent.physics.MOVEMENT_COOLDOWN)+2l);
+        }
     }
 
     public Set<Location> getInteriorLocs() {
@@ -1540,7 +1590,8 @@ public class ShipPhysics {
                 if (!bbox.contains(b.toVector())) continue;
             }
             foundOne = true;
-            if (isDataMedium(data) || ((data instanceof Waterlogged waterlogged) && (waterlogged).isWaterlogged())) return true;
+            Medium m = getMedium(data);
+            if ((m != null && !m.id.equalsIgnoreCase("void")) || ((data instanceof Waterlogged waterlogged) && (waterlogged).isWaterlogged())) return true;
         }
         if (truly && !foundOne) return isUnderwater(false);
         return false;
@@ -1586,7 +1637,7 @@ public class ShipPhysics {
     public Collection<Location> getExteriorLocations(Integer houtset, Integer voutset, Integer scanDown) {
         World world = ship.getWorld();
         if (world == null) return new HashSet<Location>();
-        final Collection<TrackedLocation> EXTPOS = ship.TRACKED_STATE_MAP.getOrDefault(ShipInstance.EXTERIOR_KEY,new ArrayList<TrackedLocation>());
+        final Collection<TrackedLocation> EXTPOS = ship.getTrackedLocation(ShipInstance.EXTERIOR_KEY);
         if (EXTPOS.isEmpty()) {
             Long2LocationSet outsideBlocks = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
             Long2LocationSet outerHull = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
@@ -1594,7 +1645,7 @@ public class ShipPhysics {
             scanLongHull(outsideBlocks, outerHull, innerShip, houtset, voutset, scanDown);
             Set<Location> EXT = outsideBlocks.toSet(world);
             if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ADDED TRACKED EXTERIOR POS COUNT: "+EXT.size());
-            ship.setTrackedBukkitLocation(ShipInstance.EXTERIOR_KEY, EXT);
+            ship.setTrackedLocations(ShipInstance.EXTERIOR_KEY, EXT);
             return EXT;
         } else {
             if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("GOT EXTERIOR POS COUNT: "+EXTPOS.size());
@@ -1708,6 +1759,7 @@ public class ShipPhysics {
                     for (int y = -1; y <= 1; y++) {
                         for (int z = -1; z <= 1; z++) {
                             if (Math.abs(x) + Math.abs(y) + Math.abs(z) > 1) continue;
+                            Location blk = MobileBlockState.unpackLocation(b,world);
                             Location newBlock = MobileBlockState.unpackLocation(b,world).add(x, y, z);
                             if (thisLayer.contains(newBlock) || outsideBlocks.contains(newBlock)
                                     || (newBlock.getX() < x1 || newBlock.getY() < y1 || newBlock.getZ() < z1
@@ -1716,6 +1768,10 @@ public class ShipPhysics {
                                 continue;
                             }
                             if (MobileBlockState.doesShipHave(ship,b) || MobileBlockState.doesShipHave(ship,newBlock)) {
+                                if (isFluidConnected(NmsUtils.getBukkitBlockFast(blk), NmsUtils.getBukkitBlockFast(newBlock))) {
+                                    nextLayer.add(newBlock);
+                                    if (MobileBlockState.doesShipHave(ship,b)) outerHull.add(newBlock);
+                                }
                                 if (!MobileBlockState.doesShipHave(ship,b)) outerHull.add(newBlock);
                             } else {
                                 nextLayer.add(newBlock);
@@ -1911,236 +1967,12 @@ public class ShipPhysics {
         return !((anw || bnw) && (ane || bne) && (asw || bsw) && (ase || bse));
     }
     public static int isFluidConnected(Block b, BlockFace face) {
-        switch (b.getType()) {
-            case BUBBLE_COLUMN:
-            case CHEST:
-            case TRAPPED_CHEST:
-            case CONDUIT:
-            case TUBE_CORAL:
-            case TUBE_CORAL_FAN:
-            case TUBE_CORAL_WALL_FAN:
-            case BRAIN_CORAL:
-            case BRAIN_CORAL_FAN:
-            case BRAIN_CORAL_WALL_FAN:
-            case BUBBLE_CORAL:
-            case BUBBLE_CORAL_FAN:
-            case BUBBLE_CORAL_WALL_FAN:
-            case FIRE_CORAL:
-            case FIRE_CORAL_FAN:
-            case FIRE_CORAL_WALL_FAN:
-            case HORN_CORAL:
-            case HORN_CORAL_FAN:
-            case HORN_CORAL_WALL_FAN:
-            case DEAD_TUBE_CORAL:
-            case DEAD_TUBE_CORAL_FAN:
-            case DEAD_TUBE_CORAL_WALL_FAN:
-            case DEAD_BRAIN_CORAL:
-            case DEAD_BRAIN_CORAL_FAN:
-            case DEAD_BRAIN_CORAL_WALL_FAN:
-            case DEAD_BUBBLE_CORAL:
-            case DEAD_BUBBLE_CORAL_FAN:
-            case DEAD_BUBBLE_CORAL_WALL_FAN:
-            case DEAD_FIRE_CORAL:
-            case DEAD_FIRE_CORAL_FAN:
-            case DEAD_FIRE_CORAL_WALL_FAN:
-            case DEAD_HORN_CORAL:
-            case DEAD_HORN_CORAL_FAN:
-            case DEAD_HORN_CORAL_WALL_FAN:
-            case ENDER_CHEST:
-            case OAK_FENCE:
-            case BIRCH_FENCE:
-            case SPRUCE_FENCE:
-            case JUNGLE_FENCE:
-            case ACACIA_FENCE:
-            case DARK_OAK_FENCE:
-            case NETHER_BRICK_FENCE:
-            case IRON_BARS:
-            case KELP:
-            case LADDER:
-            case SEAGRASS:
-            case OAK_SIGN:
-            case OAK_WALL_SIGN:
-            case BIRCH_SIGN:
-            case BIRCH_WALL_SIGN:
-            case SPRUCE_SIGN:
-            case SPRUCE_WALL_SIGN:
-            case JUNGLE_SIGN:
-            case JUNGLE_WALL_SIGN:
-            case ACACIA_SIGN:
-            case ACACIA_WALL_SIGN:
-            case DARK_OAK_SIGN:
-            case DARK_OAK_WALL_SIGN:
-            case TALL_SEAGRASS:
-            case COBBLESTONE_WALL:
-            case MOSSY_COBBLESTONE_WALL:
-            case BRICK_WALL:
-            case PRISMARINE_WALL:
-            case RED_SANDSTONE_WALL:
-            case MOSSY_STONE_BRICK_WALL:
-            case GRANITE_WALL:
-            case STONE_BRICK_WALL:
-            case NETHER_BRICK_WALL:
-            case ANDESITE_WALL:
-            case RED_NETHER_BRICK_WALL:
-            case SANDSTONE_WALL:
-            case END_STONE_BRICK_WALL:
-            case DIORITE_WALL:
-                return 2;
-            case CAMPFIRE:// insulated on the bottom only
-                if (face == BlockFace.DOWN)
-                    return 0;
-                return 2;
-            case GLASS_PANE:// depends on blockstate..???
-                MultipleFacing pane = (MultipleFacing) b.getBlockData();
-                switch (face) {
-                    case EAST:
-                    case WEST:
-                        if (pane.hasFace(BlockFace.NORTH) || pane.hasFace(BlockFace.SOUTH))
-                            return 2;
-                        return 0;
-                    case NORTH:
-                    case SOUTH:
-                        if (pane.hasFace(BlockFace.EAST) || pane.hasFace(BlockFace.WEST))
-                            return 2;
-                        return 0;
-                }
-                return 0;
-            case OAK_SLAB:
-            case SPRUCE_SLAB:
-            case BIRCH_SLAB:
-            case JUNGLE_SLAB:
-            case ACACIA_SLAB:
-            case DARK_OAK_SLAB:
-            case STONE_SLAB:
-            case SMOOTH_STONE_SLAB:
-            case SANDSTONE_SLAB:
-            case CUT_SANDSTONE_SLAB:
-            case PETRIFIED_OAK_SLAB:
-            case COBBLESTONE_SLAB:
-            case BRICK_SLAB:
-            case STONE_BRICK_SLAB:
-            case NETHER_BRICK_SLAB:
-            case QUARTZ_SLAB:
-            case RED_SANDSTONE_SLAB:
-            case CUT_RED_SANDSTONE_SLAB:
-            case PURPUR_SLAB:
-            case PRISMARINE_SLAB:
-            case PRISMARINE_BRICK_SLAB:
-            case DARK_PRISMARINE_SLAB:
-            case POLISHED_GRANITE_SLAB:
-            case SMOOTH_RED_SANDSTONE_SLAB:
-            case MOSSY_STONE_BRICK_SLAB:
-            case POLISHED_DIORITE_SLAB:
-            case MOSSY_COBBLESTONE_SLAB:
-            case END_STONE_BRICK_SLAB:
-            case SMOOTH_SANDSTONE_SLAB:
-            case SMOOTH_QUARTZ_SLAB:
-            case GRANITE_SLAB:
-            case ANDESITE_SLAB:
-            case RED_NETHER_BRICK_SLAB:
-            case POLISHED_ANDESITE_SLAB:
-            case DIORITE_SLAB:
-                Slab slab = (Slab) b.getBlockData();
-                if (slab.getType() == Slab.Type.DOUBLE)
-                    return 0;
-                if (face == BlockFace.UP) {
-                    if (slab.getType() == Slab.Type.TOP)
-                        return 0;
-                    if (slab.getType() == Slab.Type.BOTTOM)
-                        return 2;
-                }
-                if (face == BlockFace.DOWN) {
-                    if (slab.getType() == Slab.Type.BOTTOM)
-                        return 0;
-                    if (slab.getType() == Slab.Type.TOP)
-                        return 2;
-                }
-                return 1;
-            case PURPUR_STAIRS:
-            case OAK_STAIRS:
-            case COBBLESTONE_STAIRS:
-            case BRICK_STAIRS:
-            case STONE_BRICK_STAIRS:
-            case NETHER_BRICK_STAIRS:
-            case SANDSTONE_STAIRS:
-            case SPRUCE_STAIRS:
-            case BIRCH_STAIRS:
-            case JUNGLE_STAIRS:
-            case QUARTZ_STAIRS:
-            case ACACIA_STAIRS:
-            case DARK_OAK_STAIRS:
-            case PRISMARINE_STAIRS:
-            case PRISMARINE_BRICK_STAIRS:
-            case DARK_PRISMARINE_STAIRS:
-            case RED_SANDSTONE_STAIRS:
-            case POLISHED_GRANITE_STAIRS:
-            case SMOOTH_RED_SANDSTONE_STAIRS:
-            case MOSSY_STONE_BRICK_STAIRS:
-            case POLISHED_DIORITE_STAIRS:
-            case MOSSY_COBBLESTONE_STAIRS:
-            case END_STONE_BRICK_STAIRS:
-            case STONE_STAIRS:
-            case SMOOTH_SANDSTONE_STAIRS:
-            case SMOOTH_QUARTZ_STAIRS:
-            case GRANITE_STAIRS:
-            case ANDESITE_STAIRS:
-            case RED_NETHER_BRICK_STAIRS:
-            case POLISHED_ANDESITE_STAIRS:
-            case DIORITE_STAIRS:
-                Stairs stairs = (Stairs) b.getBlockData();
-                if (face == BlockFace.UP) {
-                    return stairs.getHalf() == Bisected.Half.TOP ? 0 : 1;
-                }
-                if (face == BlockFace.DOWN) {
-                    return stairs.getHalf() == Bisected.Half.BOTTOM ? 0 : 1;
-                }
-                if (stairs.getShape() == Stairs.Shape.OUTER_LEFT || stairs.getShape() == Stairs.Shape.OUTER_RIGHT)
-                    return 1;
-                if (stairs.getShape() == Stairs.Shape.STRAIGHT)
-                    return stairs.getFacing() == face ? 0 : 1;
-                if (stairs.getShape() == Stairs.Shape.INNER_LEFT) {
-                    switch (stairs.getFacing()) {
-                        case NORTH:
-                            return face == BlockFace.NORTH || face == BlockFace.WEST ? 0 : 1;
-                        case EAST:
-                            return face == BlockFace.EAST || face == BlockFace.NORTH ? 0 : 1;
-                        case SOUTH:
-                            return face == BlockFace.SOUTH || face == BlockFace.EAST ? 0 : 1;
-                        case WEST:
-                            return face == BlockFace.WEST || face == BlockFace.SOUTH ? 0 : 1;
-                    }
-                }
-                if (stairs.getShape() == Stairs.Shape.INNER_RIGHT) {
-                    switch (stairs.getFacing()) {
-                        case NORTH:
-                            return face == BlockFace.NORTH || face == BlockFace.EAST ? 0 : 1;
-                        case EAST:
-                            return face == BlockFace.EAST || face == BlockFace.SOUTH ? 0 : 1;
-                        case SOUTH:
-                            return face == BlockFace.SOUTH || face == BlockFace.WEST ? 0 : 1;
-                        case WEST:
-                            return face == BlockFace.WEST || face == BlockFace.NORTH ? 0 : 1;
-                    }
-                }
-                return 1;
-            case OAK_TRAPDOOR:
-            case SPRUCE_TRAPDOOR:
-            case BIRCH_TRAPDOOR:
-            case JUNGLE_TRAPDOOR:
-            case ACACIA_TRAPDOOR:
-            case DARK_OAK_TRAPDOOR:
-            case IRON_TRAPDOOR:
-                TrapDoor door = (TrapDoor) b.getBlockData();
-                if (face == BlockFace.UP && !door.isOpen() && door.getHalf() == Bisected.Half.TOP)
-                    return 0;
-                if (face == BlockFace.DOWN && !door.isOpen() && door.getHalf() == Bisected.Half.BOTTOM)
-                    return 0;
-                if (door.isOpen() && face == door.getFacing().getOppositeFace())
-                    return 0;
-                return 2;
-        }
-        return 0;
+        Medium m = getMedium(NmsUtils.toBukkitBlockDataFast(b.getWorld(),b.getRelative(face).getLocation().toVector()));
+        if (m == null) return 0;
+        else if (m.id.equalsIgnoreCase("void")) return 0;
+        else return 2;
     }
+
     public float detectFluidLine() {
         if (ship.parentShip != null) return (float)this.CURRENT_FLUID_LEVEL;
         else if (ship.CHANGE_WORLD) return ship.getWorld().getMinHeight()+1f;
@@ -2154,20 +1986,20 @@ public class ShipPhysics {
         float floatOffset = ship.model.waterFloatOffset;
         float heightY = MAX_BY - MIN_BY;
         Collection<Location> EXT = getExteriorLocations(0,0,(int)Math.abs(floatOffset));
-        Medium FLUID_BELOW = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, this.CURRENT_FLUID_LEVEL));
+        Medium FLUID_BELOW = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(MIN_BY + floatOffset)));
         float FLUID_LINE = this.CURRENT_FLUID_LEVEL;
         if (FLUID_BELOW.id.equalsIgnoreCase("void")) {
             FLUID_LINE = (float)this.getFluidLevel(FLUID_BELOW);
             if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("1a) Fluid Check: "+FLUID_BELOW.id+"; Line: "+FLUID_LINE);
-            Medium FLUID_ABOVE = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(this.CURRENT_FLUID_LEVEL + 5)));
+            Medium FLUID_ABOVE = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(MIN_BY - (int)(floatOffset + 5))));
             if (!FLUID_ABOVE.id.equalsIgnoreCase("void")) FLUID_LINE = (float)this.getFluidLevel(FLUID_ABOVE);
             if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("1b) Fluid Check: "+FLUID_ABOVE.id+"; Line: "+FLUID_LINE);
         } else {
-            Medium FLUID_ABOVE = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(this.CURRENT_FLUID_LEVEL + 5)));
+            Medium FLUID_ABOVE = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(MIN_BY + (int)(floatOffset + 5))));
             if (!FLUID_ABOVE.id.equalsIgnoreCase("void")) FLUID_LINE = (float)this.getFluidLevel(FLUID_ABOVE);
             if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("2a) Fluid Check Above: "+FLUID_ABOVE.id+"; Line: "+FLUID_LINE);
         }
-        if (Math.abs(FLUID_LINE - this.CURRENT_FLUID_LEVEL) > 2f) FLUID_LINE = this.CURRENT_FLUID_LEVEL;
+        if (Math.abs(FLUID_LINE - this.CURRENT_FLUID_LEVEL) > 2f && !FLUID_BELOW.id.equalsIgnoreCase("void")) FLUID_LINE = this.CURRENT_FLUID_LEVEL;
         if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("3a) Final Fluid Line: "+FLUID_LINE);
         return (float)FLUID_LINE;
     }
@@ -2181,27 +2013,28 @@ public class ShipPhysics {
     }
 
     public boolean isInAir() {
-        int floatOffset = (int)Math.abs(ship.model.waterFloatOffset/2);
-        return (getMedium(ShipPhysics.getPrimaryMediumAtBelowY(ship.BLOCK_STATES, (int)(ship.model.minY+floatOffset))).id.equalsIgnoreCase("void"));
+        float floatOffset = ship.model.waterFloatOffset;
+        return (getMedium(ShipPhysics.getPrimaryMediumAtBelowY(ship.BLOCK_STATES, (int)(ship.model.minY+4))).id.equalsIgnoreCase("void"));
     }
 
     public double handleBuoyancy(Location vehicleLoc, boolean check, double fy) {
         if (ship.parentShip != null) return fy;
         else if (ship.isAirship || ship.CHANGE_WORLD) return fy;
-        int MIN_BY = ship.minY();
+        int MIN_BY = (int)ship.minY();
         if (MIN_BY < ship.getWorld().getMinHeight()) return fy;
         ship.model.minY = MIN_BY;
 
-        int MAX_BY = ship.maxY();
+        int MAX_BY = (int)ship.maxY();
         if (MAX_BY >= ship.getWorld().getMaxHeight()) return fy;
         ship.model.maxY = MAX_BY;
         float heightY = MAX_BY - MIN_BY;
-        int FLUID_LINE = (int)detectFluidLine();
+        int FLUID_LINE = (int)this.CURRENT_FLUID_LEVEL;
+        float floatOffset = ship.model.waterFloatOffset;
+        if (this.isUnderwater()) FLUID_LINE = (int)detectFluidLine();
         double waterSurfaceY = (double)FLUID_LINE;
         // Target Y position: water surface + float offset
-        Float floatOffset = ship.model.waterFloatOffset;
         double currentY = (double)MIN_BY;
-        double targetY = waterSurfaceY + floatOffset;
+        double targetY = waterSurfaceY + (double)(floatOffset/2d);
         double yDifference = Math.abs(targetY - currentY);
         if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) {
             System.out.println("SHIP HEIGHT: "+heightY);
@@ -2219,12 +2052,12 @@ public class ShipPhysics {
         if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) {
             System.out.println("IS SHIP IN AIR?: "+isInAir);
         }
-        if (yDifference >= 3 && !isInAir) fy = 1d;
-        else if (isInAir) fy = -1d;
-        if (targetY > currentY && !isInAir) {
+        if (targetY > currentY && yDifference >= (floatOffset/2d) && !isInAir) {
             fy = 1d;
-        } else if (currentY > targetY || isInAir) {
-            fy = -1d;
+        } else if (currentY >= targetY || isInAir) {
+            if (targetY >= currentY-3) {
+                fy = 0d;
+            } else fy = -1d;
         } else {
             fy = 0d;
         }
@@ -2248,9 +2081,9 @@ public class ShipPhysics {
                 Location loc = MobileBlockState.unpackLocation(key,world);
                 BLOCK_MAP.put(loc,data);
                 NmsUtils.setBlockFast(loc,data);
-                if (SmoothSailingPlugin.DEBUG_DUMP) {
-                    System.out.println("ATTEMPTING TO RESTORE FLUID @ " + LocationLib.readLocationToString(loc) + " W/BLOCK DATA:" + data);
-                }
+                //if (SmoothSailingPlugin.DEBUG_DUMP) {
+                //    System.out.println("ATTEMPTING TO RESTORE FLUID @ " + LocationLib.readLocationToString(loc) + " W/BLOCK DATA:" + data);
+                //}
             }
             ENTRY_SET.remove(entry);
         });
@@ -2263,23 +2096,24 @@ public class ShipPhysics {
         else if (ship.vehicle == null) return;
         else if (ship.vehicle.isDead()) return;
         com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(ship.vehicle).runTask(()->{
-            final List<Player> players = new ArrayList<>();
-            ship.ENTITY_COMPOSITION.removeAll(ship.vehicle.getWorld().getPlayers());
-            ship.ENTITY_COMPOSITION.removeIf(ent -> (!ShipListener.isSeat(ent) && !(ent instanceof Display)) && (!ent.isValid() || !ent.getWorld().equals(ship.vehicle.getWorld())));
+            final List<Entity> nearbyEntities = new ArrayList<>();
+            nearbyEntities.add(ship.vehicle);
+            nearbyEntities.addAll(ship.ENTITY_COMPOSITION);
+            if (ship.driver != null) nearbyEntities.add(ship.driver);
+            final Vector belowCheck = new Vector(0d,-0.75d,0d);
+            final World world = ship.getWorld();
+            BoundingBox box = ship.getBoundingBox().expand(0.5d,1.5d,0.5d);
+            if (box != null) ship.ENTITY_COMPOSITION.addAll(world.getNearbyEntities(box));
             for (Entity entity : ship.ENTITY_COMPOSITION) {
                 if (entity == null) continue;
-                if (entity instanceof Player player) continue;
-                if (!ShipListener.isSeat(entity) && !(entity instanceof Display)) continue;
-                for (Player player : ship.vehicle.getWorld().getPlayers()) {
-                    if (!player.getWorld().equals(entity.getWorld())) continue;
-                    if (!ship.vehicle.getWorld().equals(entity.getWorld())) continue;
-                    if (!ship.vehicle.getWorld().equals(player.getWorld())) continue;
-                    if (ship.getBoundingBox().overlaps(player.getBoundingBox()) && entity.getLocation().distance(player.getLocation()) <= 12.5d) players.add(player);
+                if (box.overlaps(entity.getBoundingBox())) {
+                    Vector checkVec = entity.getLocation().toVector().add(belowCheck);
+                    if (!isDataMedium(NmsUtils.toBukkitBlockDataFast(world,checkVec))) nearbyEntities.add(entity);
                 }
             }
-            ship.ENTITY_COMPOSITION.add(ship.vehicle);
-            ship.ENTITY_COMPOSITION.addAll(players);
-            players.clear();
+            ship.ENTITY_COMPOSITION.clear();
+            ship.ENTITY_COMPOSITION.addAll(nearbyEntities);
+            nearbyEntities.clear();
         });
     }
 }

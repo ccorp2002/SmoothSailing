@@ -1035,7 +1035,17 @@ public final class NmsUtils {
         renderBlockChanges(world,position);
       }
       chunk.markUnsaved();
-  }
+    }
+
+    public static void renderBlockChanges(World w, @NotNull Vector pos) {
+        renderBlockChanges(pos,w);
+    }
+
+    public static void renderBlockChanges(@NotNull Vector pos, World w) {
+        if (w == null) return;
+        ServerLevel world = (ServerLevel)((CraftWorld) w).getHandle();
+        renderBlockChanges(world,locationToPosition(pos));
+    }
 
     public static void renderBlockChanges(@NotNull Location pos) {
         if (pos.getWorld() == null) return;
@@ -1627,11 +1637,9 @@ public final class NmsUtils {
             sendBlockChanges(STATES, world);
             */
         } else {
-            com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskAsync(()->{
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    player.sendMultiBlockChange(batch);
-                }
-            });
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                player.sendMultiBlockChange(batch);
+            }
         }
     }
 
@@ -1639,6 +1647,17 @@ public final class NmsUtils {
         if (world == null) return;
         for (Player player : world.getPlayers()) {
             player.sendBlockChanges(STATES);
+        }
+    }
+
+    public static void sendBlockChanges(World world, Collection<MobileBlockState> STATES) {
+        sendBlockChanges(STATES,world);
+    }
+
+    public static void sendBlockChanges(Collection<MobileBlockState> STATES, World world) {
+        if (world == null) return;
+        for (MobileBlockState STATE : STATES) {
+            renderBlockChanges(STATE, world);
         }
     }
 
@@ -1653,6 +1672,7 @@ public final class NmsUtils {
             }
         }
     }
+
     public static BlockData getBlockData(BlockState state) {
         return BlockDataGetter.get(state);
     }

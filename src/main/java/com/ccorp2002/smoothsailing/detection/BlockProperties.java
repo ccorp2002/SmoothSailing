@@ -11,11 +11,12 @@ import java.util.ArrayList;
  * Includes weight, hitpoints, and other behaviors.
  */
 public class BlockProperties {
-    public boolean allowed;
+    public boolean allowed = false;
     public Double baseHealth = null;  // null means health is determined by a function of density (weight).
     public Integer weight;  // null means block is excluded from density calculations
-    public boolean seat;
+    public boolean seat = false;
     public double fuelCost = 0d;
+    public boolean isLaunchPad = false;
     public boolean isTurretBase = false;
     public boolean isEngine = false;
     public final List<ConditionalRule> conditionalRules = new ArrayList<>();
@@ -65,6 +66,14 @@ public class BlockProperties {
         return isTurretBase() || turretState;
     }
 
+    public boolean isTurretBase() {
+        return this.isTurretBase;
+    }
+
+    public void setIsTurretBase(boolean isTurretBase) {
+        this.isTurretBase = isTurretBase;
+    }
+
     public boolean hasAllowedState() {
         boolean allowedState = false;
         if (conditionalRules == null || conditionalRules.isEmpty()) {
@@ -78,12 +87,25 @@ public class BlockProperties {
         return isAllowed() || allowedState;
     }
 
-    public boolean isTurretBase() {
-        return this.isTurretBase;
+    public boolean hasLaunchPadState() {
+        boolean isLaunchPad = false;
+        if (conditionalRules == null || conditionalRules.isEmpty()) {
+            return isLaunchPad();
+        } else {
+            for (ConditionalRule rule : conditionalRules) {
+                isLaunchPad = isLaunchPad || rule.getProperties().isLaunchPad();
+                if (isLaunchPad) return isLaunchPad;
+            }
+        }
+        return isLaunchPad() || isLaunchPad;
     }
 
-    public void setIsTurretBase(boolean isTurretBase) {
-        this.isTurretBase = isTurretBase;
+    public boolean isLaunchPad() {
+        return this.isLaunchPad;
+    }
+
+    public void setIsLaunchPad(boolean isLaunchPad) {
+        this.isLaunchPad = isLaunchPad;
     }
 
     public void setBaseHealth(Double health) {

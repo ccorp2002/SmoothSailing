@@ -166,16 +166,25 @@ public class SmoothSailingPlugin extends JavaPlugin {
         ConfigurationSection signs = getConfig().getConfigurationSection("signs");
         String helmKey = "signs.helm";
         String turretKey = "signs.turret";
+        String extendKey = "signs.extend";
+        String detachKey = "signs.detach";
+        String remoteKey = "signs.remote";
         String thrustKey = "signs.thrust";
         if (signs == null) {
             getLogger().warning("Saving Default SignHeaders...");
             getConfig().set(helmKey, "[helm]");
             getConfig().set(turretKey, "[turret]");
+            getConfig().set(extendKey, "[extend]");
+            getConfig().set(detachKey, "[detach]");
+            getConfig().set(remoteKey, "[remote]");
             getConfig().set(thrustKey, "[thrust]");
             this.saveConfig();
         }
         signFunctions.HELM_HEADER = ChatColor.stripColor(getConfig().getString(helmKey,"")).trim();
         signFunctions.TURRET_HEADER = ChatColor.stripColor(getConfig().getString(turretKey,"")).trim();
+        signFunctions.EXTEND_HEADER = ChatColor.stripColor(getConfig().getString(extendKey,"")).trim();
+        signFunctions.DETACH_HEADER = ChatColor.stripColor(getConfig().getString(detachKey,"")).trim();
+        signFunctions.REMOTE_HEADER = ChatColor.stripColor(getConfig().getString(remoteKey,"")).trim();
         signFunctions.THRUST_HEADER = ChatColor.stripColor(getConfig().getString(thrustKey,"")).trim();
         getLogger().info("Loaded SignHeaders.");
     }
@@ -412,6 +421,10 @@ public class SmoothSailingPlugin extends JavaPlugin {
                     return true;
                 }
                 ShipInstance ship = MobileBlockState.getShipFromLoc(player.getLocation().clone().add(0,-1,0));
+                if (ship == null) {
+                    sender.sendMessage("You must be aboard a Ship to use this command.");
+                    return true;
+                }
                 for (int i = 0; i < 50; i++) {
                     com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(ship.vehicle.getLocation()).runTaskLater(()->{
                         ship.isForwardPressed = true;

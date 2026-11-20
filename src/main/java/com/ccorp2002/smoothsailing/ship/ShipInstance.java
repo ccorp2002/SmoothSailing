@@ -109,9 +109,19 @@ public class ShipInstance {
     public BoundingBox bbox = null;
 
     public void calculateBoundingBox() {
-        if (BLOCK_STATES.isEmpty()) this.bbox = null;
+        this.bbox = null;
         this.bbox = new BoundingBox(minX(), minY(), minZ(), maxX(), maxY()+1.5, maxZ());
     }
+
+    public void updateBoundingBox(Vector pos1, Vector pos2) {
+        this.bbox = (BoundingBox.of(pos1,pos2));
+    }
+
+    public BoundingBox getBoundingBox() {
+        if (this.bbox == null) calculateBoundingBox();
+        return this.bbox;
+    }
+
     public World getWorld() {
         if (this.vehicle == null) return null;
         return this.vehicle.getWorld();
@@ -130,11 +140,6 @@ public class ShipInstance {
         if (newVec == null || newVec.isZero()) newVec = this.facing;
         if (newVec == null || newVec.isZero()) return;
         this.forwards = newVec;
-    }
-
-    public BoundingBox getBoundingBox() {
-        if (bbox == null) calculateBoundingBox();
-        return bbox;
     }
 
     // Speed display optimization - only update action bar when speed changes significantly
@@ -661,6 +666,7 @@ public class ShipInstance {
         } else {
             ShipInstance.this.initialEngineCount = engineCount;
         }
+        this.calculateBoundingBox();
         if (dryFire) {
             return;
         }
@@ -671,16 +677,14 @@ public class ShipInstance {
             le.setHealth(tempMaxHealth);
             setMaxHealth(maxHealth);
         }
-        Set<Location> INTERIOR = this.physics.getInteriorLocs();
         boolean TEMP_DEBUG = SmoothSailingPlugin.DEBUG_DUMP;
         SmoothSailingPlugin.DEBUG_DUMP = false;
-        MobileBlockState.MobileStateSet INTERIOR_BLOCKS = new MobileBlockState.MobileStateSet((int)(INTERIOR.size()*1.75));
-        INTERIOR.forEach(blk -> {
+        this.physics.getInteriorLocs().forEach(blk -> {
             if (blk == null) return;
-            MobileBlockState movingState = new MobileBlockState(blk.toBlockLocation(),false);
+            MobileBlockState movingState = new MobileBlockState(blk);
             movingState.resetHealth(1);
             movingState.shipRef = new java.lang.ref.WeakReference<>(this);
-            INTERIOR_BLOCKS.add(movingState);
+            this.BLOCK_STATES.add(movingState);
         });
         SmoothSailingPlugin.DEBUG_DUMP = TEMP_DEBUG;
         if (this.vehicle instanceof org.bukkit.entity.LivingEntity s) {
@@ -694,15 +698,10 @@ public class ShipInstance {
         this.currentHealth = this.maxHealth;
         this.ENTITY_COMPOSITION.add(vehicle);
         ENTITY_COMPOSITION.addAll(HIDDEN_ENTITIES);
-        this.calculateBoundingBox();
         if (facing == null || facing.isZero()) facing = vehicle.getFacing().getDirection().normalize().setY(0);
         if (forwards == null || forwards.isZero()) forwards = facing;
         SmoothSailingPlugin.getInstance().getLogger().info("Piloted Ship: ("+this.id.toString()+") @ ("+LocationLib.readLocationToString(vehicle.getLocation())+") With Size: "+this.blockCount);
-        this.BLOCK_STATES.setAll(INTERIOR_BLOCKS);
-        INTERIOR_BLOCKS.clear();
         ShipRegistry.register(this);
-        if (ShipInstance.this.parentShip != null) ShipInstance.this.setProcessing(false);
-        else ShipInstance.this.setProcessing(true);
         setDataTag("has_fuel",!this.doGearsRequireFuel());
         Map<String,Number> DATA = ShipWheelManager.getStateBuoyancyData(getLocation(),ShipInstance.this.BLOCK_STATES,ShipInstance.this.model.totalWeight);
         float floatOffset = model.waterFloatOffset;
@@ -711,15 +710,16 @@ public class ShipInstance {
         PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:float_offset",""+floatOffset);
         PDCUtils.setPDC(vehicle.getPersistentDataContainer(),"smooth:center_of_volume_y",""+DATA.getOrDefault("center_of_volume_y",null));
         DATA.clear();
-        this.updateWaterLogging(true);
         Runnable RUN_ME = () -> {  
             if (ShipInstance.this.physics != null) {
                 ShipInstance.this.setProcessing(true);
             }
+            if (ShipInstance.this.parentShip != null) ShipInstance.this.setProcessing(false);
             if (ShipInstance.this.hardMaxGear <= 1) {
                 ShipInstance.this.hardMaxGear = physics.getEngineGears();
             }
             ShipInstance.this.displayGears();
+            this.updateWaterLogging(true);
             Runnable RUN_ME_2 = new Runnable() {
                 @Override
                 public void run() {
@@ -759,8 +759,8 @@ public class ShipInstance {
         ship.setProcessing(true);
         MobileBlockState movingState = new MobileBlockState(block.getLocation().toBlockLocation(),false);
         movingState.shipRef = new java.lang.ref.WeakReference<>(ship);
-        double health = 3d;
-        double blockHealth = 2d;
+        double health = 2d;
+        double blockHealth = 1d;
         if (props.baseHealth != null && props.baseHealth >= 1d) {
             health = props.baseHealth;
             blockHealth = props.baseHealth+2d;
@@ -897,95 +897,95 @@ public class ShipInstance {
     public void updateWaterLogging(final boolean init) {
         if (this.physics == null || this.CHANGE_WORLD) return;
         final World w = this.getWorld();
-        com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskAsync(()->{
-            this.setProcessing(true);
-            BlockData FLUID_BLOCK = ShipPhysics.VOID;
-            int waterLine = this.minY() - 5;
-            //level by examining blocks next to the outer boundaries of the ship
-            int numOther = 0;
-            int numAir = 0;
-            int minX = minX();
-            int maxX = maxX();
-            int minY = waterLine;
-            int maxY = maxY();
-            int minZ = minZ();
-            int maxZ = maxZ();
-            Medium m = ShipPhysics.getMedium("void");
-            for (int posY = maxY+ 2; posY >= minY- 2; posY--) {
-                numOther = 0;
-                numAir = 0;
-                int posX;
-                int posZ;
-                posZ = minZ- 2;
-                for (posX = minX- 2; posX <= maxX+ 2; posX++) {
-                    final Vector loc = new Vector(posX, posY, posZ);
-                    if (MobileBlockState.doesShipHave(this,loc)) continue;
-                    BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
-                    m = ShipPhysics.getMedium(data);
-                    if (m != null && !m.id.equalsIgnoreCase("void"))
-                        numOther++;
-                    else numAir++;
-                }
-                posZ = maxZ+ 2;
-                for (posX = minX- 2; posX <= maxX+ 2; posX++) {
-                    final Vector loc = new Vector(posX, posY, posZ);
-                    if (MobileBlockState.doesShipHave(this,loc)) continue;
-                    BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
-                    m = ShipPhysics.getMedium(data);
-                    if (m != null && !m.id.equalsIgnoreCase("void"))
-                        numOther++;
-                    else numAir++;
-                }
-                posX = minX- 2;
-                for (posZ = minZ- 2; posZ <= maxZ+ 2; posZ++) {
-                    final Vector loc = new Vector(posX, posY, posZ);
-                    if (MobileBlockState.doesShipHave(this,loc)) continue;
-                    BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
-                    m = ShipPhysics.getMedium(data);
-                    if (m != null && !m.id.equalsIgnoreCase("void"))
-                        numOther++;
-                    else numAir++;
-                }
-                posX = maxX+ 2;
-                for (posZ = minZ- 2; posZ <= maxZ+ 2; posZ++) {
-                    final Vector loc = new Vector(posX, posY, posZ);
-                    if (MobileBlockState.doesShipHave(this,loc)) continue;
-                    BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
-                    m = ShipPhysics.getMedium(data);
-                    if (m != null && !m.id.equalsIgnoreCase("void"))
-                        numOther++;
-                    else numAir++;
-                }
-                if (numOther > numAir) {
-                    waterLine = posY;
-                    FLUID_BLOCK = m.getBlockDatas().getFirst();
-                    break;
-                }
+        this.setProcessing(true);
+        BlockData FLUID_BLOCK = ShipPhysics.VOID;
+        int waterLine = this.minY() - 5;
+        //level by examining blocks next to the outer boundaries of the ship
+        int numOther = 0;
+        int numAir = 0;
+        int minX = minX();
+        int maxX = maxX();
+        int minY = waterLine;
+        int maxY = maxY();
+        int minZ = minZ();
+        int maxZ = maxZ();
+        Medium m = ShipPhysics.getMedium("void");
+        for (int posY = maxY+ 2; posY >= minY- 2; posY--) {
+            numOther = 0;
+            numAir = 0;
+            int posX;
+            int posZ;
+            posZ = minZ- 2;
+            for (posX = minX- 2; posX <= maxX+ 2; posX++) {
+                final Vector loc = new Vector(posX, posY, posZ);
+                if (MobileBlockState.doesShipHave(this,loc)) continue;
+                BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                m = ShipPhysics.getMedium(data);
+                if (m != null && !m.id.equalsIgnoreCase("void"))
+                    numOther++;
+                else numAir++;
             }
-            this.setProcessing(false);
-            if (init) {
-                if (m.id.equalsIgnoreCase("void")) waterLine = ShipInstance.this.physics.GLOBAL_WATER_SURFACE;
-                ShipInstance.this.physics.CURRENT_FLUID_LEVEL = waterLine;
-                final BlockData F_FLUID = FLUID_BLOCK;
-                this.BLOCK_STATES.forEach(st -> {
-                    if (st.getY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
-                        //System.out.println("FOUND FLUID LEVEL: "+st.getY()+" FOR: "+FLUID_BLOCK);
-                        st.occupiedBlock = F_FLUID;
-                        FLUIDS.set(st.getLocation(),F_FLUID);
-                    } else {
-                        st.occupiedBlock = ShipPhysics.VOID;
-                    }
-                    ShipInstance.this.BLOCK_STATES.set(st);
-                });
-                ShipInstance.this.physics.CURRENT_FLUID_LEVEL = waterLine;
-                this.physics.currentYVelocity = 0f;
-                this.physics.currentSpeed = 0.5f;
+            posZ = maxZ+ 2;
+            for (posX = minX- 2; posX <= maxX+ 2; posX++) {
+                final Vector loc = new Vector(posX, posY, posZ);
+                if (MobileBlockState.doesShipHave(this,loc)) continue;
+                BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                m = ShipPhysics.getMedium(data);
+                if (m != null && !m.id.equalsIgnoreCase("void"))
+                    numOther++;
+                else numAir++;
             }
-            if (SmoothSailingPlugin.DEBUG) {
-                System.out.println("CURRENT FLUID LEVEL: "+waterLine);
-                System.out.println("PRIMARY FLUID BLOCK: "+FLUID_BLOCK.getAsString(false));
+            posX = minX- 2;
+            for (posZ = minZ- 2; posZ <= maxZ+ 2; posZ++) {
+                final Vector loc = new Vector(posX, posY, posZ);
+                if (MobileBlockState.doesShipHave(this,loc)) continue;
+                BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                m = ShipPhysics.getMedium(data);
+                if (m != null && !m.id.equalsIgnoreCase("void"))
+                    numOther++;
+                else numAir++;
             }
-        });
+            posX = maxX+ 2;
+            for (posZ = minZ- 2; posZ <= maxZ+ 2; posZ++) {
+                final Vector loc = new Vector(posX, posY, posZ);
+                if (MobileBlockState.doesShipHave(this,loc)) continue;
+                BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                m = ShipPhysics.getMedium(data);
+                if (m != null && !m.id.equalsIgnoreCase("void"))
+                    numOther++;
+                else numAir++;
+            }
+            if (numOther > numAir) {
+                waterLine = posY;
+                FLUID_BLOCK = m.getBlockDatas().getFirst();
+                break;
+            }
+        }
+        if (m.id.equalsIgnoreCase("void")) waterLine = ShipInstance.this.physics.CURRENT_FLUID_LEVEL;
+        ShipInstance.this.physics.CURRENT_FLUID_LEVEL = waterLine;
+        if (init) {
+            final BlockData F_FLUID = FLUID_BLOCK;
+            this.BLOCK_STATES.forEach(st -> {
+                if (st.getY() <= ShipInstance.this.physics.CURRENT_FLUID_LEVEL) {
+                    //System.out.println("FOUND FLUID LEVEL: "+st.getY()+" FOR: "+FLUID_BLOCK);
+                    st.occupiedBlock = F_FLUID;
+                    FLUIDS.set(st.getLocation(),F_FLUID);
+                } else {
+                    st.occupiedBlock = ShipPhysics.VOID;
+                }
+                ShipInstance.this.BLOCK_STATES.set(st);
+            });
+            ShipInstance.this.physics.CURRENT_FLUID_LEVEL = waterLine;
+            this.physics.getExteriorLocations(0,0,(int)Math.abs(this.model.waterFloatOffset));
+            this.physics.currentYVelocity = 0f;
+            this.physics.currentSpeed = 0.5f;
+        }
+        if (SmoothSailingPlugin.DEBUG) {
+            System.out.println("CURRENT FLUID LEVEL: "+waterLine);
+            System.out.println("PRIMARY FLUID BLOCK: "+FLUID_BLOCK.getAsString(false));
+        }
+        this.physics.moving = false;
+        this.setProcessing(false);
     }
 
     public boolean HIDE_ENTITES = true;
@@ -1008,7 +1008,6 @@ public class ShipInstance {
         if (dest.getWorld() == null) return;
         final Location center = this.getLocation().clone();
         final World originWorld = center.getWorld();
-        sendVoids();
         CHANGE_WORLD = !center.getWorld().equals(dest.getWorld());
         int dx, dy, dz = 0;
         dx = dest.getBlockX() - center.getBlockX();
@@ -1042,7 +1041,7 @@ public class ShipInstance {
                 NmsUtils.setBlockFast(originWorld,st,st.occupiedBlock);
                 TEMPS[indx] = st;
             }
-            this.refreshChunks();
+            sendVoids(Arrays.asList(TEMPS));
             NmsUtils.loadChunksIn(dest.getWorld(),this.BLOCK_STATES);
             for (int indx = 0; indx < TEMPS.length; indx ++) {
                 MobileBlockState st = TEMPS[indx];
@@ -1052,8 +1051,8 @@ public class ShipInstance {
                 updLoc.setWorld(destWorld);
                 updLoc = updLoc.add(offsetf);
                 BlockData occupiedBlock = NmsUtils.toBukkitBlockDataFast(destWorld,updLoc.toVector());
-                st = st.teleport(destWorld,updLoc.toVector(),false);
                 st.occupiedBlock = occupiedBlock;
+                st = st.teleport(destWorld,updLoc.toVector(),false);
                 
                 getFluidBlocks().set(updLoc,st.occupiedBlock);
                 TEMPS[indx] = st;
@@ -1099,6 +1098,9 @@ public class ShipInstance {
             isSprintPressed = false;
             isSpacePressed = false;
             NmsUtils.loadChunksIn(dest.getWorld(),this.BLOCK_STATES);
+            Vector pos1 = this.bbox.getMin().add(offsetf.toVector());
+            Vector pos2 = this.bbox.getMax().add(offsetf.toVector());
+            this.updateBoundingBox(pos1,pos2);
             this.model.minY = minY();
             this.model.maxY = maxY();
             for (String KEY : this.TRACKED_STATE_MAP.keySet()) {
@@ -1116,7 +1118,6 @@ public class ShipInstance {
             refreshChunks();
             Runnable RUN_ME = ()->{
                 if (CHANGE_WORLD) CHANGE_WORLD = false;
-                ShipInstance.this.calculateBoundingBox();
                 physics.moving = false;
                 setProcessing(false);
                 updateRedstone();
@@ -1136,7 +1137,7 @@ public class ShipInstance {
     public void sendSolids(final Collection<MobileBlockState> SEND_STATES) {
         if (CHANGE_WORLD) return;
         if (this.vehicle == null) return;
-        if (BLOCK_STATES.size() >= 25_000) NmsUtils.refreshChunksIn(this.getWorld(),BLOCK_STATES);
+        if (BLOCK_STATES.size() >= 10_000) NmsUtils.refreshChunksIn(vehicle.getWorld(),SEND_STATES);
         else {
             NmsUtils.sendBlockChanges(vehicle.getWorld(),SEND_STATES.stream().collect(Collectors.toMap(
                 MobileBlockState::getLocation,
@@ -1170,31 +1171,31 @@ public class ShipInstance {
     }
 
     public int maxX() {
-        if (bbox != null) return (int)bbox.getMaxX();
+        //if (this.bbox != null) return (int)this.bbox.getMaxX();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bx).max().orElse(0));
     }
     public int minX() {
-        if (bbox != null) return (int)bbox.getMinX();
+        //if (this.bbox != null) return (int)this.bbox.getMinX();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bx).min().orElse(0));
     }
     public int maxY() {
-        if (bbox != null) return (int)bbox.getMaxY();
+        //if (this.bbox != null) return (int)this.bbox.getMaxY();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::by).max().orElse(0));
     }
     public int minY() {
-        if (bbox != null) return (int)bbox.getMinY();
+        //if (this.bbox != null) return (int)this.bbox.getMinY();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::by).min().orElse(0));
     }
     public int maxZ() {
-        if (bbox != null) return (int)bbox.getMaxZ();
+        //if (this.bbox != null) return (int)this.bbox.getMaxZ();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bz).max().orElse(0));
     }
     public int minZ() {
-        if (bbox != null) return (int)bbox.getMinZ();
+        //if (this.bbox != null) return (int)this.bbox.getMinZ();
         return (BLOCK_STATES.stream().parallel().mapToInt(MobileBlockState::bz).min().orElse(0));
     }
 
-    public Set<Entity> ENTITY_COMPOSITION = new HashSet<>(27550);
+    public Set<Entity> ENTITY_COMPOSITION = new HashSet<>(1800);
     public void tick() {
         if (vehicle != null && vehicle.isValid() && !vehicle.isDead()) {
             com.ccorp2002.smoothsailing.region.TaskUtils.getEntityScheduler(vehicle).runTask(this::doTick);
@@ -1230,24 +1231,6 @@ public class ShipInstance {
         if (ticking.isCancelled()) return;
         if (this.parentShip != null) return;
         com.ccorp2002.smoothsailing.region.TaskUtils.getRegionalScheduler(vehicle.getLocation()).runTask(physics::update);    // Apply physics (movement, rotation, buoyancy)
-    }
-
-    public MobileBlockState.MobileStateSet getMaterial(Material TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
-        if (TEST == null) return BLOCKS;
-        this.BLOCK_STATES.forEach(state -> {
-            if (!state.isDead() && state.getBlockData().getMaterial() == TEST) BLOCKS.add(state);
-        });
-        return BLOCKS;
-    }
-
-    public MobileBlockState.MobileStateSet getBlockData(BlockData TEST) {
-        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
-        if (TEST == null) return BLOCKS;
-        this.BLOCK_STATES.forEach(state -> {
-            if (!state.isDead() && state.getBlockData().matches(TEST)) BLOCKS.add(state);
-        });
-        return BLOCKS;
     }
 
 
@@ -1631,6 +1614,8 @@ public class ShipInstance {
             task = null;
         }
         int removedCount = 0;
+        this.refreshChunks();
+        NmsUtils.refreshChunksIn(vehicle.getWorld(),this.BLOCK_STATES);
         // Remove all collision shulkers and their carriers
         // Note: Seats are now the shulkers themselves (no separate seat ArmorStands)
         for (Entity entity : ENTITY_COMPOSITION) {
@@ -1695,37 +1680,111 @@ public class ShipInstance {
         world.playSound(loc, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.5f);
     }
 
-    public void setTrackedBukkitLocation(String key, final Collection<Location> data) {
+    public MobileBlockState.MobileStateSet getMaterial(Material TEST) {
+        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
+        if (TEST == null) return BLOCKS;
+        this.BLOCK_STATES.forEach(state -> {
+            if (!state.isDead() && state.getBlockData().getMaterial() == TEST) BLOCKS.add(state);
+        });
+        return BLOCKS;
+    }
+
+    public MobileBlockState.MobileStateSet getBlockName(final String TEST) {
+        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
+        if (TEST == null) return BLOCKS;
+        this.BLOCK_STATES.forEach(state -> {
+            if (!state.isDead() && PDCUtils.containsIgnoreCase(TEST,state.getBlockData().getMaterial().toString())) BLOCKS.add(state);
+        });
+        return BLOCKS;
+    }
+
+    public MobileBlockState.MobileStateSet getBlockData(BlockData TEST) {
+        final MobileBlockState.MobileStateSet BLOCKS = new MobileBlockState.MobileStateSet(2500,0.75f);
+        if (TEST == null) return BLOCKS;
+        this.BLOCK_STATES.forEach(state -> {
+            if (!state.isDead() && state.getBlockData().matches(TEST)) BLOCKS.add(state);
+        });
+        return BLOCKS;
+    }
+
+    public void addTrackedLocations(String key, final Location... data) {
+        if (key == null) return;
+        if (data == null || data.length <= 0) return;
+        key = key.toLowerCase(Locale.ENGLISH);
+        Collection<TrackedLocation> TRACKED = getTrackedLocation(key);
+        for (Location pos : data) {
+            TrackedLocation tlock = new TrackedLocation(this,pos);
+            TRACKED.add(tlock);
+        }
+        setTrackedLocation(key, TRACKED);
+    }
+
+    public void setTrackedLocations(String key, final Collection<Location> data) {
+        if (key == null) return;
+        if (data == null || data.isEmpty()) return;
+        key = key.toLowerCase(Locale.ENGLISH);
+        List<TrackedLocation> ADAPTED = new ArrayList<>(data.size()+25);
+        for (Location pos : data) {
+            TrackedLocation tlock = new TrackedLocation(this,pos);
+            ADAPTED.add(tlock);
+        }
+        setTrackedLocation(key, ADAPTED);
+    }
+
+    public void addTrackedStates(String key, final MobileBlockState... data) {
+        if (key == null) return;
+        if (data == null || data.length <= 0) return;
+        key = key.toLowerCase(Locale.ENGLISH);
+        Collection<TrackedLocation> TRACKED = getTrackedLocation(key);
+        for (MobileBlockState pos : data) {
+            TrackedLocation tlock = pos.toTrackedLocation();
+            TRACKED.add(tlock);
+        }
+        setTrackedLocation(key, TRACKED);
+    }
+
+    public void setTrackedStates(String key, final Collection<MobileBlockState> data) {
         if (key == null) return;
         if (data == null || data.isEmpty()) return;
         key = key.toLowerCase(Locale.ENGLISH);
         List<TrackedLocation> ADAPTED = new ArrayList<>(data.size()+25);
         data.forEach(pos -> {
-            TrackedLocation tlock = new TrackedLocation(this,pos);
+            TrackedLocation tlock = pos.toTrackedLocation();
             ADAPTED.add(tlock);
         });
         setTrackedLocation(key, ADAPTED);
     }
 
     public Collection<TrackedLocation> setTrackedLocation(String key, final Collection<TrackedLocation> data) {
-        if (key == null) return null;
+        if (key == null) return new HashSet<TrackedLocation>();
         if (data == null || data.isEmpty()) return removeTrackedLocation(key);
         key = key.toLowerCase(Locale.ENGLISH);
         return this.TRACKED_STATE_MAP.put(key, data);
     }
 
     public Collection<TrackedLocation> removeTrackedLocation(String key) {
-        if (key == null) return null;
+        if (key == null) return new HashSet<TrackedLocation>();
         key = key.toLowerCase(Locale.ENGLISH);
-        Collection<TrackedLocation> tag = getTrackedLocation(key);
+        Collection<TrackedLocation> valu = getTrackedLocation(key);
         this.TRACKED_STATE_MAP.remove(key);
-        return tag;
+        return valu;
+    }
+
+    public Collection<Location> getTrackedLocations(String key) {
+        if (key == null) return new HashSet<Location>();
+        key = key.toLowerCase(Locale.ENGLISH);
+        final Collection<TrackedLocation> TRACKED = getTrackedLocation(key);
+        Collection<Location> LOCS = new HashSet<>(TRACKED.size());
+        for (TrackedLocation pos : TRACKED) {
+            LOCS.add(pos.toRealLocation());
+        }
+        return LOCS;
     }
 
     public Collection<TrackedLocation> getTrackedLocation(String key) {
         if (key == null) return null;
         key = key.toLowerCase(Locale.ENGLISH);
-        return this.TRACKED_STATE_MAP.getOrDefault(key, null);
+        return this.TRACKED_STATE_MAP.getOrDefault(key, new HashSet<TrackedLocation>());
     }
 
     public <V> V setDataTag(String key, Object data) {

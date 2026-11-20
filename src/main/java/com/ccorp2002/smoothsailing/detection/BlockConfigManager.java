@@ -143,6 +143,7 @@ public class BlockConfigManager {
         }
 
         boolean turretBase = config.getBoolean("turret_base", false);
+        boolean launchPad = config.getBoolean("launch_pad", false);
         boolean engine = config.getBoolean("engine", false);
         boolean seat = config.getBoolean("seat", false);
 
@@ -190,6 +191,7 @@ public class BlockConfigManager {
                     boolean engineData = dataConfig.getBoolean("engine", engine);
                     boolean seatData = dataConfig.getBoolean("seat", seat);
                     BlockData blockDataType = WildcardMatcher.getBlockDataFor(material, blockData);
+                    boolean launchPadData = config.getBoolean("launch_pad", launchPad);
                     if (blockDataType.getMaterial().isAir()) {
                         logger.warning("Unknown/Invalid BlockData; this Section's Key must be a valid/parsable BlockData-String (Within Quotes if needed): " + blockData);
                     } else {
@@ -197,6 +199,7 @@ public class BlockConfigManager {
                         dataProps.setIsEngine(engineData);
                         dataProps.setIsTurretBase(turretBaseData);
                         dataProps.setFuelCost(fuelCostData);
+                        dataProps.setIsLaunchPad(launchPadData);
                         RULES.add(new BlockProperties.ConditionalRule(blockDataType, dataProps));
                         if (SmoothSailingPlugin.DEBUG) logger.info("Added BlockData Sub-Properties of: " + blockData + " for Material: "+key);
                     }
@@ -205,6 +208,7 @@ public class BlockConfigManager {
             logger.info("Current BlockData Sub-Properties counted for: " + key + " x"+RULES.size());
         }
         BlockProperties props = new BlockProperties(allowed, weight, seat, baseHealth, RULES);
+        props.setIsLaunchPad(launchPad);
         props.setFuelCost(fuelCost);
         props.setIsEngine(engine);
         props.setIsTurretBase(turretBase);
@@ -346,6 +350,23 @@ public class BlockConfigManager {
         BlockProperties props = getProperties(data.getMaterial(),data);
         return props != null && props.isTurretBase();
     }
+
+
+    /**
+     * Check if a material is disallowed for smaller ships when breaking off of larger ones, but allowed on all ships otherwise.
+     */
+    public boolean isLaunchPad(Material material) {
+        if (material == null) return false;
+        BlockProperties props = blockPropertiesCache.get(material);
+        return props != null && props.isLaunchPad();
+    }
+
+    public boolean isLaunchPad(BlockData data) {
+        if (data == null) return false;
+        BlockProperties props = getProperties(data.getMaterial(),data);
+        return props != null && props.isLaunchPad();
+    }
+
 
 
     /**

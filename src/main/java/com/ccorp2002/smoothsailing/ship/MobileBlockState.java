@@ -291,9 +291,10 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
         if (this.shipRef != null) return this.shipRef.get();
         return null;
     }
-    public void setShip(ShipInstance ship) {
-        if (ship == null) return;
+    public MobileBlockState setShip(ShipInstance ship) {
+        if (ship == null) return this;
         this.shipRef = new java.lang.ref.WeakReference<>(ship);
+        return this;
     }
 
     public static MobileBlockState getStateFromShipLoc(final ShipInstance ship, final Location loc) {
@@ -679,7 +680,7 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
         else return NmsUtils.BlockDataGetter.get(otherState);
     }
 
-    public TrackedLocation toRelativeState() {
+    public TrackedLocation toTrackedLocation() {
         return new TrackedLocation(this.getShip(), this);
     }
 }

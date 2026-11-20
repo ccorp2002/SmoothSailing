@@ -732,7 +732,7 @@ public class ShipListener implements Listener {
                 ship.setProcessing(false);
                 return;
             }
-            ShipInstance.addBlock(ship,block,true);
+            ShipInstance.addBlock(ship,block,false);
             ship.setProcessing(false);
         }
     }

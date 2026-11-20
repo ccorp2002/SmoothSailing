@@ -56,7 +56,7 @@ public class ShipDetector {
         }
     }
     public static Set<Block> detectBlocks(org.bukkit.entity.Player pilot, Location startLocation) {
-        return detectBlocks(pilot, startLocation, 750, true);
+        return detectBlocks(pilot, startLocation, 25000, true);
     }
 
     public static Set<Block> detectBlocks(org.bukkit.entity.Player pilot, Location startLocation, int maxSize, boolean isTurret) {
@@ -102,10 +102,11 @@ public class ShipDetector {
                         
                     }
                 }
+
                 if (!configManager.isAllowed(blockData) || (isTurret && configManager.isTurretBase(blockData)) || !canBreakAt) {
                     // Skip forbidden blocks (don't add to ship, but continue scanning)
-                    if (!ShipPhysics.isDataMedium(blockData) || !MobileBlockState.doesShipHave(parentShip,neighbor)) continue;
-                }
+                    if (!ShipPhysics.isDataMedium(blockData) || (isTurret && !MobileBlockState.doesShipHave(parentShip,neighbor))) continue;
+                } else if (!isTurret && configManager.isLaunchPad(blockData)) continue;
 
                 // Valid block, add to ship and frontier
                 shipBlocks.add(neighbor.clone().getBlock());
