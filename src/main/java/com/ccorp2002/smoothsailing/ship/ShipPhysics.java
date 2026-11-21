@@ -1446,10 +1446,11 @@ public class ShipPhysics {
         ship.sendSolids();
         ship.updateRedstone();
         this.currentRotationVelocity = 0.0f;
-        if (toBurnFuel) {
+        if (toBurnFuel && ship.parentShip == null) {
             int burnRate = (int)(ship.getFuelCost());
             toBurnFuel = InventoryUtil.doBurnFuelType(ship,null,false,burnRate);
             ship.setDataTag("has_fuel",toBurnFuel);
+            if (!toBurnFuel && ship.isAirship) this.currentYVelocity = -1f;
         } else {
             toBurnFuel = true;
             ship.setDataTag("has_fuel",toBurnFuel);

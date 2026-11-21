@@ -682,7 +682,7 @@ public final class NmsUtils {
             }
             chunks.addAll(addSurroundingChunks(chunks,2));
             for (ChunkPos pos : chunks) {
-                if (pos != null && pos.isValid()) world.getChunkAtAsync((int)pos.getMinBlockX()>>4,(int)pos.getMinBlockZ()>>4,true).thenAcceptAsync(chunke -> chunke.addPluginChunkTicket(SmoothSailingPlugin.getPlugin()));
+                if (pos != null && pos.isValid()) world.getChunkAtAsync((int)pos.getMinBlockX()>>4,(int)pos.getMinBlockZ()>>4,true).thenAcceptAsync(chunke -> chunke.setForceLoaded(true));
             }
             com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskLaterAsync(()->{
                 removeChunksToLoad(world,chunks);
@@ -699,7 +699,7 @@ public final class NmsUtils {
             }
             chunks.addAll(addSurroundingChunks(chunks,2));
             for (ChunkPos pos : chunks) {
-                if (pos != null && pos.isValid()) world.getChunkAtAsync((int)pos.getMinBlockX()>>4,(int)pos.getMinBlockZ()>>4,true).thenAcceptAsync(chunke -> chunke.addPluginChunkTicket(SmoothSailingPlugin.getPlugin()));
+                if (pos != null && pos.isValid()) world.getChunkAtAsync((int)pos.getMinBlockX()>>4,(int)pos.getMinBlockZ()>>4,true).thenAcceptAsync(chunke -> chunke.setForceLoaded(true));
             }
             com.ccorp2002.smoothsailing.region.TaskUtils.getGlobalScheduler().runTaskLaterAsync(()->{
                 removeChunksToLoad(world,chunks);
