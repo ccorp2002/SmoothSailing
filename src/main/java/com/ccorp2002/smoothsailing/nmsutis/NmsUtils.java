@@ -1478,6 +1478,7 @@ public final class NmsUtils {
         }
     } catch (Throwable thr) {
         if (SmoothSailingPlugin.DEBUG) System.out.println("NMS MOVEMENT FAILED (ERROR)");
+        SmoothSailingPlugin.NMS_TELEPORT = false;
         thr.printStackTrace();
         runOnMain(()->{
             teleportSilent(loc,nmsEntity.getBukkitEntity());
@@ -1537,6 +1538,7 @@ public final class NmsUtils {
         }
     } catch (Throwable thr) {
         if (SmoothSailingPlugin.DEBUG) System.out.println("NMS MOVEMENT FAILED (ERROR)");
+        SmoothSailingPlugin.NMS_TELEPORT = false;
         thr.printStackTrace();
         runOnMain(()->{
             if (loc == null) return;
