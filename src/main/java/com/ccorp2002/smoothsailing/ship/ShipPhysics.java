@@ -324,6 +324,51 @@ public class ShipPhysics {
         return maxEntry;
     }
 
+    public BlockData getVectorPrimaryMediumAtBelowY(Collection<Vector> LOCS, Integer y) {
+        Map.Entry<String, Integer> maxEntry = getVectorPrimaryMedium(LOCS, y);
+        if (maxEntry == null) return VOID;
+        Medium medium = getMedium(maxEntry.getKey());
+        if (medium == null) return VOID;
+        return medium.getBlockDatas().getFirst();
+    }
+    
+    public BlockData getVectorPrimaryMediumBlockData(Collection<Vector> LOCS) {
+        Map.Entry<String, Integer> maxEntry = getVectorPrimaryMedium(LOCS);
+        if (maxEntry == null) return VOID;
+        Medium medium = getMedium(maxEntry.getKey());
+        if (medium == null) return VOID;
+        return medium.getBlockDatas().getFirst();
+    }
+
+    public Map.Entry<String, Integer> getVectorPrimaryMedium(Collection<Vector> LOCS) {
+        return getVectorPrimaryMedium(LOCS,null);
+
+    }
+
+    public Map.Entry<String, Integer> getVectorPrimaryMedium(Collection<Vector> LOCS, Integer y) {
+        final Map<String,Integer> FLUID_COUNTER = new HashMap<>();
+        World world = ship.getWorld();
+        for (Vector LOC : LOCS) {
+            if (y != null && LOC.getY() >= y) continue;
+            Medium m = MEDIUM_MATERIALS.get(NmsUtils.toBukkitBlockFast(world,LOC));
+            if (m == null) continue;
+            Integer mi = FLUID_COUNTER.getOrDefault(m.id,0);
+            if (m.id.equalsIgnoreCase("void") && y == null) continue;
+            mi += 1;
+            FLUID_COUNTER.put(m.id,mi);
+        }
+        if (FLUID_COUNTER.isEmpty() && y != null) {
+            FLUID_COUNTER.put("void",0);
+        }
+        Map.Entry<String, Integer> maxEntry = Collections.max(
+            FLUID_COUNTER.entrySet(), 
+            Map.Entry.comparingByValue()
+        );
+        FLUID_COUNTER.clear();
+        return maxEntry;
+    }
+
+
     public float getFluidMediumDrag() {
         // Apply drag based on medium presence (unless actively pressing W/S)
         if (ship == null) return 0f;
@@ -456,9 +501,10 @@ public class ShipPhysics {
             ship.driver = ship.vehicle;
             ship.hasDriver = true;
         }
-        if (physicsInterval >= 10) {
-            if (!ship.isAirship && ship.isNotProcessing()) {
-                ship.isSpacePressed = true;
+        boolean doFloatation = false;
+        if (physicsInterval >= 40) {
+            if (!ship.isAirship && !ship.isLandcraft) {
+                doFloatation = true;
             }
             physicsInterval = 0;
         }
@@ -570,7 +616,7 @@ public class ShipPhysics {
         final Location ABS_CENTER = new Location(ship.vehicle.getWorld(),0,0,0);
         // Move the vehicle
         boolean hasHorizontalMovement = (Math.abs(currentSpeed)) >= 0.25f;
-        boolean hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.25f;
+        boolean hasVerticalMovement = (Math.abs(currentYVelocity)) >= 0.25f || doFloatation;
         if ((hasHorizontalMovement || hasVerticalMovement) && !(ship.isLeftPressed || ship.isRightPressed) && (ship.isNotProcessing() && !this.moving)) {
             double fx = 0d;
             double fy = 0d;
@@ -589,8 +635,8 @@ public class ShipPhysics {
                 if (Math.abs(fz)<1) fz = 0;
             }
             if (hasVerticalMovement) fy = Math.round(CLAMP_VALUE(currentYVelocity, -4f, 4f));
+            if (hasVerticalMovement && !ship.isAirship && !ship.isLandcraft) fy = (float)handleBuoyancy(ship.getLocation(),false,-1d);
             if (hasVerticalMovement && !ship.isAirship && !ship.isLandcraft) {
-                fy = (double)handleBuoyancy(ship.getLocation(),false,fy);
                 fy = (double)Math.round(CLAMP_VALUE((float)fy, -4f, 4f));
                 if (fy > 0) {
                     fx = 0;
@@ -882,7 +928,6 @@ public class ShipPhysics {
             */
             ship.FLUIDS.set(updLoc,st.occupiedBlock);
             st = st.teleport(world,updLoc.toVector(),false);
-            NmsUtils.setBlockFast(updLoc,TURNED);
             
             TEMPS[indx] = st;
             //ship.BLOCK_STATES.add(st);
@@ -1069,9 +1114,6 @@ public class ShipPhysics {
                     if (st == null) continue;
                     final Location stloc = st.getLocation(world);
                     Location updLoc = Rotate2D.ROTATE_VEC(LEFT_RIGHT, stloc.subtract(CENTER_POINT)).add(CENTER_POINT);
-                    //BlockData postOccupiedBlock = st.occupiedBlock;
-                    st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(world, updLoc.toVector());
-                    //if (!getMedium(postOccupiedBlock).equals(st.occupiedBlock))
                     BlockData TURNED = st.getBlockData().clone();
                     TURNED = NmsUtils.rotateBlockData(LEFT_RIGHT,TURNED);
                     st.setBlockData(TURNED,true);
@@ -1084,7 +1126,6 @@ public class ShipPhysics {
                     }
                     */
                     st = st.teleport(world,updLoc.toVector(),false);
-                    NmsUtils.setBlockFast(updLoc,TURNED);
                     ship.FLUIDS.set(updLoc,st.occupiedBlock);
                     
                     TEMPS[indx] = st;
@@ -1323,7 +1364,6 @@ public class ShipPhysics {
             Location updLoc = stloc;
             updLoc.setWorld(world);
             updLoc = updLoc.add(offsetf);
-            updLoc = updLoc.toBlockLocation();
             boolean isAccessible = updLoc.isChunkLoaded() && updLoc.isGenerated();
             if (!isAccessible) {
                 NmsUtils.getChunkFastest(updLoc);
@@ -1399,13 +1439,9 @@ public class ShipPhysics {
             Location updLoc = stloc;
             updLoc.setWorld(world);
             updLoc = updLoc.add(offsetf);
-            updLoc = updLoc.toBlockLocation();
-            //BlockData pastOccupiedBlock = st.occupiedBlock;
-            st.occupiedBlock = NmsUtils.toBukkitBlockDataFast(world,updLoc.toVector());
             ship.FLUIDS.set(updLoc,st.occupiedBlock);
             
             st = st.teleport(world,updLoc.toVector(),false);
-            NmsUtils.setBlockFast(updLoc,st.state);
             
             TEMPS[indx] = st;
         }
@@ -1535,14 +1571,14 @@ public class ShipPhysics {
         }
     }
 
-    public Set<Location> getInteriorLocs() {
+    public Set<Vector> getInteriorLocs() {
         World world = ship.getWorld();
-        if (world == null) return new HashSet<Location>();
+        if (world == null) return new HashSet<Vector>();
         Long2LocationSet outsideBlocks = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
         Long2LocationSet outerHull = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
         Long2LocationSet innerShip = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
         scanLongHull(outsideBlocks, outerHull, innerShip, 0, 0, 0);
-        return innerShip.toSet(world);
+        return innerShip.toVectors();
     }
 
 
@@ -1578,12 +1614,15 @@ public class ShipPhysics {
     }
 
     public boolean isUnderwater(boolean truly) {
+        return isUnderwater(getExteriorLocations(0, 0, 0),truly);
+    }
+
+    public boolean isUnderwater(Collection<Location> outsideBlocks, boolean truly) {
         World world = ship.getWorld();
         if (world == null) return false;
         //if (m.id.equalsIgnoreCase("void")) return fluidY;
         boolean foundOne = false;
         BoundingBox bbox = ship.getBoundingBox();
-        Collection<Location> outsideBlocks = getExteriorLocations(0, 0, 0);
         for (Location b : outsideBlocks) {
             BlockData data = NmsUtils.toBukkitBlockDataFast(b);
             if (data.getMaterial().isAir()) continue;
@@ -1592,9 +1631,29 @@ public class ShipPhysics {
             }
             foundOne = true;
             Medium m = getMedium(data);
-            if ((m != null && !m.id.equalsIgnoreCase("void")) || ((data instanceof Waterlogged waterlogged) && (waterlogged).isWaterlogged())) return true;
+            if ((m != null && !m.id.equalsIgnoreCase("void"))) return true;
         }
-        if (truly && !foundOne) return isUnderwater(false);
+        if (truly && !foundOne) return isUnderwater(outsideBlocks,false);
+        return false;
+    }
+
+    public boolean isUnderwaterVec(Collection<Vector> outsideBlocks, boolean truly) {
+        World world = ship.getWorld();
+        if (world == null) return false;
+        //if (m.id.equalsIgnoreCase("void")) return fluidY;
+        boolean foundOne = false;
+        BoundingBox bbox = ship.getBoundingBox();
+        for (Vector b : outsideBlocks) {
+            BlockData data = NmsUtils.toBukkitBlockDataFast(world,b);
+            if (data.getMaterial().isAir()) continue;
+            if (truly) {
+                if (!bbox.contains(b)) continue;
+            }
+            foundOne = true;
+            Medium m = getMedium(data);
+            if ((m != null && !m.id.equalsIgnoreCase("void"))) return true;
+        }
+        if (truly && !foundOne) return isUnderwaterVec(outsideBlocks,false);
         return false;
     }
 
@@ -1650,8 +1709,34 @@ public class ShipPhysics {
             return EXT;
         } else {
             if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("GOT EXTERIOR POS COUNT: "+EXTPOS.size());
-            List<Location> EXT = EXTPOS.stream().parallel().map(TrackedLocation::toRealLocation).collect(Collectors.toList());
+            Set<Location> EXT = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(EXTPOS.size(),0.75f,MobileBlockState.HASH_STRAT);
+            EXTPOS.forEach(tp -> {
+                if (tp != null) EXT.add(tp.toRealLocation());
+            });
             return EXT;
+        }
+    }
+
+    public Collection<Vector> getExteriorVectors(Integer houtset, Integer voutset, Integer scanDown) {
+        World world = ship.getWorld();
+        if (world == null) return new HashSet<Vector>();
+        final Collection<TrackedLocation> EXTPOS = ship.getTrackedLocation(ShipInstance.EXTERIOR_KEY);
+        if (EXTPOS.isEmpty()) {
+            Long2LocationSet outsideBlocks = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
+            Long2LocationSet outerHull = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
+            Long2LocationSet innerShip = new Long2LocationSet(ship.BLOCK_STATES.size(),0.75f);
+            scanLongHull(outsideBlocks, outerHull, innerShip, houtset, voutset, scanDown);
+            Set<Vector> EXT = outerHull.toVectors();
+            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("ADDED TRACKED EXTERIOR POS COUNT: "+EXT.size());
+            ship.setTrackedVectors(ShipInstance.EXTERIOR_KEY, EXT);
+            return EXT;
+        } else {
+            if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("GOT EXTERIOR POS COUNT: "+EXTPOS.size());
+            Set<Vector> VEXT = new it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet<>(EXTPOS.size(),0.75f,MobileBlockState.HASH_STRAT);
+            EXTPOS.forEach(tp -> {
+                if (tp != null) VEXT.add(tp.toVector());
+            });
+            return VEXT;
         }
     }
 
@@ -1967,14 +2052,23 @@ public class ShipPhysics {
         }
         return !((anw || bnw) && (ane || bne) && (asw || bsw) && (ase || bse));
     }
+
     public static int isFluidConnected(Block b, BlockFace face) {
-        Medium m = getMedium(NmsUtils.toBukkitBlockDataFast(b.getWorld(),b.getRelative(face).getLocation().toVector()));
-        if (m == null) return 0;
-        else if (m.id.equalsIgnoreCase("void")) return 0;
-        else return 2;
+        Material relType = b.getRelative(face).getType();
+        if (relType.isAir()) return 0;
+        else if (relType == Material.WATER) return 2;
+        else if (relType == Material.POWDER_SNOW) return 1;
+        else if (relType == Material.LAVA) return 2;
+        else if (relType == Material.MAGMA_BLOCK) return 1;
+        else {
+            Medium m = getMedium(NmsUtils.toBukkitBlockDataFast(b.getRelative(face).getLocation()));
+            if (m == null) return 0;
+            else if (m.id.equalsIgnoreCase("void")) return 0;
+            else return 2;
+        }
     }
 
-    public float detectFluidLine() {
+    public float detectFluidLine(Collection<Vector> EXT) {
         if (ship.parentShip != null) return (float)this.CURRENT_FLUID_LEVEL;
         else if (ship.CHANGE_WORLD) return ship.getWorld().getMinHeight()+1f;
         int MIN_BY = ship.minY();
@@ -1986,17 +2080,16 @@ public class ShipPhysics {
         ship.model.maxY = MAX_BY;
         float floatOffset = ship.model.waterFloatOffset;
         float heightY = MAX_BY - MIN_BY;
-        Collection<Location> EXT = getExteriorLocations(0,0,(int)Math.abs(floatOffset));
-        Medium FLUID_BELOW = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(MIN_BY + floatOffset)));
+        Medium FLUID_BELOW = getMedium(this.getVectorPrimaryMediumAtBelowY(EXT, (int)(MIN_BY + floatOffset)));
         float FLUID_LINE = this.CURRENT_FLUID_LEVEL;
         if (FLUID_BELOW.id.equalsIgnoreCase("void")) {
             FLUID_LINE = (float)this.getFluidLevel(FLUID_BELOW);
             if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("1a) Fluid Check: "+FLUID_BELOW.id+"; Line: "+FLUID_LINE);
-            Medium FLUID_ABOVE = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(MIN_BY - (int)(floatOffset + 5))));
+            Medium FLUID_ABOVE = getMedium(this.getVectorPrimaryMediumAtBelowY(EXT, (int)(MIN_BY - (int)(floatOffset + 5))));
             if (!FLUID_ABOVE.id.equalsIgnoreCase("void")) FLUID_LINE = (float)this.getFluidLevel(FLUID_ABOVE);
             if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("1b) Fluid Check: "+FLUID_ABOVE.id+"; Line: "+FLUID_LINE);
         } else {
-            Medium FLUID_ABOVE = getMedium(ShipPhysics.getLocationPrimaryMediumAtBelowY(EXT, (int)(MIN_BY + (int)(floatOffset + 5))));
+            Medium FLUID_ABOVE = getMedium(this.getVectorPrimaryMediumAtBelowY(EXT, (int)(MIN_BY + (int)(floatOffset + 5))));
             if (!FLUID_ABOVE.id.equalsIgnoreCase("void")) FLUID_LINE = (float)this.getFluidLevel(FLUID_ABOVE);
             if (SmoothSailingPlugin.DEBUG || SmoothSailingPlugin.DEBUG_DUMP) System.out.println("2a) Fluid Check Above: "+FLUID_ABOVE.id+"; Line: "+FLUID_LINE);
         }
@@ -2031,7 +2124,8 @@ public class ShipPhysics {
         float heightY = MAX_BY - MIN_BY;
         int FLUID_LINE = (int)this.CURRENT_FLUID_LEVEL;
         float floatOffset = ship.model.waterFloatOffset;
-        if (this.isUnderwater()) FLUID_LINE = (int)detectFluidLine();
+        Collection<Vector> EXT = this.getExteriorVectors(1, 0, 1);
+        if (this.isUnderwaterVec(EXT,true)) FLUID_LINE = (int)detectFluidLine(EXT);
         double waterSurfaceY = (double)FLUID_LINE;
         // Target Y position: water surface + float offset
         double currentY = (double)MIN_BY;

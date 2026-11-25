@@ -180,7 +180,7 @@ public class ShipListener implements Listener {
         Entity vehicle = player.getVehicle();
         if (vehicle != null) {
             org.bukkit.Input input = event.getInput();
-            ShipInstance ship = MobileBlockState.getShipFromLoc(vehicle.getLocation().toBlockLocation());
+            ShipInstance ship = MobileBlockState.getShipFromLoc(vehicle.getLocation());
             if (ship != null && ship.equals(findShipByPlayer(player))) {
                 if (input.isSneak()) {
                     vehicle.removePassenger(player);
@@ -209,7 +209,7 @@ public class ShipListener implements Listener {
             ship = ShipListener.getShipFromEntity(seat);
             // Only return ship if player is in driver seat (index 0)
             if (ship != null && player.equals(ship.driver)) return ship;
-            final MobileBlockState state = MobileBlockState.getStateFromLoc(seat.getLocation().toBlockLocation());
+            final MobileBlockState state = MobileBlockState.getStateFromLoc(seat.getLocation());
             if (state != null) ship = state.getShip();
             if (ship != null && player.equals(ship.driver)) return ship;
         } else {
@@ -291,7 +291,7 @@ public class ShipListener implements Listener {
     public void onEntityMount(org.bukkit.event.entity.EntityMountEvent e) {
         Entity clicked = e.getMount();
         Entity player = e.getEntity();
-        final MobileBlockState state = MobileBlockState.getStateFromLoc(clicked.getLocation().toBlockLocation());
+        final MobileBlockState state = MobileBlockState.getStateFromLoc(clicked.getLocation());
         if (state == null) return;
         final ShipInstance ship = state.getShip();
         if (ship == null) return;
@@ -303,7 +303,7 @@ public class ShipListener implements Listener {
     public void onEntityDismount(org.bukkit.event.entity.EntityDismountEvent e) {
         Entity clicked = e.getDismounted();
         Entity player = e.getEntity();
-        final MobileBlockState state = MobileBlockState.getStateFromLoc(clicked.getLocation().toBlockLocation());
+        final MobileBlockState state = MobileBlockState.getStateFromLoc(clicked.getLocation());
         if (ShipListener.isChair(clicked)) {
             Runnable RUN_ME = new BukkitRunnable() {
                 @Override

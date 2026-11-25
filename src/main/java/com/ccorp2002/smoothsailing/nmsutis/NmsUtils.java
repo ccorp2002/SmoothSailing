@@ -598,6 +598,12 @@ public final class NmsUtils {
     }
 
     @Nullable
+    public static org.bukkit.Material toBukkitBlockFast(@NotNull World world, @NotNull Vector position) {
+        return toBukkitBlockDataFast(world,position).getMaterial();
+    }
+
+
+    @Nullable
     public static org.bukkit.block.data.BlockData toBukkitBlockDataFast(@NotNull Location location) {
         if (location.getWorld() == null) return null;
         return toBukkitBlockDataFast(location.getWorld(),location.toVector());
@@ -796,7 +802,7 @@ public final class NmsUtils {
     }
     @Nullable
     public static BlockEntity removeBlockEntity(@NotNull Level world, @NotNull BlockPos position, boolean deleteBlock) {
-        BlockEntity testEntity = ((LevelChunk) world.getChunkAt(position)).getBlockEntity(position); //world.getChunkAt(position);
+        BlockEntity testEntity = ((LevelChunk) world.getChunkAt(position)).getBlockEntity(position, LevelChunk.EntityCreationType.CHECK); //world.getChunkAt(position);
         if (testEntity instanceof PistonMovingBlockEntity) //attempt to prevent piston bug
         {
             BlockState oldState;
@@ -814,7 +820,7 @@ public final class NmsUtils {
             testEntity = world.getBlockEntity(position);
         }
         try {
-            ((LevelChunk) world.getChunkAt(position)).removeBlockEntity(position); //world.getChunkAt(position);
+            world.removeBlockEntity(position); //world.getChunkAt(position);
             if (deleteBlock) setBlockFastest(world,position,AIR);
             return testEntity;
         } catch (Throwable exc) {
@@ -831,7 +837,7 @@ public final class NmsUtils {
     }
     @Nullable
     public static BlockEntity getBlockEntity(@NotNull Level world, @NotNull BlockPos position){
-        BlockEntity testEntity = ((LevelChunk) world.getChunkAt(position)).getBlockEntity(position, LevelChunk.EntityCreationType.IMMEDIATE); //world.getChunkAt(position);
+        BlockEntity testEntity = ((LevelChunk) world.getChunkAt(position)).getBlockEntity(position, LevelChunk.EntityCreationType.CHECK); //world.getChunkAt(position);
         if (testEntity instanceof PistonMovingBlockEntity) //attempt to prevent piston bug
         {
             BlockState oldState;
@@ -940,9 +946,9 @@ public final class NmsUtils {
                 } catch (Throwable thr) {if (SmoothSailingPlugin.DEBUG) thr.printStackTrace();}
                 if (SmoothSailingPlugin.DEBUG) e.printStackTrace();
             }
-            if (nativeWorld.captureBlockStates) {
-                oldLevel.capturedBlockEntities.remove(oldPos);
-            }
+            //if (nativeWorld.captureBlockStates) {
+                //oldLevel.capturedBlockEntities.remove(oldPos);
+            //}
             tile.setLevel(nativeWorld);
             try {
                 nativeWorld.setBlockEntity(tile);
@@ -983,43 +989,43 @@ public final class NmsUtils {
         return blockData;
     }
 
-    public static void setBlockFast(@NotNull World w, @NotNull Vector location, @NotNull BlockState blockData) {
+    public static BlockState setBlockFast(@NotNull World w, @NotNull Vector location, @NotNull BlockState blockData) {
         Level world = ((CraftWorld) (w)).getHandle();
         BlockPos blockPos = locationToPosition(location);
-        setBlockFaster(world, blockPos, blockData, false);
+        return setBlockFaster(world, blockPos, blockData, false);
     }
 
-    public static void setBlockFast(@NotNull World w, @NotNull Vector location, @NotNull BlockData data) {
+    public static BlockState setBlockFast(@NotNull World w, @NotNull Vector location, @NotNull BlockData data) {
         BlockState blockData;
         if (data instanceof CraftBlockData) {
             blockData = ((CraftBlockData) data).getState();
         } else {
             blockData = (BlockState) data;
         }
-        setBlockFast(w,location,blockData);
+        return setBlockFast(w,location,blockData);
     }
 
-    public static void setBlockFast(@NotNull Location location, @NotNull BlockState blockData) {
+    public static BlockState setBlockFast(@NotNull Location location, @NotNull BlockState blockData) {
         Level world = ((CraftWorld) (location.getWorld())).getHandle();
         BlockPos blockPos = locationToPosition(location);
-        setBlockFaster(world, blockPos, blockData, false);
+        return setBlockFaster(world, blockPos, blockData, false);
     }
 
-    public static void setBlockFast(@NotNull Location location, @NotNull BlockData data) {
+    public static BlockState setBlockFast(@NotNull Location location, @NotNull BlockData data) {
         BlockState blockData;
         if (data instanceof CraftBlockData) {
             blockData = ((CraftBlockData) data).getState();
         } else {
             blockData = (BlockState) data;
         }
-        setBlockFast(location, blockData);
+        return setBlockFast(location, blockData);
     }
 
-    public static void setBlockFaster(@NotNull Level world, @NotNull BlockPos position, @NotNull BlockState data) {
-        setBlockFaster(world,position,data, false);
+    public static BlockState setBlockFaster(@NotNull Level world, @NotNull BlockPos position, @NotNull BlockState data) {
+        return setBlockFaster(world,position,data, false);
     }
 
-  public static void setBlockFaster(@NotNull Level world, @NotNull BlockPos position, @NotNull BlockState data, boolean sendChanges) {
+  public static BlockState setBlockFaster(@NotNull Level world, @NotNull BlockPos position, @NotNull BlockState data, boolean sendChanges) {
       LevelChunk chunk = (LevelChunk) world.getChunkIfLoaded(position);
       if (chunk == null) chunk = (LevelChunk) world.getChunkAt(position);
       int chunkSection = (position.getY() >> 4) - WorldUtil.getMinSection(world);
@@ -1028,13 +1034,13 @@ public final class NmsUtils {
           chunk.setBlockState(position, Blocks.GLASS.defaultBlockState(), 0);
           section = chunk.getSections()[chunkSection];
       }
-      if (getBlockFastest(world,position) != data) setBlockPaletteState(world,section,position,data);
-      chunk.persistentDataContainer.dirty(true);
-      chunk.setLightCorrect(true);
+      BlockState returnState = data;
+      if (getBlockFastest(world,position) != data) returnState = setBlockPaletteState(world,section,position,data);
       if (sendChanges) {
         renderBlockChanges(world,position);
       }
       chunk.markUnsaved();
+      return returnState;
     }
 
     public static void renderBlockChanges(World w, @NotNull Vector pos) {
@@ -1058,67 +1064,15 @@ public final class NmsUtils {
 
     }
 
-    public static void setChunkBlockState(Level world, LevelChunk chunk, BlockPos pos, BlockState state) {
-        if (chunk == null) {
-            world.setBlock(pos,state,1,0);
-            if (!NmsUtils.HAS_CRAFT_ENGINE) return;
-            final net.momirealms.craftengine.core.world.CEWorld ceWorld = net.momirealms.craftengine.bukkit.world.BukkitWorldManager.instance().getWorld(world.getWorld());
-            final net.momirealms.craftengine.core.world.BlockPos cebpos = net.momirealms.craftengine.core.world.BlockPos.of(pos.getX(), pos.getY(), pos.getZ());
-            net.momirealms.craftengine.core.world.chunk.CEChunk ceChunk = getCEChunkOrNull(ceWorld,pos);
-            var imm = net.momirealms.craftengine.bukkit.util.BlockStateUtils.getOptionalCustomBlockState(state).orElse(null);
-            if (ceChunk != null) {
-                ceChunk.setBlockState(cebpos,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE);
+    public static BlockState setBlockPaletteState(Level world, LevelChunkSection chunkSection, BlockPos pos, BlockState state) {
+        if (chunkSection == null) {
+            if (NmsUtils.HAS_CRAFT_ENGINE) {
+                var imm = net.momirealms.craftengine.bukkit.util.BlockStateUtils.getOptionalCustomBlockState(state).orElse(null);
                 if (imm != null) {
-                    ceChunk.setBlockState(cebpos,imm);
-                    if (imm.hasBlockEntity()) {
-                        var ceBe = ceChunk.getBlockEntity(cebpos, false);
-                        if (ceBe != null) {
-                            ceBe.setBlockState(imm);
-                        }
-                    }
-                } else {
-                    ceChunk.removeConstantBlockEntityRenderer(cebpos);
-                    ceChunk.removeDynamicBlockEntityRenderer(cebpos);
-                }
-            }
-        } else {
-            try {
-                BlockState oldState = AIR;
-                if (NmsUtils.HAS_CRAFT_ENGINE) {
-                    //var oldImm = net.momirealms.craftengine.bukkit.util.BlockStateUtils.getOptionalCustomBlockState(oldState).orElse(null);
                     final net.momirealms.craftengine.core.world.CEWorld ceWorld = net.momirealms.craftengine.bukkit.world.BukkitWorldManager.instance().getWorld(world.getWorld());
                     final net.momirealms.craftengine.core.world.BlockPos cebpos = net.momirealms.craftengine.core.world.BlockPos.of(pos.getX(), pos.getY(), pos.getZ());
                     net.momirealms.craftengine.core.world.chunk.CEChunk ceChunk = getCEChunkOrNull(ceWorld,pos);
-                    var imm = net.momirealms.craftengine.bukkit.util.BlockStateUtils.getOptionalCustomBlockState(state).orElse(null);
                     if (ceChunk != null) {
-                        ceChunk.setBlockState(cebpos,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE);
-                        if (imm != null) {
-                            ceChunk.setBlockState(cebpos,imm);
-                        } else {
-                            ceChunk.removeConstantBlockEntityRenderer(cebpos);
-                            ceChunk.removeDynamicBlockEntityRenderer(cebpos);
-                        }
-                    }
-                }
-                oldState = chunk.setBlockState(pos, state, NOTIFY);
-            } catch (Throwable thr1) {
-                chunk.setBlockState(pos, state, NOTIFY);
-            }
-        }
-    }
-
-    public static void setBlockPaletteState(Level world, LevelChunkSection chunkSection, BlockPos pos, BlockState state) {
-        if (chunkSection == null) {
-            //Location loc = org.bukkit.craftbukkit.util.CraftLocation.toBukkit(pos,world);
-            //net.momirealms.craftengine.bukkit.api.CraftEngineBlocks.place(loc,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE,UPDATE_OPTS,false);
-            if (NmsUtils.HAS_CRAFT_ENGINE) {
-                //var oldImm = net.momirealms.craftengine.bukkit.util.BlockStateUtils.getOptionalCustomBlockState(oldState).orElse(null);
-                final net.momirealms.craftengine.core.world.CEWorld ceWorld = net.momirealms.craftengine.bukkit.world.BukkitWorldManager.instance().getWorld(world.getWorld());
-                final net.momirealms.craftengine.core.world.BlockPos cebpos = net.momirealms.craftengine.core.world.BlockPos.of(pos.getX(), pos.getY(), pos.getZ());
-                net.momirealms.craftengine.core.world.chunk.CEChunk ceChunk = getCEChunkOrNull(ceWorld,pos);
-                var imm = net.momirealms.craftengine.bukkit.util.BlockStateUtils.getOptionalCustomBlockState(state).orElse(null);
-                if (ceChunk != null) {
-                    if (imm != null) {
                         var ceBe = ceChunk.blockEntities.remove(cebpos.asLong());
                         if (ceBe != null) {
                             ceBe.setBlockState(imm);
@@ -1131,23 +1085,25 @@ public final class NmsUtils {
                         ceChunk.removeConstantBlockEntityRenderer(cebpos);
                         ceChunk.removeDynamicBlockEntityRenderer(cebpos);
                     }
-                    ceChunk.setBlockState(cebpos,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE);
+                    try {
+                        ceChunk.setBlockState(cebpos,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE,true);
+                    } catch (Exception _) {
+                        ceChunk.setBlockState(cebpos,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE);
+                    }
                 }
             }
             world.setBlock(pos,state,1,0);
+            return state;
         } else {
             try {
-                //Location loc = org.bukkit.craftbukkit.util.CraftLocation.toBukkit(pos,world);
-                //net.momirealms.craftengine.bukkit.api.CraftEngineBlocks.place(loc,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE,UPDATE_OPTS,false);
-                BlockState oldState = AIR;
                 if (NmsUtils.HAS_CRAFT_ENGINE) {
-                    //var oldImm = net.momirealms.craftengine.bukkit.util.BlockStateUtils.getOptionalCustomBlockState(oldState).orElse(null);
-                    final net.momirealms.craftengine.core.world.CEWorld ceWorld = net.momirealms.craftengine.bukkit.world.BukkitWorldManager.instance().getWorld(world.getWorld());
-                    final net.momirealms.craftengine.core.world.BlockPos cebpos = net.momirealms.craftengine.core.world.BlockPos.of(pos.getX(), pos.getY(), pos.getZ());
-                    net.momirealms.craftengine.core.world.chunk.CEChunk ceChunk = getCEChunkOrNull(ceWorld,pos);
+                    
                     var imm = net.momirealms.craftengine.bukkit.util.BlockStateUtils.getOptionalCustomBlockState(state).orElse(null);
-                    if (ceChunk != null) {
-                        if (imm != null) {
+                    if (imm != null) {
+                        final net.momirealms.craftengine.core.world.CEWorld ceWorld = net.momirealms.craftengine.bukkit.world.BukkitWorldManager.instance().getWorld(world.getWorld());
+                        final net.momirealms.craftengine.core.world.BlockPos cebpos = net.momirealms.craftengine.core.world.BlockPos.of(pos.getX(), pos.getY(), pos.getZ());
+                        net.momirealms.craftengine.core.world.chunk.CEChunk ceChunk = getCEChunkOrNull(ceWorld,pos);
+                        if (ceChunk != null) {
                             var ceBe = ceChunk.blockEntities.remove(cebpos.asLong());
                             if (ceBe != null) {
                                 ceBe.setBlockState(imm);
@@ -1160,12 +1116,16 @@ public final class NmsUtils {
                             ceChunk.removeConstantBlockEntityRenderer(cebpos);
                             ceChunk.removeDynamicBlockEntityRenderer(cebpos);
                         }
-                        ceChunk.setBlockState(cebpos,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE);
+                        try {
+                            ceChunk.setBlockState(cebpos,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE,true);
+                        } catch (Exception _) {
+                            ceChunk.setBlockState(cebpos,net.momirealms.craftengine.core.block.EmptyBlockDefinition.STATE);
+                        }
                     }
                 }
-                oldState = chunkSection.setBlockState(pos.getX() & 15, pos.getY() & 15, pos.getZ() & 15, state, false);
+                return chunkSection.setBlockState(pos.getX() & 15, pos.getY() & 15, pos.getZ() & 15, state, false);
             } catch (Throwable thr1) {
-                chunkSection.setBlockState(pos.getX() & 15, pos.getY() & 15, pos.getZ() & 15, state, false);
+                return chunkSection.setBlockState(pos.getX() & 15, pos.getY() & 15, pos.getZ() & 15, state, false);
             }
         }
     }
@@ -1332,18 +1292,18 @@ public final class NmsUtils {
     public Location toLocation() {
       if (this.worldName == null) return null;
       if (this.worldRef == null || this.worldRef.get() == null) return null;
-      return this.toLocation(worldRef.get()).toBlockLocation();
+      return this.toLocation(worldRef.get());
     }
     @Override
     public Location toLocation(World world) {
       if (world == null) return null;
-      return super.toLocation(world).toBlockLocation();
+      return super.toLocation(world);
     }
     @Override
     public boolean equals(Object oth) {
       if (oth == null) return false;
       if (oth instanceof Location loc) {
-        return this.toLocation().toBlockLocation().equals(loc.toBlockLocation());
+        return this.toLocation().equals(loc);
       } else if (oth instanceof BlockVector bv) {
         return ((int)this.getBlockX() == (int)bv.getBlockX() && (int)this.getBlockZ() == (int)bv.getBlockZ() && (int)this.getBlockY() == (int)bv.getBlockY());
       } else if (oth instanceof Vector bv) {
@@ -1473,13 +1433,23 @@ public final class NmsUtils {
             if (passenger.getBukkitEntity() instanceof org.bukkit.entity.LivingEntity le) le.setInvulnerable(false);
             teleportSilentCurrentThread(next,passenger);
         }
-        Method method2 = Entity.class.getDeclaredMethod("sendTeleportTransitionToRidingPlayers", TeleportTransition.class);
-        method2.setAccessible(true);
-        nmsEntity.teleportSetPosition(net.minecraft.world.entity.PositionMoveRotation.of(teleportTransition), teleportTransition.relatives());
-        if (!teleportTransition.asPassenger()) {
-            method2.invoke(nmsEntity, teleportTransition);
+        try {
+            Method method2 = Entity.class.getDeclaredMethod("sendTeleportTransitionToPlayers", ServerLevel.class, TeleportTransition.class);
+            method2.setAccessible(true);
+            nmsEntity.teleportSetPosition(net.minecraft.world.entity.PositionMoveRotation.of(teleportTransition), teleportTransition.relatives());
+            if (!teleportTransition.asPassenger()) {
+                method2.invoke(nmsEntity, (ServerLevel)nmsEntity.level(), teleportTransition);
+            }
+            teleportTransition.postTeleportTransition().onTransition(nmsEntity);
+        } catch (Throwable thr) {
+            Method method2 = Entity.class.getDeclaredMethod("sendTeleportTransitionToRidingPlayers", TeleportTransition.class);
+            method2.setAccessible(true);
+            nmsEntity.teleportSetPosition(net.minecraft.world.entity.PositionMoveRotation.of(teleportTransition), teleportTransition.relatives());
+            if (!teleportTransition.asPassenger()) {
+                method2.invoke(nmsEntity, teleportTransition);
+            }
+            teleportTransition.postTeleportTransition().onTransition(nmsEntity);
         }
-        teleportTransition.postTeleportTransition().onTransition(nmsEntity);
   }
 
   public static void teleportSilentCurrentThread(Location loc, Entity nmsEntity) {

@@ -757,7 +757,7 @@ public class ShipInstance {
         }
         if (ship.physics != null) ship.physics.moving = true;
         ship.setProcessing(true);
-        MobileBlockState movingState = new MobileBlockState(block.getLocation().toBlockLocation(),false);
+        MobileBlockState movingState = new MobileBlockState(block.getLocation(),false);
         movingState.shipRef = new java.lang.ref.WeakReference<>(ship);
         double health = 2d;
         double blockHealth = 1d;
@@ -919,7 +919,7 @@ public class ShipInstance {
             for (posX = minX- 2; posX <= maxX+ 2; posX++) {
                 final Vector loc = new Vector(posX, posY, posZ);
                 if (MobileBlockState.doesShipHave(this,loc)) continue;
-                BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                BlockData data = NmsUtils.toBukkitBlockDataFast(w, loc);
                 m = ShipPhysics.getMedium(data);
                 if (m != null && !m.id.equalsIgnoreCase("void"))
                     numOther++;
@@ -929,7 +929,7 @@ public class ShipInstance {
             for (posX = minX- 2; posX <= maxX+ 2; posX++) {
                 final Vector loc = new Vector(posX, posY, posZ);
                 if (MobileBlockState.doesShipHave(this,loc)) continue;
-                BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                BlockData data = NmsUtils.toBukkitBlockDataFast(w, loc);
                 m = ShipPhysics.getMedium(data);
                 if (m != null && !m.id.equalsIgnoreCase("void"))
                     numOther++;
@@ -939,7 +939,7 @@ public class ShipInstance {
             for (posZ = minZ- 2; posZ <= maxZ+ 2; posZ++) {
                 final Vector loc = new Vector(posX, posY, posZ);
                 if (MobileBlockState.doesShipHave(this,loc)) continue;
-                BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                BlockData data = NmsUtils.toBukkitBlockDataFast(w, loc);
                 m = ShipPhysics.getMedium(data);
                 if (m != null && !m.id.equalsIgnoreCase("void"))
                     numOther++;
@@ -949,7 +949,7 @@ public class ShipInstance {
             for (posZ = minZ- 2; posZ <= maxZ+ 2; posZ++) {
                 final Vector loc = new Vector(posX, posY, posZ);
                 if (MobileBlockState.doesShipHave(this,loc)) continue;
-                BlockData data = NmsUtils.toSafeBukkitBlockData(w, loc);
+                BlockData data = NmsUtils.toBukkitBlockDataFast(w, loc);
                 m = ShipPhysics.getMedium(data);
                 if (m != null && !m.id.equalsIgnoreCase("void"))
                     numOther++;
@@ -976,7 +976,7 @@ public class ShipInstance {
                 ShipInstance.this.BLOCK_STATES.set(st);
             });
             ShipInstance.this.physics.CURRENT_FLUID_LEVEL = waterLine;
-            this.physics.getExteriorLocations(0,0,(int)Math.abs(this.model.waterFloatOffset));
+            this.physics.getExteriorVectors(0,0,(int)Math.abs(this.model.waterFloatOffset));
             this.physics.currentYVelocity = 0f;
             this.physics.currentSpeed = 0.5f;
         }
@@ -1034,7 +1034,7 @@ public class ShipInstance {
             for (int indx = 0; indx < TEMPS.length; indx ++) {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
-                final Location stloc = st.getLocation();
+                final Location stloc = st.getLocation(originWorld);
                 st.setBlockData(NmsUtils.toBukkitBlockDataFast(originWorld,st),true);
                 st.TICK_TO_MOVE = NmsUtils.GET_TICK_FROM(originWorld,st);
                 st.tile = NmsUtils.removeAndCreateTileHolder(originWorld,st);
@@ -1046,12 +1046,10 @@ public class ShipInstance {
             for (int indx = 0; indx < TEMPS.length; indx ++) {
                 MobileBlockState st = TEMPS[indx];
                 if (st == null) continue;
-                final Location stloc = st.getLocation();
+                final Location stloc = st.getLocation(destWorld);
                 Location updLoc = stloc.clone();
                 updLoc.setWorld(destWorld);
                 updLoc = updLoc.add(offsetf);
-                BlockData occupiedBlock = NmsUtils.toBukkitBlockDataFast(destWorld,updLoc.toVector());
-                st.occupiedBlock = occupiedBlock;
                 st = st.teleport(destWorld,updLoc.toVector(),false);
                 
                 getFluidBlocks().set(updLoc,st.occupiedBlock);
@@ -1137,7 +1135,7 @@ public class ShipInstance {
     public void sendSolids(final Collection<MobileBlockState> SEND_STATES) {
         if (CHANGE_WORLD) return;
         if (this.vehicle == null) return;
-        if (BLOCK_STATES.size() >= 10_000) NmsUtils.refreshChunksIn(vehicle.getWorld(),SEND_STATES);
+        if (SEND_STATES.size() >= 12_500) NmsUtils.refreshChunksIn(vehicle.getWorld(),SEND_STATES);
         else {
             NmsUtils.sendBlockChanges(vehicle.getWorld(),SEND_STATES.stream().collect(Collectors.toMap(
                 MobileBlockState::getLocation,
@@ -1157,12 +1155,15 @@ public class ShipInstance {
     public void sendVoids(final Collection<MobileBlockState> SEND_STATES) {
         if (CHANGE_WORLD) return;
         if (this.vehicle == null) return;
-        NmsUtils.sendBlockChanges(vehicle.getWorld(),SEND_STATES.stream().collect(Collectors.toMap(
+        if (SEND_STATES.size() >= 62_500) NmsUtils.refreshChunksIn(vehicle.getWorld(),SEND_STATES);
+        else {
+            NmsUtils.sendBlockChanges(vehicle.getWorld(),SEND_STATES.stream().collect(Collectors.toMap(
             MobileBlockState::getLocation,
             MobileBlockState::getOccupied,
             (existing, replacement) -> replacement,
             () -> new it.unimi.dsi.fastutil.objects.Object2ObjectOpenCustomHashMap<>(SEND_STATES.size(),0.75f,MobileBlockState.HASH_STRAT)
         )));
+        }
     }
 
     public void sendVoids() {
@@ -1627,6 +1628,7 @@ public class ShipInstance {
         }
         for (Collection<TrackedLocation> STATES : TRACKED_STATE_MAP.values()) {
             for (TrackedLocation STATE : STATES) {
+                STATE.TRACKED.clear();
                 STATE.clearTracked();
             }
         }
@@ -1642,8 +1644,8 @@ public class ShipInstance {
         NmsUtils.removeChunksToLoad(world,Arrays.asList(world.getLoadedChunks()));
 
         SmoothSailingPlugin.getInstance().getLogger().info("Cleared " + removedCount + " SmoothSailing-loaded chunks");
-        DATA_TAGS.clear();
         BLOCK_STATES.clear();
+        DATA_TAGS.clear();
         ENTITY_COMPOSITION.clear();
         this.forwards = null;
         this.facing = null;
@@ -1741,6 +1743,18 @@ public class ShipInstance {
             TRACKED.add(tlock);
         }
         setTrackedLocation(key, TRACKED);
+    }
+
+    public void setTrackedVectors(String key, final Collection<Vector> data) {
+        if (key == null) return;
+        if (data == null || data.isEmpty()) return;
+        key = key.toLowerCase(Locale.ENGLISH);
+        List<TrackedLocation> ADAPTED = new ArrayList<>(data.size()+25);
+        data.forEach(pos -> {
+            TrackedLocation tlock = new TrackedLocation(this,pos);
+            ADAPTED.add(tlock);
+        });
+        setTrackedLocation(key, ADAPTED);
     }
 
     public void setTrackedStates(String key, final Collection<MobileBlockState> data) {

@@ -191,7 +191,7 @@ public class SignFunctions implements Listener {
         if (action == Action.LEFT_CLICK_BLOCK || player.isSneaking()) LEFT_RIGHT = "LEFT";
         else if (action == Action.RIGHT_CLICK_BLOCK) LEFT_RIGHT = "RIGHT";
         else return;
-        Location CENTER = block.getLocation().toBlockLocation();
+        Location CENTER = block.getLocation();
         if (ship.physics.moving || !ship.isNotProcessing()) return;
         Set<Block> FOUND_BLOCKS = com.ccorp2002.smoothsailing.detection.ShipDetector.detectBlocks(player,CENTER);
         FOUND_BLOCKS.add(block);
@@ -214,7 +214,7 @@ public class SignFunctions implements Listener {
 
     public static void RUN_EXTEND_AT(final Action action, ShipInstance ship, Player player, Sign signState) {
         if (ship.physics.moving || !ship.isNotProcessing()) return;
-        Location CENTER = signState.getLocation().toBlockLocation();
+        Location CENTER = signState.getLocation();
         Vector AXIS = GET_SUBAXIS(signState,signState.getLine(1),0);
         if (action == Action.LEFT_CLICK_BLOCK) AXIS = AXIS.multiply(new Vector(-1,-1,-1));
         else if (action == Action.RIGHT_CLICK_BLOCK) AXIS = AXIS.multiply(new Vector(1,1,1));
@@ -239,7 +239,7 @@ public class SignFunctions implements Listener {
 
     public static void RUN_DETACH_AT(final Action action, ShipInstance ship, Player player, Sign signState) {
         if (ship.physics.moving || !ship.isNotProcessing()) return;
-        Location CENTER = signState.getLocation().toBlockLocation();
+        Location CENTER = signState.getLocation();
         Vector AXIS = GET_SUBAXIS(signState,signState.getLine(1),15);
         if (action == Action.LEFT_CLICK_BLOCK) AXIS = AXIS.multiply(new Vector(-3,-3,-3));
         else if (action == Action.RIGHT_CLICK_BLOCK) AXIS = AXIS.multiply(new Vector(3,3,3));

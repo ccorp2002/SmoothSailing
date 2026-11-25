@@ -11,18 +11,20 @@ public class VectorMath {
 	
 	public static int getIntegerRatioResult(int total, int fraction) {
 		if (fraction == 0 || total == 0) return 1;
-		int gcd = intGCD(Math.abs(total), Math.abs(fraction));
+		int gcd = getIntegerGCD(total,fraction);
 		if (gcd == 0) return 1;
 		return Math.abs(Math.abs(total / gcd) / Math.abs(fraction / gcd));
 	}
 	
 	public static int getIntegerGCD(int total, int fraction) {
+		if (fraction == 0 || total == 0) return 1;
 		int gcd = intGCD(Math.abs(total), Math.abs(fraction));
 		return gcd;
 	}
 
 
 	private static int intGCD(int a, int b) {
+		if (a == 0 || b == 0) return 1;
 		return b == 0 ? a : intGCD(b, a % b);
 	}
 

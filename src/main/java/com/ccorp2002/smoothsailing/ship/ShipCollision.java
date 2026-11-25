@@ -52,7 +52,7 @@ public class ShipCollision {
         int zCollision = 0;
         boolean canEnterAt = true;
         if (!ship.isLandcraft || !checkForLand) {
-            int MIN_BY = ship.minY();
+            int MIN_BY = (int)ship.model.minY;
             if (MIN_BY <= ship.getWorld().getMinHeight()) {
                 newOffset.setX(0);
                 newOffset.setY(0);
@@ -64,7 +64,7 @@ public class ShipCollision {
             int obx = offset.getBlockX();
             int obz = offset.getBlockZ();
 
-            int MIN_BY = ship.minY();
+            int MIN_BY = (int)ship.model.minY;
             if (MIN_BY <= ship.getWorld().getMinHeight()) {
                 newOffset.setX(0);
                 newOffset.setY(0);
@@ -75,7 +75,7 @@ public class ShipCollision {
                 .filter(p -> p.by() <= MIN_BY+2 && p.getBlockData().getMaterial() == Material.GRINDSTONE)
                 .collect(Collectors.toList());
             for (MobileBlockState bs : FILTERED_LIST) {
-                Location newLoc = bs.getLocation().clone().add(offset.toVector()).toBlockLocation();
+                Location newLoc = bs.getLocation().clone().add(offset.toVector());
                 if (!newLoc.isChunkLoaded()) {
                     canEnterAt = false;
                     newOffset.setX(0);
@@ -106,7 +106,7 @@ public class ShipCollision {
                         Block checked = bs.getLocation().getBlock().getRelative(0,offset.getBlockY(),0);
                         boolean foundGround = false;
                         for (int checkDist = 0; checkDist <= (Math.abs(offset.getBlockY())); checkDist++) {
-                            if (!MobileBlockState.doesShipHave(ship,checked.getLocation().toBlockLocation()) && checked.isSolid() && !foundGround) {
+                            if (!MobileBlockState.doesShipHave(ship,checked.getLocation()) && checked.isSolid() && !foundGround) {
                                 foundGround = true;
                             } else if (!foundGround) checked = checked.getRelative(0,offset.getBlockY(),0);
                         }
@@ -116,7 +116,7 @@ public class ShipCollision {
                         Block checked = bs.getLocation().getBlock().getRelative(offset.getBlockX(),0,0);
                         boolean foundGround = false;
                         for (int checkDist = 0; checkDist <= (Math.abs(offset.getBlockX())); checkDist++) {
-                            if (!MobileBlockState.doesShipHave(ship,checked.getLocation().toBlockLocation()) && checked.isSolid() && !foundGround) {
+                            if (!MobileBlockState.doesShipHave(ship,checked.getLocation()) && checked.isSolid() && !foundGround) {
                                 foundGround = true;
                             } else if (!foundGround) checked = checked.getRelative(offset.getBlockX(),0,0);
                         }
@@ -129,7 +129,7 @@ public class ShipCollision {
                         Block checked = bs.getLocation().getBlock().getRelative(0,0,offset.getBlockZ());
                         boolean foundGround = false;
                         for (int checkDist = 0; checkDist <= (Math.abs(offset.getBlockZ())); checkDist++) {
-                            if (!MobileBlockState.doesShipHave(ship,checked.getLocation().toBlockLocation()) && checked.isSolid() && !foundGround) {
+                            if (!MobileBlockState.doesShipHave(ship,checked.getLocation()) && checked.isSolid() && !foundGround) {
                                 foundGround = true;
                             } else if (!foundGround) checked = checked.getRelative(0,0,offset.getBlockZ());
                         }

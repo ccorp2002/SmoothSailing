@@ -239,22 +239,22 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
         return 0;
     }
     public double x() {
-      return getX();
+      return this.x;
     }
     public double y() {
-      return getY();
+      return this.y;
     }
     public double z() {
-      return getZ();
+      return this.z;
     }
     public int bx() {
-      return getBlockX();
+      return (int)x();
     }
     public int by() {
-      return getBlockY();
+      return (int)y();
     }
     public int bz() {
-      return getBlockZ();
+      return (int)z();
     }
     public WeakReference<ShipInstance> shipRef = null;
 
@@ -400,7 +400,8 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
     public MobileBlockState(Vector vector, BlockState state, BlockEntity tile) {
         super(vector.getX(),vector.getY(),vector.getZ());
         this.state = state;
-        this.tile = NmsUtils.createTileHolder(tile);
+        if (tile != null) this.tile = NmsUtils.createTileHolder(tile);
+        else this.tile = null;
     }
 
     public MobileBlockState teleport(Location loc, BlockData data) {
@@ -429,8 +430,6 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
                 return this;
             }
         }
-        //final Location origin = toLocation();
-        //final ServerLevel oldLevel = NmsUtils.getLevel(NmsUtils.getLevel(origin));
         final ServerLevel newLevel = NmsUtils.getLevel(NmsUtils.getLevel(world));
         BlockPos position = NmsUtils.locationToPosition(this);
         BlockPos newPosition = NmsUtils.locationToPosition(loc);
@@ -449,10 +448,11 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
             });
         }
         */
-        NmsUtils.setBlockFast(floc,this.state);
         if (this.isDead()) {
             if (NmsUtils.HAS_CRAFT_ENGINE) CEUtils.INSTANCE.removeCEBlock(floc,false,true);
-            NmsUtils.setBlockFast(world,loc,ShipPhysics.VOID);
+            this.occupiedBlock = NmsUtils.getBlockData(NmsUtils.setBlockFast(world,loc,ShipPhysics.VOID));
+        } else {
+            this.occupiedBlock = NmsUtils.getBlockData(NmsUtils.setBlockFast(world,loc,this.state));
         }
         this.x = (floc.getX());
         this.y = (floc.getY());
@@ -468,14 +468,6 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
             NmsUtils.MOVE_TICK_TO(this.TICK_TO_MOVE,floc);
             this.TICK_TO_MOVE = null;
         }
-        /*
-        if (NmsUtils.HAS_CRAFT_ENGINE && inv != null && this.tile instanceof CEUtils.CraftEngineTileHolder) {
-            org.bukkit.inventory.Inventory other = CEUtils.INSTANCE.getCEBlockInv(floc);
-            try {
-                if (inv != null && other != null) other.setContents(inv.getContents());
-            } catch (Throwable thr) {}
-        }
-        */
         if (ship != null && reAdd) {
             ship.BLOCK_STATES.set(this);
             if (SmoothSailingPlugin.DEBUG_DUMP) System.out.println("RE-ADDING: ("+super.toString()+") TO SHIP? "+ship);
@@ -541,7 +533,7 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
         return new org.bukkit.util.Vector((int) (l << 38 >> 38),(int) (l >> 52),(int) (l << 12 >> 38));
     }
     public static Location unpackLocation(long l, World world){
-        return new org.bukkit.util.Vector((int) (l << 38 >> 38),(int) (l >> 52),(int) (l << 12 >> 38)).toLocation(world);
+        return MobileBlockState.unpack(l).toLocation(world);
     }
     
 
@@ -616,7 +608,7 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
 
     @Override
     public Location toLocation(World world) {
-        if (world != null) return new Location(world,this.getX(),this.getY(),this.getZ()); 
+        if (world != null) return new Location(world,this.x,this.y,this.z); 
         else if (getShip() == null) return null;
         else return this.toLocation(getShip().getWorld());
     }
@@ -655,28 +647,27 @@ public class MobileBlockState extends BlockVector implements Comparable<MobileBl
     public void updateBlockState() {
         ShipInstance ship = this.getShip();
         if (ship == null) return;
-        Location pos = this.getLocation();
-        if (this.isDead() && pos != null) {
-            NmsUtils.setBlockFast(pos,ShipPhysics.VOID);
-            NmsUtils.renderBlockChanges(pos);
+        World world = ship.getWorld();
+        Vector pos = this;
+        if (this.isDead() && world != null) {
+            NmsUtils.setBlockFast(world,pos,ShipPhysics.VOID);
+            NmsUtils.renderBlockChanges(world,pos);
             return;
         }
-        if (ship != null && !ship.CHANGE_WORLD && pos != null) {
-            this.state = NmsUtils.getBlockFaster(pos);
-            this.tile = NmsUtils.createTileHolder(pos);
+        if (ship != null && !ship.CHANGE_WORLD && world != null) {
+            this.state = NmsUtils.getBlockFaster(NmsUtils.getLevel(world),NmsUtils.locationToPosition(this));
+            this.tile = NmsUtils.createTileHolder(world,pos);
             ShipInstance.updateBlockStateOnShip(ship,this);
         }
     }
 
     public BlockData getAndUpdateBlockData() {
         if (this.state == null) return ShipPhysics.VOID;
-        if (getShip() != null && !getShip().CHANGE_WORLD) {
-            NmsUtils.runTaskInWorld(this.getLocation(),()->{
-                getBlock().getState(false).update(false,false);
-            });
-        }
-        BlockState otherState = NmsUtils.getBlockFaster(this.getLocation());
-        if (otherState.equals(this.state)) return NmsUtils.BlockDataGetter.get(state);
+        ShipInstance ship = this.getShip();
+        if (ship == null) return NmsUtils.BlockDataGetter.get(this.state);
+        World world = ship.getWorld();
+        BlockState otherState = NmsUtils.getBlockFaster(NmsUtils.getLevel(world),NmsUtils.locationToPosition(this));
+        if (otherState.equals(this.state)) return NmsUtils.BlockDataGetter.get(this.state);
         else return NmsUtils.BlockDataGetter.get(otherState);
     }
 

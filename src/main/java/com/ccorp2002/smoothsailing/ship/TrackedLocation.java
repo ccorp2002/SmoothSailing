@@ -18,7 +18,7 @@ import java.util.*;
 
 public class TrackedLocation {
 
-    protected final it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<String,Object> TRACKED = new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>(64,0.75f);
+    public final it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<String,Object> TRACKED = new it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap<>(64,0.75f);
     
     public Map<String,Object> getTracked() {
         return this.TRACKED;
@@ -135,6 +135,12 @@ public class TrackedLocation {
     public Location getOrigin() {
         return getOrigin(null);
     }
+
+    public Vector toVector() {
+        if (this.vector == null || this.offset == null) return null;
+        return this.vector.clone().add(this.offset);
+    }
+
 
     public Location toRealLocation() {
         if (this.vector == null || this.offset == null) return null;

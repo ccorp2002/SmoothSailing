@@ -2,6 +2,7 @@ package com.ccorp2002.smoothsailing.utils.objects;
 
 import org.bukkit.World;
 import org.bukkit.Location;
+import org.bukkit.util.Vector;
 import org.bukkit.block.Block;
 import com.ccorp2002.smoothsailing.*;
 import com.ccorp2002.smoothsailing.ship.*;
@@ -101,6 +102,14 @@ public class Long2LocationSet extends AbstractLongSet {
         ObjectOpenCustomHashSet<Location> returnSet = new ObjectOpenCustomHashSet<>(this.size()+50,0.75f,MobileBlockState.HASH_STRAT);
         for (long key : this.internalMap) {
             returnSet.add(MobileBlockState.unpackLocation(key, world));
+        }
+        return returnSet;
+    }
+    
+    public Set<Vector> toVectors() {
+        ObjectOpenCustomHashSet<Vector> returnSet = new ObjectOpenCustomHashSet<>(this.size()+50,0.75f,MobileBlockState.HASH_STRAT);
+        for (long key : this.internalMap) {
+            returnSet.add(MobileBlockState.unpack(key));
         }
         return returnSet;
     }
