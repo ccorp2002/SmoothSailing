@@ -71,7 +71,7 @@ public class SmoothSailingPlugin extends JavaPlugin {
         INSTANCE = this;
         TaskUtils.initialize(INSTANCE,true);
         this.shipWheelManager = new ShipWheelManager(INSTANCE);
-        if ((Bukkit.getMinecraftVersion().contains("26.") || Bukkit.getMinecraftVersion().contains("1.21.")) && !Bukkit.getMinecraftVersion().contains("26.3")) {
+        if ((Bukkit.getMinecraftVersion().contains("26.") || Bukkit.getMinecraftVersion().contains("1.21."))) {
             NMS_TELEPORT = true;
         } else {
             NMS_TELEPORT = false;
